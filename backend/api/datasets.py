@@ -347,9 +347,17 @@ async def browse_local_path(location: str, path: str = "/"):
     
     # Normalizace cesty (odstranění dvojitých lomítek, atd.)
     full_path = os.path.normpath(full_path)
+    mount_path_abs = os.path.abspath(os.path.normpath(mount_path))
+    full_path_abs = os.path.abspath(full_path)
     
     # Bezpečnostní kontrola - musí být pod mount_path
-    if not full_path.startswith(os.path.abspath(mount_path)):
+    # Použijeme commonpath pro spolehlivější kontrolu
+    try:
+        common_path = os.path.commonpath([mount_path_abs, full_path_abs])
+        if common_path != mount_path_abs:
+            raise HTTPException(status_code=403, detail="Path outside mount point")
+    except ValueError:
+        # Pokud commonpath selže (různé disky), cesta je mimo mount point
         raise HTTPException(status_code=403, detail="Path outside mount point")
     
     # Kontrola existence
@@ -437,12 +445,20 @@ async def browse_dataset_path(dataset_id: int, path: str = "/"):
                 # Relativní cesta - přidáme k mount_path
                 full_path = os.path.join(mount_path, path.lstrip("/"))
             
-            # Normalizace cesty (odstranění dvojitých lomítek, atd.)
-            full_path = os.path.normpath(full_path)
-            
-            # Bezpečnostní kontrola - musí být pod mount_path
-            if not full_path.startswith(os.path.abspath(mount_path)):
-                raise HTTPException(status_code=403, detail="Path outside mount point")
+                # Normalizace cesty (odstranění dvojitých lomítek, atd.)
+                full_path = os.path.normpath(full_path)
+                mount_path_abs = os.path.abspath(os.path.normpath(mount_path))
+                full_path_abs = os.path.abspath(full_path)
+                
+                # Bezpečnostní kontrola - musí být pod mount_path
+                # Použijeme commonpath pro spolehlivější kontrolu
+                try:
+                    common_path = os.path.commonpath([mount_path_abs, full_path_abs])
+                    if common_path != mount_path_abs:
+                        raise HTTPException(status_code=403, detail="Path outside mount point")
+                except ValueError:
+                    # Pokud commonpath selže (různé disky), cesta je mimo mount point
+                    raise HTTPException(status_code=403, detail="Path outside mount point")
             
             # Kontrola existence
             if not os.path.exists(full_path):
