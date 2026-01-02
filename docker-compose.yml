@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nas-sync-orchestrator
+    ports:
+      - "8080:8000"
+    volumes:
+      # NAS1: Použijte SSH adapter místo lokálního mountu (Docker Desktop na macOS nemá přístup k SMB mountům)
+      # - /Volumes/NAS-FILMY:/mnt/nas1:ro  # Neaktivní - použijte SSH adapter v datasetu
+      - usb:/mnt/usb:rw
+      - nas2:/mnt/nas2:rw
+    environment:
+      - LOG_LEVEL=INFO
+      - DATABASE_PATH=/mnt/usb/sync_orchestrator.db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+volumes:
+  usb:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /tmp/test-usb  # Test mount point
+  nas2:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /tmp/test-nas2  # Test mount point
+
