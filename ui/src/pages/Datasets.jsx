@@ -154,21 +154,78 @@ function Datasets() {
   }
   
   const browseSSH = async (datasetId, path = '/') => {
-    setBrowsingDataset({ datasetId, path, items: null, loading: true })
+    setBrowsingDataset({ datasetId, path, items: null, loading: true, type: 'ssh' })
     setBrowsePath(path)
     
     try {
       const response = await axios.get(`/api/datasets/${datasetId}/browse`, {
         params: { path }
       })
-      setBrowsingDataset({ datasetId, path: response.data.path, items: response.data.items, loading: false })
+      setBrowsingDataset({ datasetId, path: response.data.path, items: response.data.items, loading: false, type: 'ssh' })
     } catch (error) {
-      setBrowsingDataset({ datasetId, path, items: null, loading: false, error: error.response?.data?.detail || error.message })
+      setBrowsingDataset({ datasetId, path, items: null, loading: false, error: error.response?.data?.detail || error.message, type: 'ssh' })
     }
   }
   
-  const selectPath = (path) => {
-    setFormData({ ...formData, roots: [path] })
+  const browseLocal = async (datasetId, path = '/', location = null) => {
+    // Pro nový dataset (datasetId === -1) použijeme location z formData
+    const actualLocation = location || (editingDataset ? editingDataset.location : formData.location)
+    setBrowsingDataset({ datasetId, path, items: null, loading: true, type: 'local', location: actualLocation })
+    setBrowsePath(path)
+    
+    try {
+      let response
+      // Pro nový dataset použijeme endpoint bez datasetu
+      if (datasetId === -1) {
+        if (!actualLocation) {
+          alert('Nejdříve vyberte Lokaci pro dataset')
+          setBrowsingDataset(null)
+          return
+        }
+        response = await axios.get(`/api/datasets/browse-local`, {
+          params: { location: actualLocation, path }
+        })
+      } else {
+        response = await axios.get(`/api/datasets/${datasetId}/browse`, {
+          params: { path }
+        })
+      }
+      
+      setBrowsingDataset({ 
+        datasetId, 
+        path: response.data.path, 
+        relative_path: response.data.relative_path,
+        mount_path: response.data.mount_path,
+        items: response.data.items, 
+        loading: false, 
+        type: 'local',
+        location: actualLocation
+      })
+    } catch (error) {
+      setBrowsingDataset({ datasetId, path, items: null, loading: false, error: error.response?.data?.detail || error.message, type: 'local', location: actualLocation })
+    }
+  }
+  
+  const selectPath = (path, isLocal = false) => {
+    if (isLocal) {
+      // Pro lokální cesty potřebujeme relativní cestu k mount pointu
+      // path je absolutní cesta, potřebujeme relativní část
+      const mountPath = browsingDataset?.mount_path
+      if (mountPath && path.startsWith(mountPath)) {
+        let relativePath = path.substring(mountPath.length)
+        // Odstranit úvodní lomítko
+        if (relativePath.startsWith('/')) {
+          relativePath = relativePath.substring(1)
+        }
+        // Pokud je prázdné, použijeme '/'
+        setFormData({ ...formData, roots: [relativePath || '/'] })
+      } else {
+        // Pokud nemáme mount_path, použijeme celou cestu
+        setFormData({ ...formData, roots: [path] })
+      }
+    } else {
+      setFormData({ ...formData, roots: [path] })
+    }
     setBrowsingDataset(null)
   }
   
@@ -288,14 +345,40 @@ function Datasets() {
             
             <div className="form-group">
               <label className="label">Root složka</label>
-              <input
-                type="text"
-                className="input"
-                value={formData.roots[0] || ''}
-                onChange={(e) => updateRoot(0, e.target.value)}
-                placeholder="např. /data/photos nebo data/photos"
-                required
-              />
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  className="input"
+                  value={formData.roots[0] || ''}
+                  onChange={(e) => updateRoot(0, e.target.value)}
+                  placeholder="např. /data/photos nebo data/photos"
+                  required
+                  style={{ flex: 1 }}
+                />
+                {formData.scan_adapter_type === 'local' && (
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => {
+                      // Pro nový dataset potřebujeme nejdřív uložit lokaci
+                      if (!formData.location) {
+                        alert('Nejdříve vyberte Lokaci pro dataset')
+                        return
+                      }
+                      // Pro existující dataset můžeme procházet přímo
+                      if (editingDataset) {
+                        browseLocal(editingDataset.id, '/')
+                      } else {
+                        // Pro nový dataset můžeme použít dočasný dataset ID -1 a použít lokaci
+                        browseLocal(-1, '/', formData.location)
+                      }
+                    }}
+                    style={{ background: '#17a2b8', whiteSpace: 'nowrap' }}
+                  >
+                    📁 Procházet
+                  </button>
+                )}
+              </div>
               <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem' }}>
                 <strong>Důležité:</strong> Každý dataset má pouze jednu root složku. Pokud chcete skenovat více složek na stejném serveru, vytvořte více datasetů (každý s jednou root složkou). To umožní spouštět scany a diffy pro každou složku samostatně.
               </small>
@@ -601,7 +684,7 @@ function Datasets() {
         )}
       </div>
       
-      {/* Browse SSH Dialog */}
+      {/* Browse Dialog (SSH nebo Local) */}
       {browsingDataset && (
         <div style={{
           position: 'fixed',
@@ -617,7 +700,7 @@ function Datasets() {
         }}>
           <div className="box" style={{ maxWidth: '800px', maxHeight: '80vh', overflow: 'auto', width: '90%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h2>Procházení SSH hosta</h2>
+              <h2>{browsingDataset.type === 'local' ? 'Procházení lokálního adresáře' : 'Procházení SSH hosta'}</h2>
               <button
                 className="button"
                 onClick={() => setBrowsingDataset(null)}
@@ -628,21 +711,34 @@ function Datasets() {
             </div>
             
             <div style={{ marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <button
                   className="button"
-                  onClick={() => browseSSH(browsingDataset.datasetId, '/')}
-                  disabled={browsingDataset.path === '/'}
+                  onClick={() => {
+                    if (browsingDataset.type === 'local') {
+                      browseLocal(browsingDataset.datasetId, '/', browsingDataset.location)
+                    } else {
+                      browseSSH(browsingDataset.datasetId, '/')
+                    }
+                  }}
+                  disabled={browsingDataset.relative_path === '/' || (browsingDataset.path === '/' && !browsingDataset.mount_path)}
                   style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
                 >
                   🏠 Root
                 </button>
-                {browsingDataset.path !== '/' && (
+                {(browsingDataset.path !== '/' && browsingDataset.path !== browsingDataset?.mount_path) && (
                   <button
                     className="button"
                     onClick={() => {
-                      const parentPath = browsingDataset.path.split('/').slice(0, -1).join('/') || '/'
-                      browseSSH(browsingDataset.datasetId, parentPath)
+                      if (browsingDataset.type === 'local') {
+                        // Pro lokální cesty potřebujeme získat parent adresář
+                        const pathParts = browsingDataset.path.split('/')
+                        const parentPath = pathParts.slice(0, -1).join('/') || '/'
+                        browseLocal(browsingDataset.datasetId, parentPath, browsingDataset.location)
+                      } else {
+                        const parentPath = browsingDataset.path.split('/').slice(0, -1).join('/') || '/'
+                        browseSSH(browsingDataset.datasetId, parentPath)
+                      }
                     }}
                     style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
                   >
@@ -650,8 +746,13 @@ function Datasets() {
                   </button>
                 )}
                 <span style={{ color: '#666', fontSize: '0.875rem' }}>
-                  Cesta: <code>{browsingDataset.path}</code>
+                  Cesta: <code>{browsingDataset.relative_path || browsingDataset.path}</code>
                 </span>
+                {browsingDataset.mount_path && (
+                  <span style={{ color: '#999', fontSize: '0.75rem' }}>
+                    (Mount: <code>{browsingDataset.mount_path}</code>)
+                  </span>
+                )}
               </div>
             </div>
             
@@ -693,7 +794,13 @@ function Datasets() {
                           {item.is_directory === true ? (
                             <button
                               className="button"
-                              onClick={() => browseSSH(browsingDataset.datasetId, item.path)}
+                              onClick={() => {
+                                if (browsingDataset.type === 'local') {
+                                  browseLocal(browsingDataset.datasetId, item.path, browsingDataset.location)
+                                } else {
+                                  browseSSH(browsingDataset.datasetId, item.path)
+                                }
+                              }}
                               style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem' }}
                             >
                               Otevřít
@@ -703,7 +810,7 @@ function Datasets() {
                           )}
                           <button
                             className="button"
-                            onClick={() => selectPath(item.path)}
+                            onClick={() => selectPath(item.path, browsingDataset.type === 'local')}
                             style={{ 
                               marginLeft: '0.5rem', 
                               fontSize: '0.75rem', 

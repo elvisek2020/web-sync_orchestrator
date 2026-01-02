@@ -323,9 +323,90 @@ async def test_dataset_connection(dataset_id: int):
     finally:
         session.close()
 
+@router.get("/browse-local")
+async def browse_local_path(location: str, path: str = "/"):
+    """Procházet lokální filesystém podle location (bez datasetu - pro nové datasety)"""
+    import os
+    mount_paths = {
+        "NAS1": "/mnt/nas1",
+        "USB": "/mnt/usb",
+        "NAS2": "/mnt/nas2"
+    }
+    mount_path = mount_paths.get(location)
+    
+    if not mount_path:
+        raise HTTPException(status_code=400, detail=f"Unknown location: {location}")
+    
+    # Normalizace cesty - pokud path začíná /, použijeme ho přímo, jinak relativně k mount_path
+    if path.startswith("/"):
+        # Absolutní cesta - použijeme ji přímo
+        full_path = path
+    else:
+        # Relativní cesta - přidáme k mount_path
+        full_path = os.path.join(mount_path, path.lstrip("/"))
+    
+    # Normalizace cesty (odstranění dvojitých lomítek, atd.)
+    full_path = os.path.normpath(full_path)
+    
+    # Bezpečnostní kontrola - musí být pod mount_path
+    if not full_path.startswith(os.path.abspath(mount_path)):
+        raise HTTPException(status_code=403, detail="Path outside mount point")
+    
+    # Kontrola existence
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail=f"Path does not exist: {full_path}")
+    
+    if not os.path.isdir(full_path):
+        raise HTTPException(status_code=400, detail=f"Path is not a directory: {full_path}")
+    
+    # Listovat obsah adresáře
+    items = []
+    try:
+        for item_name in os.listdir(full_path):
+            item_path = os.path.join(full_path, item_name)
+            try:
+                is_item_dir = os.path.isdir(item_path)
+                stat_info = os.stat(item_path)
+                items.append({
+                    "name": item_name,
+                    "path": item_path,  # Vracíme absolutní cestu
+                    "is_directory": is_item_dir,
+                    "size": stat_info.st_size if not is_item_dir else None,
+                    "modified": stat_info.st_mtime
+                })
+            except (OSError, PermissionError) as e:
+                # Pokud nelze získat stat, přidat alespoň název
+                items.append({
+                    "name": item_name,
+                    "path": item_path,
+                    "is_directory": None,
+                    "size": None,
+                    "modified": None,
+                    "error": str(e)
+                })
+    except (OSError, PermissionError) as e:
+        raise HTTPException(status_code=500, detail=f"Cannot list directory: {str(e)}")
+    
+    # Seřadit - adresáře první, pak soubory
+    items.sort(key=lambda x: (x["is_directory"] is False, x["name"].lower()))
+    
+    # Relativní cesta pro zobrazení (relativně k mount_path)
+    relative_path = os.path.relpath(full_path, mount_path)
+    if relative_path == ".":
+        relative_path = "/"
+    else:
+        relative_path = "/" + relative_path.replace("\\", "/")
+    
+    return {
+        "path": full_path,  # Absolutní cesta
+        "relative_path": relative_path,  # Relativní cesta pro zobrazení
+        "items": items,
+        "mount_path": mount_path
+    }
+
 @router.get("/{dataset_id}/browse")
 async def browse_dataset_path(dataset_id: int, path: str = "/"):
-    """Procházet adresáře na SSH hostovi (pouze pro SSH adaptéry)"""
+    """Procházet adresáře na SSH hostovi (pouze pro SSH adaptéry) nebo lokální filesystém (pouze pro local adaptéry)"""
     session = storage_service.get_session()
     if not session:
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -335,8 +416,89 @@ async def browse_dataset_path(dataset_id: int, path: str = "/"):
         if not dataset:
             raise HTTPException(status_code=404, detail="Dataset not found")
         
-        if dataset.scan_adapter_type != "ssh":
-            raise HTTPException(status_code=400, detail="Browse is only available for SSH adapters")
+        # Lokální browse
+        if dataset.scan_adapter_type == "local":
+            import os
+            mount_paths = {
+                "NAS1": "/mnt/nas1",
+                "USB": "/mnt/usb",
+                "NAS2": "/mnt/nas2"
+            }
+            mount_path = mount_paths.get(dataset.location)
+            
+            if not mount_path:
+                raise HTTPException(status_code=400, detail=f"Unknown location: {dataset.location}")
+            
+            # Normalizace cesty - pokud path začíná /, použijeme ho přímo, jinak relativně k mount_path
+            if path.startswith("/"):
+                # Absolutní cesta - použijeme ji přímo
+                full_path = path
+            else:
+                # Relativní cesta - přidáme k mount_path
+                full_path = os.path.join(mount_path, path.lstrip("/"))
+            
+            # Normalizace cesty (odstranění dvojitých lomítek, atd.)
+            full_path = os.path.normpath(full_path)
+            
+            # Bezpečnostní kontrola - musí být pod mount_path
+            if not full_path.startswith(os.path.abspath(mount_path)):
+                raise HTTPException(status_code=403, detail="Path outside mount point")
+            
+            # Kontrola existence
+            if not os.path.exists(full_path):
+                raise HTTPException(status_code=404, detail=f"Path does not exist: {full_path}")
+            
+            if not os.path.isdir(full_path):
+                raise HTTPException(status_code=400, detail=f"Path is not a directory: {full_path}")
+            
+            # Listovat obsah adresáře
+            items = []
+            try:
+                for item_name in os.listdir(full_path):
+                    item_path = os.path.join(full_path, item_name)
+                    try:
+                        is_item_dir = os.path.isdir(item_path)
+                        stat_info = os.stat(item_path)
+                        items.append({
+                            "name": item_name,
+                            "path": item_path,  # Vracíme absolutní cestu
+                            "is_directory": is_item_dir,
+                            "size": stat_info.st_size if not is_item_dir else None,
+                            "modified": stat_info.st_mtime
+                        })
+                    except (OSError, PermissionError) as e:
+                        # Pokud nelze získat stat, přidat alespoň název
+                        items.append({
+                            "name": item_name,
+                            "path": item_path,
+                            "is_directory": None,
+                            "size": None,
+                            "modified": None,
+                            "error": str(e)
+                        })
+            except (OSError, PermissionError) as e:
+                raise HTTPException(status_code=500, detail=f"Cannot list directory: {str(e)}")
+            
+            # Seřadit - adresáře první, pak soubory
+            items.sort(key=lambda x: (x["is_directory"] is False, x["name"].lower()))
+            
+            # Relativní cesta pro zobrazení (relativně k mount_path)
+            relative_path = os.path.relpath(full_path, mount_path)
+            if relative_path == ".":
+                relative_path = "/"
+            else:
+                relative_path = "/" + relative_path.replace("\\", "/")
+            
+            return {
+                "path": full_path,  # Absolutní cesta
+                "relative_path": relative_path,  # Relativní cesta pro zobrazení
+                "items": items,
+                "mount_path": mount_path
+            }
+        
+        # SSH browse
+        elif dataset.scan_adapter_type != "ssh":
+            raise HTTPException(status_code=400, detail="Browse is only available for SSH or local adapters")
         
         config = dataset.scan_adapter_config or {}
         host = config.get("host", "")

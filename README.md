@@ -32,6 +32,7 @@ Sync Orchestrator je specializovaná aplikace navržená pro bezpečnou synchron
 - ✅ **Rozdělené záložky**: Porovnání a Plán přenosu jako samostatné záložky
 - ✅ **Automatické migrace**: Databáze se automaticky migruje při startu
 - ✅ **Background jobs**: Asynchronní zpracování dlouhotrvajících operací
+- ✅ **Procházení adresářů**: Interaktivní procházení lokálních i SSH adresářů pro výběr root složky
 
 ## 📖 Použití
 
@@ -54,6 +55,8 @@ Aplikace je rozdělena na **tři hlavní fáze**, které odpovídají skutečné
 
 **Workflow:**
 1. Vytvořte dataset pro NAS1 (na záložce "Datasety")
+   - Pro lokální adapter použijte tlačítko "Procházet" pro interaktivní výběr root složky
+   - Pro SSH adapter použijte tlačítko "Procházet SSH hosta" pro procházení vzdáleného serveru
 2. Vytvořte dataset pro NAS2
 3. Spusťte scan NAS1 datasetu - vytvoří se inventura souborů na NAS1
 4. Spusťte scan NAS2 datasetu - vytvoří se inventura souborů na NAS2
@@ -358,6 +361,8 @@ Aplikace poskytuje REST API na `/api/*`:
 - `GET /api/mounts/status` - Status mountů
 - `GET /api/datasets/` - Seznam datasetů
 - `POST /api/datasets/` - Vytvoření datasetu
+- `GET /api/datasets/{dataset_id}/browse` - Procházení adresářů (SSH nebo lokální)
+- `GET /api/datasets/browse-local` - Procházení lokálních adresářů (bez datasetu, pro nové datasety)
 - `GET /api/scans/` - Seznam scanů
 - `POST /api/scans/` - Spuštění scanu
 - `GET /api/diffs/` - Seznam diffů
@@ -451,6 +456,7 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 **Záložky aplikace:**
 1. **Dashboard** - Přehled stavu, mountů, nedávných jobů, test SSH připojení
 2. **Datasety** - Správa datasetů (vytváření, úprava, mazání)
+   - **Procházení adresářů**: Pro lokální i SSH adaptéry je k dispozici tlačítko "Procházet" pro interaktivní výběr root složky
 3. **Scan** - Spuštění scanu pro dataset s real-time progress
 4. **Porovnání** - Vytváření a správa diffů (dostupné pouze ve fázi 1)
 5. **Plán přenosu** - Vytváření a správa batchů, kopírování (dostupné ve všech fázích)
@@ -471,6 +477,7 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 - ✅ **Real-time UI**: WebSocket aktualizace
 - ✅ **SAFE MODE**: Ochrana databáze při odpojení USB
 - ✅ **Automatické migrace**: Databázové migrace při startu
+- ✅ **Procházení adresářů**: Interaktivní procházení lokálních i SSH adresářů pro výběr root složky
 
 ### 🐛 Známé problémy
 
