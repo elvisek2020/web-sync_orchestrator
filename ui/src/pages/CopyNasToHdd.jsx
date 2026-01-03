@@ -262,7 +262,7 @@ function CopyNasToHdd() {
                             <div style={{ marginBottom: '1rem' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
                                 <span><strong>Celkový průběh:</strong> {progress.currentFileNum || 0} / {progress.totalFiles || 0} souborů</span>
-                                <span>{progress.totalSize > 0 ? `${((progress.copiedSize || 0) / 1024 / 1024).toFixed(2)} MB / ${(progress.totalSize / 1024 / 1024).toFixed(2)} MB` : ''}</span>
+                                <span style={{ whiteSpace: 'nowrap' }}>{progress.totalSize > 0 ? `${((progress.copiedSize || 0) / 1024 / 1024 / 1024).toFixed(1)} GB / ${(progress.totalSize / 1024 / 1024 / 1024).toFixed(1)} GB` : ''}</span>
                               </div>
                               <div style={{ width: '100%', height: '24px', background: '#e0e0e0', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
                                 <div
@@ -293,7 +293,7 @@ function CopyNasToHdd() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
                                   <span><strong>Aktuální soubor:</strong> <code style={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>{progress.currentFile}</code></span>
                                   {progress.currentFileSize > 0 && (
-                                    <span>{(progress.currentFileSize / 1024 / 1024).toFixed(2)} MB</span>
+                                    <span style={{ whiteSpace: 'nowrap' }}>{((progress.currentFileSize || 0) / 1024 / 1024 / 1024).toFixed(1)} GB</span>
                                   )}
                                 </div>
                                 <div style={{ width: '100%', height: '20px', background: '#e0e0e0', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
@@ -340,8 +340,8 @@ function CopyNasToHdd() {
                                       <td style={{ padding: '0.5rem', fontFamily: 'monospace', fontSize: '0.8rem' }}>
                                         {item.full_rel_path}
                                       </td>
-                                      <td style={{ padding: '0.5rem', textAlign: 'right' }}>
-                                        {((item.size || 0) / 1024 / 1024).toFixed(2)} MB
+                                      <td style={{ padding: '0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                        {((item.size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB
                                       </td>
                                       <td style={{ padding: '0.5rem' }}>
                                         <span className={`status-badge ${item.category}`} style={{ fontSize: '0.75rem' }}>

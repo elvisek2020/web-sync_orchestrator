@@ -774,9 +774,9 @@ function Datasets() {
                            item.is_directory === false ? '📄 Soubor' : '❓'}
                         </td>
                         <td style={{ fontFamily: 'monospace' }}>{item.name}</td>
-                        <td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
                           {item.size !== null && item.size !== undefined 
-                            ? `${(item.size / 1024 / 1024).toFixed(2)} MB` 
+                            ? `${((item.size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB` 
                             : '-'}
                         </td>
                         <td>

@@ -270,9 +270,9 @@ function Scan() {
                         )}
                       </div>
                     </td>
-                    <td>{scan.created_at ? new Date(scan.created_at).toLocaleString('cs-CZ') : '-'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{scan.created_at ? new Date(scan.created_at).toLocaleString('cs-CZ') : '-'}</td>
                     <td>{scan.total_files || (running ? running.progress : 0)}</td>
-                    <td>{scan.total_size ? (scan.total_size / 1024 / 1024).toFixed(2) : '0.00'} MB</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{scan.total_size ? ((scan.total_size / 1024 / 1024 / 1024).toFixed(1) + ' GB') : '0.0 GB'}</td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
                         <button
@@ -348,8 +348,8 @@ function ScanDetail({ scanId }) {
           {files.map(file => (
             <tr key={file.id}>
               <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{file.full_rel_path}</td>
-              <td>{(file.size / 1024).toFixed(2)} KB</td>
-              <td>{new Date(file.mtime_epoch * 1000).toLocaleString('cs-CZ')}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{((file.size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{new Date(file.mtime_epoch * 1000).toLocaleString('cs-CZ')}</td>
             </tr>
           ))}
         </tbody>

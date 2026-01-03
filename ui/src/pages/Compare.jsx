@@ -346,7 +346,7 @@ function DiffDetail({ diffId }) {
                 </span>
               </td>
               <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{item.full_rel_path}</td>
-              <td>{item.source_size ? ((item.source_size / 1024).toFixed(2) + ' KB') : (item.target_size ? ((item.target_size / 1024).toFixed(2) + ' KB') : '-')}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{item.source_size ? (((item.source_size || 0) / 1024 / 1024 / 1024).toFixed(1) + ' GB') : (item.target_size ? (((item.target_size || 0) / 1024 / 1024 / 1024).toFixed(1) + ' GB') : '-')}</td>
             </tr>
           ))}
         </tbody>

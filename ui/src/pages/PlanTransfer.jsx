@@ -331,7 +331,7 @@ function PlanTransfer() {
                               try {
                                 const response = await axios.get(`/api/batches/${batch.id}/summary`)
                                 const data = response.data
-                                alert(`Batch #${batch.id}:\nSoubory: ${data.total_files || 0}\nVelikost: ${((data.total_size || 0) / 1024 / 1024).toFixed(2)} MB\nUSB dostupné: ${((data.usb_available || 0) / 1024 / 1024 / 1024).toFixed(2)} GB\nUSB limit: ${((data.usb_limit || 0) / 1024 / 1024 / 1024).toFixed(2)} GB`)
+                                alert(`Batch #${batch.id}:\nSoubory: ${data.total_files || 0}\nVelikost: ${((data.total_size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB\nUSB dostupné: ${((data.usb_available || 0) / 1024 / 1024 / 1024).toFixed(1)} GB\nUSB limit: ${((data.usb_limit || 0) / 1024 / 1024 / 1024).toFixed(1)} GB`)
                               } catch (error) {
                                 console.error('Failed to load batch summary:', error)
                                 alert('Chyba při načítání shrnutí batchu')
@@ -411,8 +411,8 @@ function PlanTransfer() {
                                       <td style={{ padding: '0.5rem', fontFamily: 'monospace', fontSize: '0.8rem' }}>
                                         {item.full_rel_path}
                                       </td>
-                                      <td style={{ padding: '0.5rem', textAlign: 'right' }}>
-                                        {((item.size || 0) / 1024 / 1024).toFixed(2)} MB
+                                      <td style={{ padding: '0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                        {((item.size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB
                                       </td>
                                       <td style={{ padding: '0.5rem' }}>
                                         <span className={`status-badge ${item.category}`} style={{ fontSize: '0.75rem' }}>
