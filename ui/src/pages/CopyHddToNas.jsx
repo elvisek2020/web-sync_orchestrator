@@ -231,7 +231,24 @@ function CopyHddToNas() {
   const loadFileStatuses = async (jobId) => {
     try {
       const response = await axios.get(`/api/copy/jobs/${jobId}/files`)
-      setFileStatuses(prev => ({ ...prev, [jobId]: response.data || [] }))
+      const files = response.data || []
+      setFileStatuses(prev => ({ ...prev, [jobId]: files }))
+      
+      // Aktualizovat progress z file statuses
+      const job = recentJobs.find(j => j.id === jobId) || Object.values(runningJobs).find(j => j.job_id === jobId)
+      if (job) {
+        const batchId = job.job_metadata?.batch_id || Object.keys(runningJobs).find(bId => runningJobs[bId]?.job_id === jobId)
+        if (batchId) {
+          const copiedCount = files.filter(f => f.status === 'copied').length
+          setCopyProgress(prev => ({
+            ...prev,
+            [batchId]: {
+              ...prev[batchId],
+              currentFileNum: copiedCount
+            }
+          }))
+        }
+      }
     } catch (error) {
       console.error('Failed to load file statuses:', error)
     }
@@ -311,10 +328,10 @@ function CopyHddToNas() {
                         <button
                           className="button"
                           onClick={() => handleCopy(batch.id)}
-                          disabled={!canCopy || batch.status !== 'ready' || running}
+                          disabled={!canCopy || batch.status !== 'ready_to_phase_3' || running}
                           title={
                             !canCopy ? 'USB nebo NAS2 není dostupné' :
-                            batch.status !== 'ready' ? `Plán není připraven (status: ${batch.status})` :
+                            batch.status !== 'ready_to_phase_3' ? `Plán není připraven (status: ${batch.status})` :
                             running ? 'Kopírování již probíhá' :
                             'Spustit kopírování USB → NAS'
                           }
@@ -426,6 +443,7 @@ function CopyHddToNas() {
             <thead>
               <tr>
                 <th>Typ</th>
+                <th>Porovnání</th>
                 <th>Status</th>
                 <th>Začátek</th>
                 <th>Konec</th>
@@ -433,17 +451,32 @@ function CopyHddToNas() {
               </tr>
             </thead>
             <tbody>
-              {recentJobs.map(job => (
-                <tr key={job.id}>
-                  <td>{job.type}</td>
-                  <td>
-                    <span className={`status-badge ${job.status}`}>
-                      {job.status}
-                    </span>
-                  </td>
-                  <td>{new Date(job.started_at).toLocaleString('cs-CZ')}</td>
-                  <td>{job.finished_at ? new Date(job.finished_at).toLocaleString('cs-CZ') : '-'}</td>
-                  <td>
+              {recentJobs.map(job => {
+                const batchId = job.job_metadata?.batch_id
+                const batch = batches.find(b => b.id === batchId)
+                const diff = batch ? diffs.find(d => d.id === batch.diff_id) : null
+                const diffName = diff ? (() => {
+                  const sourceScan = scans.find(s => s.id === diff.source_scan_id)
+                  const targetScan = scans.find(s => s.id === diff.target_scan_id)
+                  const sourceDataset = sourceScan ? datasets.find(d => d.id === sourceScan.dataset_id) : null
+                  const targetDataset = targetScan ? datasets.find(d => d.id === targetScan.dataset_id) : null
+                  const sourceName = sourceDataset ? sourceDataset.name : `Scan #${diff.source_scan_id}`
+                  const targetName = targetDataset ? targetDataset.name : `Scan #${diff.target_scan_id}`
+                  return `Porovnání #${diff.id}: ${sourceName} → ${targetName}`
+                })() : (batchId ? `Batch #${batchId}` : '-')
+                
+                return (
+                  <tr key={job.id}>
+                    <td>{job.type}</td>
+                    <td>{diffName}</td>
+                    <td>
+                      <span className={`status-badge ${job.status}`}>
+                        {job.status}
+                      </span>
+                    </td>
+                    <td>{new Date(job.started_at).toLocaleString('cs-CZ')}</td>
+                    <td>{job.finished_at ? new Date(job.finished_at).toLocaleString('cs-CZ') : '-'}</td>
+                    <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button
                         className="button"
@@ -470,7 +503,8 @@ function CopyHddToNas() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         )}

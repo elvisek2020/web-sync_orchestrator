@@ -529,7 +529,7 @@ class JobRunner:
                     )
                     session.add(batch_item)
                 
-                batch.status = "ready"
+                batch.status = "ready_to_phase_2"
                 session.commit()
                 
                 # Broadcast success
@@ -910,8 +910,15 @@ class JobRunner:
                 if log_messages:
                     job.job_log = "\n".join(log_messages)
                 
-                # Aktualizace batch statusu
-                batch.status = "completed" if result.get("success") else "failed"
+                # Aktualizace batch statusu podle směru kopírování
+                if direction == "nas1-usb":
+                    # Po dokončení fáze 2 (NAS → USB) je batch ready pro fázi 3
+                    batch.status = "ready_to_phase_3" if result.get("success") else "failed"
+                elif direction == "usb-nas2":
+                    # Po dokončení fáze 3 (USB → NAS) je batch completed
+                    batch.status = "completed" if result.get("success") else "failed"
+                else:
+                    batch.status = "failed"
                 
                 try:
                     session.commit()

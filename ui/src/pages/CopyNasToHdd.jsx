@@ -226,7 +226,24 @@ function CopyNasToHdd() {
   const loadFileStatuses = async (jobId) => {
     try {
       const response = await axios.get(`/api/copy/jobs/${jobId}/files`)
-      setFileStatuses(prev => ({ ...prev, [jobId]: response.data || [] }))
+      const files = response.data || []
+      setFileStatuses(prev => ({ ...prev, [jobId]: files }))
+      
+      // Aktualizovat progress z file statuses
+      const job = recentJobs.find(j => j.id === jobId) || Object.values(runningJobs).find(j => j.job_id === jobId)
+      if (job) {
+        const batchId = job.job_metadata?.batch_id || Object.keys(runningJobs).find(bId => runningJobs[bId]?.job_id === jobId)
+        if (batchId) {
+          const copiedCount = files.filter(f => f.status === 'copied').length
+          setCopyProgress(prev => ({
+            ...prev,
+            [batchId]: {
+              ...prev[batchId],
+              currentFileNum: copiedCount
+            }
+          }))
+        }
+      }
     } catch (error) {
       console.error('Failed to load file statuses:', error)
     }
@@ -306,10 +323,10 @@ function CopyNasToHdd() {
                         <button
                           className="button"
                           onClick={() => handleCopy(batch.id)}
-                          disabled={!canCopy || batch.status !== 'ready' || running}
+                          disabled={!canCopy || batch.status !== 'ready_to_phase_2' || running}
                           title={
                             !canCopy ? 'USB nebo NAS1 není dostupné' :
-                            batch.status !== 'ready' ? `Plán není připraven (status: ${batch.status})` :
+                            batch.status !== 'ready_to_phase_2' ? `Plán není připraven (status: ${batch.status})` :
                             running ? 'Kopírování již probíhá' :
                             'Spustit kopírování NAS → USB'
                           }
@@ -421,6 +438,7 @@ function CopyNasToHdd() {
             <thead>
               <tr>
                 <th>Typ</th>
+                <th>Porovnání</th>
                 <th>Status</th>
                 <th>Začátek</th>
                 <th>Konec</th>
@@ -428,29 +446,60 @@ function CopyNasToHdd() {
               </tr>
             </thead>
             <tbody>
-              {recentJobs.map(job => (
-                <tr key={job.id}>
-                  <td>{job.type}</td>
-                  <td>
-                    <span className={`status-badge ${job.status}`}>
-                      {job.status}
-                    </span>
-                  </td>
-                  <td>{new Date(job.started_at).toLocaleString('cs-CZ')}</td>
-                  <td>{job.finished_at ? new Date(job.finished_at).toLocaleString('cs-CZ') : '-'}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button
-                        className="button"
-                        onClick={() => setSelectedJob(selectedJob === job.id ? null : job.id)}
-                        style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
-                      >
-                        {selectedJob === job.id ? 'Skrýt' : 'Detail'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {recentJobs.map(job => {
+                const batchId = job.job_metadata?.batch_id
+                const batch = batches.find(b => b.id === batchId)
+                const diff = batch ? diffs.find(d => d.id === batch.diff_id) : null
+                const diffName = diff ? (() => {
+                  const sourceScan = scans.find(s => s.id === diff.source_scan_id)
+                  const targetScan = scans.find(s => s.id === diff.target_scan_id)
+                  const sourceDataset = sourceScan ? datasets.find(d => d.id === sourceScan.dataset_id) : null
+                  const targetDataset = targetScan ? datasets.find(d => d.id === targetScan.dataset_id) : null
+                  const sourceName = sourceDataset ? sourceDataset.name : `Scan #${diff.source_scan_id}`
+                  const targetName = targetDataset ? targetDataset.name : `Scan #${diff.target_scan_id}`
+                  return `Porovnání #${diff.id}: ${sourceName} → ${targetName}`
+                })() : (batchId ? `Batch #${batchId}` : '-')
+                
+                return (
+                  <tr key={job.id}>
+                    <td>{job.type}</td>
+                    <td>{diffName}</td>
+                    <td>
+                      <span className={`status-badge ${job.status}`}>
+                        {job.status}
+                      </span>
+                    </td>
+                    <td>{new Date(job.started_at).toLocaleString('cs-CZ')}</td>
+                    <td>{job.finished_at ? new Date(job.finished_at).toLocaleString('cs-CZ') : '-'}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          className="button"
+                          onClick={() => setSelectedJob(selectedJob === job.id ? null : job.id)}
+                          style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
+                        >
+                          {selectedJob === job.id ? 'Skrýt' : 'Detail'}
+                        </button>
+                        <button
+                          className="button"
+                          onClick={async () => {
+                            try {
+                              await axios.delete(`/api/copy/jobs/${job.id}`)
+                              loadRecentJobs()
+                            } catch (error) {
+                              console.error('Failed to delete job:', error)
+                              alert('Chyba při mazání jobu: ' + (error.response?.data?.detail || error.message))
+                            }
+                          }}
+                          style={{ background: '#dc3545', fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
+                        >
+                          Smazat
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}

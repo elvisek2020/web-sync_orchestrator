@@ -58,9 +58,18 @@ async def lifespan(app: FastAPI):
                 batch.error_message = "Job byl přerušen restartem aplikace"
                 logger.warning(f"Marking stuck batch {batch.id} as failed")
             
-            if stuck_scans or stuck_diffs or stuck_batches:
+            # Zkontrolovat Copy joby (JobRun)
+            from backend.database import JobRun
+            stuck_jobs = session.query(JobRun).filter(JobRun.status == "running", JobRun.type == "copy").all()
+            for job in stuck_jobs:
+                job.status = "failed"
+                job.error_message = "Job byl přerušen restartem aplikace"
+                job.finished_at = datetime.utcnow()
+                logger.warning(f"Marking stuck copy job {job.id} as failed")
+            
+            if stuck_scans or stuck_diffs or stuck_batches or stuck_jobs:
                 session.commit()
-                logger.info(f"Marked {len(stuck_scans)} scans, {len(stuck_diffs)} diffs, {len(stuck_batches)} batches as failed")
+                logger.info(f"Marked {len(stuck_scans)} scans, {len(stuck_diffs)} diffs, {len(stuck_batches)} batches, {len(stuck_jobs)} copy jobs as failed")
             session.close()
     except Exception as e:
         import logging
