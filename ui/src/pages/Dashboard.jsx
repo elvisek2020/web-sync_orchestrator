@@ -343,9 +343,14 @@ function Dashboard() {
             </p>
           )}
           {mountStatus.database?.error && (
-            <p style={{ margin: '0.25rem 0', fontSize: '0.875rem', color: '#721c24' }}>
-              <strong>Chyba:</strong> {mountStatus.database.error}
-            </p>
+            <div style={{ margin: '0.5rem 0', padding: '0.5rem', background: 'rgba(255,255,255,0.5)', borderRadius: '4px' }}>
+              <p style={{ margin: '0.25rem 0', fontSize: '0.875rem', color: '#721c24', fontWeight: 'bold' }}>
+                <strong>Důvod nedostupnosti:</strong>
+              </p>
+              <p style={{ margin: '0.25rem 0', fontSize: '0.875rem', color: '#721c24', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+                {mountStatus.database.error}
+              </p>
+            </div>
           )}
           {!mountStatus.database?.available && (
             <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem', color: '#721c24' }}>
