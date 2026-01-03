@@ -4,7 +4,9 @@ import Dashboard from './pages/Dashboard'
 import Datasets from './pages/Datasets'
 import Scan from './pages/Scan'
 import Compare from './pages/Compare'
-import BatchPlan from './pages/BatchPlan'
+import PlanTransfer from './pages/PlanTransfer'
+import CopyNasToHdd from './pages/CopyNasToHdd'
+import CopyHddToNas from './pages/CopyHddToNas'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useMountStatus } from './hooks/useMountStatus'
 import './App.css'
@@ -34,7 +36,9 @@ function Navigation() {
       { path: '/datasets', phases: ['planning'] },
       { path: '/scan', phases: ['planning'] },
       { path: '/compare', phases: ['planning'] },
-      { path: '/batch-plan', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] },
+      { path: '/plan-transfer', phases: ['planning'] },
+      { path: '/copy-nas-hdd', phases: ['copy-nas-hdd'] },
+      { path: '/copy-hdd-nas', phases: ['copy-hdd-nas'] },
     ]
     return navItems.filter(item => item.phases.includes(currentPhase)).map(item => item.path)
   }
@@ -45,7 +49,9 @@ function Navigation() {
     { path: '/datasets', label: 'Datasety', phases: ['planning'] },
     { path: '/scan', label: 'Scan', phases: ['planning'] },
     { path: '/compare', label: 'Porovnání', phases: ['planning'] },
-    { path: '/batch-plan', label: phase === 'planning' ? 'Plán přenosu' : phase === 'copy-nas-hdd' ? 'Kopírování NAS → HDD' : 'Kopírování HDD → NAS', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] }
+    { path: '/plan-transfer', label: 'Plán přenosu', phases: ['planning'] },
+    { path: '/copy-nas-hdd', label: 'Kopírování NAS → HDD', phases: ['copy-nas-hdd'] },
+    { path: '/copy-hdd-nas', label: 'Kopírování HDD → NAS', phases: ['copy-hdd-nas'] }
   ]
   
   // Filtrovat záložky podle aktuální fáze
@@ -77,7 +83,9 @@ function PhaseRouter({ phase, children }) {
       { path: '/datasets', phases: ['planning'] },
       { path: '/scan', phases: ['planning'] },
       { path: '/compare', phases: ['planning'] },
-      { path: '/batch-plan', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] }
+      { path: '/plan-transfer', phases: ['planning'] },
+      { path: '/copy-nas-hdd', phases: ['copy-nas-hdd'] },
+      { path: '/copy-hdd-nas', phases: ['copy-hdd-nas'] }
     ]
     const allowedPaths = navItems.filter(item => item.phases.includes(phase)).map(item => item.path)
     
@@ -179,7 +187,9 @@ function App() {
               <Route path="/datasets" element={<Datasets />} />
               <Route path="/scan" element={<Scan />} />
               <Route path="/compare" element={<Compare />} />
-              <Route path="/batch-plan" element={<BatchPlan />} />
+              <Route path="/plan-transfer" element={<PlanTransfer />} />
+              <Route path="/copy-nas-hdd" element={<CopyNasToHdd />} />
+              <Route path="/copy-hdd-nas" element={<CopyHddToNas />} />
             </Routes>
           </PhaseRouter>
         </main>
