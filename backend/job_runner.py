@@ -88,6 +88,7 @@ class JobRunner:
                             # Přeskočit soubory, které odpovídají exclude patterns
                             continue
                         
+                        # Použít merge místo add, aby se předešlo duplicitám v identity mapě
                         db_entry = DBFileEntry(
                             scan_id=scan_id,
                             full_rel_path=file_entry.full_rel_path,
@@ -95,7 +96,8 @@ class JobRunner:
                             mtime_epoch=file_entry.mtime_epoch,
                             root_rel_path=file_entry.root_rel_path
                         )
-                        session.add(db_entry)
+                        # Merge zajistí, že pokud objekt už existuje v session, použije se existující
+                        session.merge(db_entry)
                         total_files += 1
                         total_size += file_entry.size
                         
@@ -111,7 +113,8 @@ class JobRunner:
                             if log_cb:
                                 log_cb(f"Committed {total_files} files so far...")
                     
-                    # Finální commit
+                    # Finální commit - refresh scan objektu před aktualizací
+                    session.refresh(scan)
                     scan.total_files = total_files
                     scan.total_size = total_size
                     scan.status = "completed"
@@ -121,7 +124,28 @@ class JobRunner:
                         session.rollback()
                         if log_cb:
                             log_cb(f"Final commit error: {commit_error}, retrying...")
-                        session.commit()
+                        # Zkusit znovu načíst scan a aktualizovat
+                        session.refresh(scan)
+                        scan.total_files = total_files
+                        scan.total_size = total_size
+                        scan.status = "completed"
+                        try:
+                            session.commit()
+                        except Exception:
+                            # Pokud ani to nefunguje, použít novou session
+                            new_session = storage_service.get_session()
+                            if new_session:
+                                try:
+                                    scan_new = new_session.query(Scan).filter(Scan.id == scan_id).first()
+                                    if scan_new:
+                                        scan_new.total_files = total_files
+                                        scan_new.total_size = total_size
+                                        scan_new.status = "completed"
+                                        new_session.commit()
+                                except Exception:
+                                    new_session.rollback()
+                                finally:
+                                    new_session.close()
                     
                     if log_cb:
                         log_cb(f"Scan completed: {total_files} files, {total_size / 1024 / 1024:.2f} MB")
