@@ -240,7 +240,7 @@ function Compare() {
                         {running ? 'running' : diff.status}
                       </span>
                     </td>
-                    <td>{new Date(diff.created_at).toLocaleString('cs-CZ')}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{new Date(diff.created_at).toLocaleString('cs-CZ')}</td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap', justifyContent: 'flex-end' }}>
                         <button

@@ -425,7 +425,7 @@ function CopyNasToHdd() {
                             const metadata = jobDetail.job_metadata || {}
                             
                             const filesText = files.length > 0 ? `\n\nSoubory (${files.length}):\n${files.map((f, idx) => 
-                              `${idx + 1}. ${f.file_path} (${(f.file_size / 1024 / 1024).toFixed(2)} MB) - ${f.status}${f.error_message ? ` - ${f.error_message}` : ''}`
+                              `${idx + 1}. ${f.file_path} (${((f.file_size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB) - ${f.status}${f.error_message ? ` - ${f.error_message}` : ''}`
                             ).join('\n')}` : '\n\nŽádné soubory'
                             
                             const logText = jobDetail.job_log ? `\n\nLog:\n${jobDetail.job_log}` : ''

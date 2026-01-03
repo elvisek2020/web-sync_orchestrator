@@ -175,11 +175,11 @@ function PlanTransfer() {
   
   const handleExportToCSV = (batchId, items) => {
     const enabledItems = items.filter(item => item.enabled !== false)
-    const csvHeader = 'Cesta,Velikost (MB)\n'
+    const csvHeader = 'Cesta,Velikost (GB)\n'
     const csvRows = enabledItems.map(item => {
       const path = item.full_rel_path.replace(/"/g, '""')
-      const sizeMB = ((item.size || 0) / 1024 / 1024).toFixed(2)
-      return `"${path}",${sizeMB}`
+      const sizeGB = ((item.size || 0) / 1024 / 1024 / 1024).toFixed(1)
+      return `"${path}",${sizeGB}`
     }).join('\n')
     const csvContent = csvHeader + csvRows
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
