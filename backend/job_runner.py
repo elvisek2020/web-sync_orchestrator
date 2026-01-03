@@ -629,6 +629,7 @@ class JobRunner:
                 
                 # Získání root složky pro normalizaci cest (stejně jako v run_diff)
                 source_root = source_dataset.roots[0] if source_dataset.roots else ""
+                target_root = target_dataset.roots[0] if target_dataset.roots else ""
                 
                 # Normalizační funkce - stejná jako v run_diff
                 def normalize_path(path, root):
