@@ -7,25 +7,27 @@ Bezpečný a řízený orchestrátor pro synchronizaci velkých objemů dat z NA
 Sync Orchestrator je specializovaná aplikace navržená pro bezpečnou synchronizaci velkých objemů dat mezi dvěma NAS servery přes USB disk jako přenosové médium. Aplikace je určena pro situace, kdy není možné nebo žádoucí provádět přímou síťovou synchronizaci mezi NAS servery.
 
 **Hlavní charakteristiky:**
+
 - **Třífázový workflow**: Plánování → Kopírování NAS→HDD → Kopírování HDD→NAS
 - **Bezpečnost**: NAS1 je vždy read-only, konflikty vyžadují explicitní volbu
 - **Flexibilita**: Podpora lokálních mountů i SSH připojení
 - **Inteligentní plánování**: Respektuje limit USB kapacity, exclude patterns, výběr souborů
 - **Real-time monitoring**: WebSocket aktualizace stavu operací
-- **Audit trail**: Kompletní historie všech operací
 
 ## ✨ Funkce
 
 ### Základní funkce
+
 - ✅ **Inventarizace (Scan)**: Vytváření snapshotů souborových metadat
 - ✅ **Porovnání (Diff)**: Deterministické porovnání dvou scanů
 - ✅ **Plánování dávek (Batch)**: Inteligentní plánování přenosu s respektováním limitu USB
 - ✅ **Kopírování (Copy)**: Bezpečný přenos dat pomocí rsync
 - ✅ **SAFE MODE**: Ochrana databáze při odpojení USB
 - ✅ **Real-time UI**: WebSocket aktualizace stavu operací
-- ✅ **SSH podpora**: NAS1 a NAS2 mohou být dostupné přes SSH (užitečné pro macOS s Docker Desktop)
+- ✅ **SSH podpora**: NAS1 a NAS2 mohou být dostupné přes SSH
 
 ### Pokročilé funkce
+
 - ✅ **Exclude Patterns**: Automatické filtrování nežádoucích souborů (`.DS_Store`, `Thumbs.db`, `*.tmp`, Synology `@eaDir`, atd.)
 - ✅ **Výběr souborů**: Možnost povolit/zakázat konkrétní soubory v batchi pomocí checkboxů
 - ✅ **Export do CSV**: Export seznamu souborů v batchi do CSV formátu (cesta, velikost)
@@ -49,11 +51,13 @@ Aplikace je rozdělena na **tři hlavní fáze**, které odpovídají skutečné
 **Účel:** Vytvořit plán synchronizace porovnáním NAS1 a NAS2.
 
 **Požadavky:**
+
 - NAS1 musí být dostupný (může být přes SSH)
 - NAS2 musí být dostupný (může být přes SSH)
 - USB není potřeba v této fázi
 
 **Workflow:**
+
 1. Vytvořte dataset pro NAS1 (na záložce "Datasety")
    - Pro lokální adapter použijte tlačítko "Procházet" pro interaktivní výběr root složky
    - Pro SSH adapter použijte tlačítko "Procházet SSH hosta" pro procházení vzdáleného serveru
@@ -74,10 +78,12 @@ Aplikace je rozdělena na **tři hlavní fáze**, které odpovídají skutečné
 **Účel:** Zkopírovat data z NAS1 na USB HDD podle batchu vytvořeného ve fázi 1.
 
 **Požadavky:**
+
 - NAS1 musí být dostupný
 - USB HDD musí být dostupný a zapisovatelný
 
 **Workflow:**
+
 1. Vyberte batch vytvořený ve fázi 1
 2. Spusťte kopírování NAS1 → USB HDD
 3. Po dokončení odpojte HDD a fyzicky ho přeneste na cílový systém
@@ -91,10 +97,12 @@ Aplikace je rozdělena na **tři hlavní fáze**, které odpovídají skutečné
 **Účel:** Zkopírovat data z USB HDD na NAS2 podle stejného batchu z fáze 1.
 
 **Požadavky:**
+
 - USB HDD (s daty z fáze 2a) musí být dostupný
 - NAS2 musí být dostupný (může být přes SSH)
 
 **Workflow:**
+
 1. Připojte USB HDD s daty zkopírovanými ve fázi 2a
 2. Vyberte stejný batch, který byl použit ve fázi 2a (batch je uložen na HDD v databázi)
 3. Spusťte kopírování USB HDD → NAS2
@@ -160,6 +168,7 @@ volumes:
 ```
 
 **⚠️ Důležité pro macOS s Docker Desktop:**
+
 - **NAS1**: NEPOUŽÍVEJTE lokální mount pro SMB/CIFS disky. Docker Desktop nemá přístup k SMB mountům. Místo toho použijte **SSH adapter** v konfiguraci datasetu.
 - **USB**: Vždy lokální mount (pokud je fyzicky připojený)
 - **NAS2**: Můžete použít lokální mount nebo SSH adapter
@@ -186,10 +195,11 @@ services:
 #### Inicializace repozitáře
 
 1. **Vytvoření GitHub repozitáře**:
+
    - Repozitář: `elvisek2020/web-sync_orchestrator`
    - URL: `git@github.com:elvisek2020/web-sync_orchestrator.git`
-
 2. **Inicializace lokálního repozitáře**:
+
    ```bash
    git init
    git add .
@@ -198,12 +208,11 @@ services:
    git remote add origin git@github.com:elvisek2020/web-sync_orchestrator.git
    git push -u origin main
    ```
-
 3. **Vytvoření GitHub Actions workflow**:
-   
-   Workflow je již připraven v `.github/workflows/docker.yml` - automaticky se spustí po push do `main` branch.
 
+   Workflow je již připraven v `.github/workflows/docker.yml` - automaticky se spustí po push do `main` branch.
 4. **Nastavení viditelnosti image**:
+
    - Po prvním buildu jděte na GitHub → Packages
    - Najděte vytvořený package `web-sync_orchestrator`
    - V Settings → Change visibility nastavte na **Public** (pokud chcete veřejný image)
@@ -211,21 +220,21 @@ services:
 #### Commitování změn a automatické buildy
 
 1. **Proveďte změny v kódu**
-
 2. **Commit a push**:
+
    ```bash
    git add .
    git commit -m "Popis změn"
    git push origin main
    ```
-
 3. **Automatický build**:
+
    - Po push do `main` branch se automaticky spustí GitHub Actions workflow
    - Vytvoří se Docker image pro `linux/amd64` a `linux/arm64`
    - Image se nahraje do GHCR
    - Taguje se jako `latest` a `sha-<commit-sha>`
-
 4. **Sledování buildu**:
+
    - GitHub → Actions → zobrazí se běžící workflow
    - Po dokončení je image dostupná na `ghcr.io/elvisek2020/web-sync_orchestrator:latest`
 
@@ -243,23 +252,24 @@ Image je **veřejný** (public), takže není potřeba autentizace pro pull.
 #### Nasazení přes Container Manager
 
 1. **Připravte docker-compose.yml**:
+
    - Použijte `docker-compose.prod.yml` jako základ
    - Upravte cesty k mount pointům (USB, NAS2)
    - Nastavte `image: ghcr.io/elvisek2020/web-sync_orchestrator:latest`
-
 2. **V Container Manageru**:
+
    - Otevřete Container Manager → Project
    - Vytvořte nový projekt nebo upravte existující
    - Vložte obsah `docker-compose.prod.yml`
    - Spusťte projekt
-
 3. **Update aplikace**:
+
    ```bash
    docker compose pull
    docker compose up -d
    ```
-
 4. **Rollback na konkrétní verzi**:
+
    - V Container Manageru upravte `docker-compose.yml`
    - Změňte image tag na `sha-<commit-sha>`
    - Spusťte `docker compose up -d`
@@ -277,6 +287,7 @@ Aplikace je postavena jako **FastAPI backend** s **React SPA frontendem**:
 - **Adapter pattern**: Flexibilní podpora lokálních mountů i SSH připojení
 
 **Klíčové charakteristiky:**
+
 - **Modulární design**: Adaptery pro scan a transfer operace
 - **Bezpečnost**: SAFE MODE chrání databázi při odpojení USB
 - **Real-time**: WebSocket pro okamžité aktualizace UI
@@ -285,6 +296,7 @@ Aplikace je postavena jako **FastAPI backend** s **React SPA frontendem**:
 ### Technický stack
 
 **Backend:**
+
 - FastAPI (Python 3.11+)
 - SQLAlchemy (ORM)
 - WebSockets pro real-time komunikaci
@@ -293,6 +305,7 @@ Aplikace je postavena jako **FastAPI backend** s **React SPA frontendem**:
 - rsync pro přenos souborů
 
 **Frontend:**
+
 - React 18+
 - React Router pro navigaci
 - Axios pro HTTP komunikaci
@@ -300,6 +313,7 @@ Aplikace je postavena jako **FastAPI backend** s **React SPA frontendem**:
 - Vite jako build tool
 
 **Deployment:**
+
 - Docker (multi-stage build)
 - Docker Compose
 
@@ -357,6 +371,7 @@ Aplikace je postavena jako **FastAPI backend** s **React SPA frontendem**:
 Aplikace poskytuje REST API na `/api/*`:
 
 **Hlavní endpointy:**
+
 - `GET /api/health` - Health check
 - `GET /api/mounts/status` - Status mountů
 - `GET /api/datasets/` - Seznam datasetů
@@ -375,6 +390,7 @@ Aplikace poskytuje REST API na `/api/*`:
 - `POST /api/copy/usb-nas2` - Kopírování USB → NAS2
 
 **Whitelisted endpointy (dostupné i v SAFE MODE):**
+
 - `GET /api/health`
 - `GET /api/mounts/status`
 - `WebSocket /ws`
@@ -384,6 +400,7 @@ Aplikace poskytuje REST API na `/api/*`:
 **URL**: `ws://localhost:8080/ws`
 
 WebSocket poskytuje real-time aktualizace:
+
 - `job.started` - Job byl spuštěn
 - `job.progress` - Průběh jobu (scan, diff, copy)
 - `job.finished` - Job byl dokončen
@@ -393,13 +410,14 @@ WebSocket poskytuje real-time aktualizace:
 
 #### Přidání nových funkcí
 
-1. **Backend změny**: 
+1. **Backend změny**:
+
    - API endpoints: `backend/api/`
    - Business logika: `backend/job_runner.py`
    - Adaptery: `backend/adapters/`
    - Datový model: `backend/database.py`
+2. **Frontend změny**:
 
-2. **Frontend změny**: 
    - UI komponenty: `ui/src/pages/`
    - Hooks: `ui/src/hooks/`
    - Routing: `ui/src/App.jsx`
@@ -408,6 +426,7 @@ WebSocket poskytuje real-time aktualizace:
 #### Lokální vývoj
 
 **Backend:**
+
 ```bash
 cd backend
 pip install -r requirements.txt
@@ -415,6 +434,7 @@ python -m uvicorn backend.main:app --reload
 ```
 
 **Frontend:**
+
 ```bash
 cd ui
 npm install
@@ -447,6 +467,7 @@ Pro produkci doporučujeme nastavit `LOG_LEVEL=WARNING` nebo `LOG_LEVEL=ERROR`.
 ### 🎨 UI/UX
 
 Aplikace používá **box-style komponenty** pro konzistentní vzhled:
+
 - Všechny komponenty mají boxový vzhled s rámečky
 - Konzistentní barvy a rozestupy
 - Responzivní design
@@ -454,6 +475,7 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 - Indikace fáze synchronizace v hlavičce
 
 **Záložky aplikace:**
+
 1. **Dashboard** - Přehled stavu, mountů, nedávných jobů, test SSH připojení
 2. **Datasety** - Správa datasetů (vytváření, úprava, mazání)
    - **Procházení adresářů**: Pro lokální i SSH adaptéry je k dispozici tlačítko "Procházet" pro interaktivní výběr root složky
@@ -465,6 +487,7 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 ### 📝 Historie změn
 
 #### V1.0.0 (aktuální)
+
 - ✅ **Základní infrastruktura**: Docker, FastAPI, React
 - ✅ **Datový model**: Kompletní SQLAlchemy modely
 - ✅ **API endpoints**: Všechny CRUD operace
@@ -521,6 +544,7 @@ SQLite databáze je uložena na USB disku (`/mnt/usb/sync_orchestrator.db`). Apl
 ### Automatické migrace
 
 Aplikace automaticky provádí migrace databáze při startu:
+
 - Přidání `error_message` do `scans`
 - Přidání `exclude_patterns` do `batches`
 - Přidání `enabled` do `batch_items`

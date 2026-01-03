@@ -172,3 +172,38 @@ async def get_job(job_id: int):
     finally:
         session.close()
 
+@router.delete("/jobs")
+async def delete_all_jobs(_: None = Depends(check_safe_mode)):
+    """Smazat všechny copy joby"""
+    session = storage_service.get_session()
+    if not session:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    
+    try:
+        count = session.query(JobRun).filter(JobRun.type == "copy").delete()
+        session.commit()
+        return {"message": f"Deleted {count} jobs"}
+    finally:
+        session.close()
+
+@router.delete("/jobs/{job_id}")
+async def delete_job(job_id: int, _: None = Depends(check_safe_mode)):
+    """Smazat konkrétní copy job"""
+    session = storage_service.get_session()
+    if not session:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    
+    try:
+        job = session.query(JobRun).filter(
+            JobRun.id == job_id,
+            JobRun.type == "copy"
+        ).first()
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        session.delete(job)
+        session.commit()
+        return {"message": "Job deleted"}
+    finally:
+        session.close()
+

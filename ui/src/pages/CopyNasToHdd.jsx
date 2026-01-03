@@ -187,6 +187,12 @@ function CopyNasToHdd() {
                           className="button"
                           onClick={() => handleCopy(batch.id)}
                           disabled={!canCopy || batch.status !== 'ready' || running}
+                          title={
+                            !canCopy ? 'USB nebo NAS1 není dostupné' :
+                            batch.status !== 'ready' ? `Plán není připraven (status: ${batch.status})` :
+                            running ? 'Kopírování již probíhá' :
+                            'Spustit kopírování NAS → USB'
+                          }
                         >
                           Copy NAS → USB
                         </button>
@@ -312,7 +318,28 @@ function CopyNasToHdd() {
       </div>
       
       <div className="box box-compact">
-        <h2>Poslední joby</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h2 style={{ margin: 0 }}>Poslední joby</h2>
+          {recentJobs.length > 0 && (
+            <button
+              className="button"
+              onClick={async () => {
+                if (confirm('Opravdu chcete smazat všechny joby?')) {
+                  try {
+                    await axios.delete('/api/copy/jobs')
+                    loadRecentJobs()
+                  } catch (error) {
+                    console.error('Failed to delete jobs:', error)
+                    alert('Chyba při mazání jobů: ' + (error.response?.data?.detail || error.message))
+                  }
+                }
+              }}
+              style={{ background: '#dc3545', fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
+            >
+              Smazat všechny
+            </button>
+          )}
+        </div>
         {recentJobs.length === 0 ? (
           <p>Žádné nedávné joby</p>
         ) : (
@@ -323,6 +350,7 @@ function CopyNasToHdd() {
                 <th>Status</th>
                 <th>Začátek</th>
                 <th>Konec</th>
+                <th>Akce</th>
               </tr>
             </thead>
             <tbody>
@@ -336,6 +364,38 @@ function CopyNasToHdd() {
                   </td>
                   <td>{new Date(job.started_at).toLocaleString('cs-CZ')}</td>
                   <td>{job.finished_at ? new Date(job.finished_at).toLocaleString('cs-CZ') : '-'}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        className="button"
+                        onClick={async () => {
+                          try {
+                            const response = await axios.get(`/api/copy/jobs/${job.id}`)
+                            const jobDetail = response.data
+                            const metadata = jobDetail.job_metadata || {}
+                            const detailText = `
+Detail jobu #${job.id}:
+Typ: ${jobDetail.type}
+Status: ${jobDetail.status}
+Začátek: ${new Date(jobDetail.started_at).toLocaleString('cs-CZ')}
+Konec: ${jobDetail.finished_at ? new Date(jobDetail.finished_at).toLocaleString('cs-CZ') : 'Probíhá'}
+${jobDetail.error_message ? `Chyba: ${jobDetail.error_message}` : ''}
+${metadata.batch_id ? `Batch ID: ${metadata.batch_id}` : ''}
+${metadata.direction ? `Směr: ${metadata.direction}` : ''}
+${metadata.dry_run !== undefined ? `Dry run: ${metadata.dry_run}` : ''}
+                            `.trim()
+                            alert(detailText)
+                          } catch (error) {
+                            console.error('Failed to load job detail:', error)
+                            alert('Chyba při načítání detailu jobu: ' + (error.response?.data?.detail || error.message))
+                          }
+                        }}
+                        style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
+                      >
+                        Detail
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
