@@ -445,7 +445,15 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 
 ### 📝 Historie změn
 
-#### v.20250103.0952 (aktuální)
+#### v.20250103.1055 (aktuální)
+
+- ✅ **Vylepšené názvy adapterů**: "Scan adapter" → "Způsob skenování", "Transfer adapter" → "Způsob kopírování" s výstižnějšími popisky
+- ✅ **Přesunutá Root složka**: Root složka je nyní umístěna pod výběr způsobů skenování a kopírování
+- ✅ **Zkonsolidovaná tlačítka procházení**: Tlačítka "Procházet" a "Procházet SSH hosta" jsou nyní na jednom místo u Root složky
+- ✅ **Opravený dialog procházení**: Opravena bílá stránka při kliknutí na "Procházet" (zvýšen z-index, přidán padding)
+- ✅ **Lepší chybové zprávy**: Zobrazení správných chybových zpráv z API při vytváření datasetu
+
+#### v.20250103.0952
 
 - ✅ **Přepínání mezi fázemi**: Při přepínání mezi fází 2 a 3 se přesměruje přímo na záložku kopírování
 - ✅ **Obnovení progress baru**: Po návratu na záložku Kopírování se zobrazí progress bar, pokud job ještě běží

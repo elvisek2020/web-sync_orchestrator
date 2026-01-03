@@ -260,15 +260,15 @@ function Datasets() {
         <ul>
           <li><strong>Lokace:</strong> Asociace k fyzickému úložišti - NAS1 (zdrojový NAS), USB (přechodné úložiště), nebo NAS2 (cílový NAS). Určuje, který mount point nebo SSH server se použije.</li>
           <li><strong>Root složka:</strong> Každý dataset má pouze jednu root složku (např. `/data/photos`). Pokud chcete skenovat více složek na stejném serveru, vytvořte více datasetů - každý s jednou root složkou. To umožní spouštět scany a diffy pro každou složku samostatně.</li>
-          <li><strong>Scan adapter:</strong> Jak se data skenují (lokální mount nebo SSH/SFTP)</li>
-          <li><strong>Transfer adapter:</strong> Jak se data kopírují (lokální rsync nebo SSH rsync)</li>
+          <li><strong>Způsob skenování:</strong> Jak se data skenují - z lokálního souborového systému nebo přes SSH ze vzdáleného serveru</li>
+          <li><strong>Způsob kopírování:</strong> Jak se data kopírují - lokálně pomocí rsync nebo přes SSH na vzdálený server</li>
         </ul>
         <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.5)', borderRadius: '4px' }}>
           <strong>💡 Důležité pro macOS s Docker Desktop:</strong>
           <ul style={{ marginTop: '0.5rem', marginBottom: 0 }}>
-            <li>Pro <strong>NAS1</strong> (SMB/CIFS disky) <strong>použijte SSH adapter</strong> - Docker Desktop nemá přístup k SMB mountům z macOS</li>
-            <li>Pro <strong>USB</strong> použijte lokální mount (pokud je fyzicky připojený)</li>
-            <li>Pro <strong>NAS2</strong> můžete použít lokální mount nebo SSH adapter</li>
+            <li>Pro <strong>NAS1</strong> (SMB/CIFS disky) <strong>použijte vzdálený SSH přístup</strong> - Docker Desktop nemá přístup k SMB mountům z macOS</li>
+            <li>Pro <strong>USB</strong> použijte lokální souborový systém (pokud je fyzicky připojený)</li>
+            <li>Pro <strong>NAS2</strong> můžete použít lokální souborový systém nebo vzdálený SSH přístup</li>
           </ul>
         </div>
         {phase === 'planning' && (
@@ -344,48 +344,7 @@ function Datasets() {
             </div>
             
             <div className="form-group">
-              <label className="label">Root složka</label>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <input
-                  type="text"
-                  className="input"
-                  value={formData.roots[0] || ''}
-                  onChange={(e) => updateRoot(0, e.target.value)}
-                  placeholder="např. /data/photos nebo data/photos"
-                  required
-                  style={{ flex: 1 }}
-                />
-                {formData.scan_adapter_type === 'local' && (
-                  <button
-                    type="button"
-                    className="button"
-                    onClick={() => {
-                      // Pro nový dataset potřebujeme nejdřív uložit lokaci
-                      if (!formData.location) {
-                        alert('Nejdříve vyberte Lokaci pro dataset')
-                        return
-                      }
-                      // Pro existující dataset můžeme procházet přímo
-                      if (editingDataset) {
-                        browseLocal(editingDataset.id, '/')
-                      } else {
-                        // Pro nový dataset můžeme použít dočasný dataset ID -1 a použít lokaci
-                        browseLocal(-1, '/', formData.location)
-                      }
-                    }}
-                    style={{ background: '#17a2b8', whiteSpace: 'nowrap' }}
-                  >
-                    📁 Procházet
-                  </button>
-                )}
-              </div>
-              <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem' }}>
-                <strong>Důležité:</strong> Každý dataset má pouze jednu root složku. Pokud chcete skenovat více složek na stejném serveru, vytvořte více datasetů (každý s jednou root složkou). To umožní spouštět scany a diffy pro každou složku samostatně.
-              </small>
-            </div>
-            
-            <div className="form-group">
-              <label className="label">Scan adapter</label>
+              <label className="label">Způsob skenování</label>
               <select
                 className="input"
                 value={formData.scan_adapter_type}
@@ -398,9 +357,12 @@ function Datasets() {
                   })
                 }}
               >
-                <option value="local">Local (lokální mount)</option>
-                <option value="ssh">SSH/SFTP</option>
+                <option value="local">Lokální souborový systém</option>
+                <option value="ssh">Vzdálený SSH/SFTP server</option>
               </select>
+              <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem' }}>
+                Určuje, jak se budou skenovat soubory - z lokálního mount pointu nebo přes SSH ze vzdáleného serveru.
+              </small>
             </div>
             
             {formData.scan_adapter_type === 'ssh' && (
@@ -478,33 +440,11 @@ function Datasets() {
                     Výchozí cesta na SSH serveru, ze které se pak relativně řeší root složky. Např. pokud base_path je <code>/data</code> a root složka je <code>photos</code>, pak se skenuje <code>/data/photos</code>. Pokud je base_path <code>/</code>, pak root složka musí být absolutní cesta.
                   </small>
                 </div>
-                <div className="form-group">
-                  <button
-                    type="button"
-                    className="button"
-                    onClick={() => {
-                      // Pro nový dataset potřebujeme nejdřív uložit SSH konfiguraci
-                      if (!formData.scan_adapter_config?.host || !formData.scan_adapter_config?.username) {
-                        alert('Nejdříve vyplňte Host a Username pro SSH připojení')
-                        return
-                      }
-                      // Pro existující dataset můžeme procházet přímo
-                      if (editingDataset) {
-                        browseSSH(editingDataset.id, formData.scan_adapter_config?.base_path || '/')
-                      } else {
-                        alert('Pro procházení SSH hosta nejdříve uložte dataset s SSH konfigurací')
-                      }
-                    }}
-                    style={{ background: '#17a2b8', marginTop: '0.5rem' }}
-                  >
-                    📁 Procházet SSH hosta
-                  </button>
-                </div>
               </div>
             )}
             
             <div className="form-group">
-              <label className="label">Transfer adapter</label>
+              <label className="label">Způsob kopírování</label>
               <select
                 className="input"
                 value={formData.transfer_adapter_type}
@@ -517,9 +457,12 @@ function Datasets() {
                   })
                 }}
               >
-                <option value="local">Local (rsync)</option>
-                <option value="ssh">SSH rsync</option>
+                <option value="local">Lokální kopírování (rsync)</option>
+                <option value="ssh">Vzdálené SSH kopírování (rsync)</option>
               </select>
+              <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem' }}>
+                Určuje, jak se budou kopírovat soubory - lokálně pomocí rsync nebo přes SSH na vzdálený server.
+              </small>
             </div>
             
             {formData.transfer_adapter_type === 'ssh' && (
@@ -583,6 +526,69 @@ function Datasets() {
                 </div>
               </div>
             )}
+            
+            <div className="form-group">
+              <label className="label">Root složka</label>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  className="input"
+                  value={formData.roots[0] || ''}
+                  onChange={(e) => updateRoot(0, e.target.value)}
+                  placeholder="např. /data/photos nebo data/photos"
+                  required
+                  style={{ flex: 1, minWidth: '200px' }}
+                />
+                {formData.scan_adapter_type === 'local' && (
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => {
+                      // Pro nový dataset potřebujeme nejdřív uložit lokaci
+                      if (!formData.location) {
+                        alert('Nejdříve vyberte Lokaci pro dataset')
+                        return
+                      }
+                      // Pro existující dataset můžeme procházet přímo
+                      if (editingDataset) {
+                        browseLocal(editingDataset.id, '/')
+                      } else {
+                        // Pro nový dataset můžeme použít dočasný dataset ID -1 a použít lokaci
+                        browseLocal(-1, '/', formData.location)
+                      }
+                    }}
+                    style={{ background: '#17a2b8', whiteSpace: 'nowrap' }}
+                  >
+                    📁 Procházet
+                  </button>
+                )}
+                {formData.scan_adapter_type === 'ssh' && (
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => {
+                      // Pro nový dataset potřebujeme nejdřív uložit SSH konfiguraci
+                      if (!formData.scan_adapter_config?.host || !formData.scan_adapter_config?.username) {
+                        alert('Nejdříve vyplňte Host a Username pro SSH připojení')
+                        return
+                      }
+                      // Pro existující dataset můžeme procházet přímo
+                      if (editingDataset) {
+                        browseSSH(editingDataset.id, formData.scan_adapter_config?.base_path || '/')
+                      } else {
+                        alert('Pro procházení SSH hosta nejdříve uložte dataset s SSH konfigurací')
+                      }
+                    }}
+                    style={{ background: '#17a2b8', whiteSpace: 'nowrap' }}
+                  >
+                    📁 Procházet SSH hosta
+                  </button>
+                )}
+              </div>
+              <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem' }}>
+                <strong>Důležité:</strong> Každý dataset má pouze jednu root složku. Pokud chcete skenovat více složek na stejném serveru, vytvořte více datasetů (každý s jednou root složkou).
+              </small>
+            </div>
             
             <button type="submit" className="button">
               {editingDataset ? 'Uložit změny' : 'Vytvořit dataset'}
@@ -696,7 +702,9 @@ function Datasets() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 1000
+          zIndex: 10000,
+          overflow: 'auto',
+          padding: '20px'
         }}>
           <div className="box" style={{ maxWidth: '800px', maxHeight: '80vh', overflow: 'auto', width: '90%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
