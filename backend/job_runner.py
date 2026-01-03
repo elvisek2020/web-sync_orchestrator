@@ -437,20 +437,40 @@ class JobRunner:
                     DiffItem.diff_id == batch.diff_id
                 ).all()
                 
+                total_items = len(diff_items)
+                
+                # Progress feedback - start
+                asyncio.run(websocket_manager.broadcast({
+                    "type": "job.progress",
+                    "data": {"job_id": batch_id, "type": "batch", "count": 0, "total": total_items, "message": f"Načítání {total_items} položek z porovnání..."}
+                }))
+                
                 # Filtrování podle include_conflicts
                 items_to_include = [
                     item for item in diff_items
                     if item.category == "missing" or (item.category == "conflict" and batch.include_conflicts)
                 ]
                 
+                # Progress feedback - po filtrování
+                asyncio.run(websocket_manager.broadcast({
+                    "type": "job.progress",
+                    "data": {"job_id": batch_id, "type": "batch", "count": len(items_to_include), "total": total_items, "message": f"Filtrování podle konfliktů: {len(items_to_include)} položek..."}
+                }))
+                
                 # Filtrování podle exclude_patterns
                 from backend.config import match_exclude_pattern
                 exclude_patterns = batch.exclude_patterns or []
                 if exclude_patterns:
+                    items_before_exclude = len(items_to_include)
                     items_to_include = [
                         item for item in items_to_include
                         if not match_exclude_pattern(item.full_rel_path, exclude_patterns)
                     ]
+                    # Progress feedback - po exclude patterns
+                    asyncio.run(websocket_manager.broadcast({
+                        "type": "job.progress",
+                        "data": {"job_id": batch_id, "type": "batch", "count": len(items_to_include), "total": total_items, "message": f"Filtrování podle výjimek: {len(items_to_include)} položek (odfiltrováno {items_before_exclude - len(items_to_include)})..."}
+                    }))
                 
                 # Řazení od nejmenších
                 items_to_include.sort(key=lambda x: x.source_size or x.target_size or 0)
@@ -474,6 +494,7 @@ class JobRunner:
                 # Výběr souborů do limitu
                 selected_items = []
                 total_size = 0
+                processed_count = 0
                 
                 for item in items_to_include:
                     size = item.source_size or item.target_size or 0
@@ -482,6 +503,20 @@ class JobRunner:
                         total_size += size
                     else:
                         break
+                    processed_count += 1
+                    
+                    # Progress feedback každých 100 položek
+                    if processed_count % 100 == 0:
+                        asyncio.run(websocket_manager.broadcast({
+                            "type": "job.progress",
+                            "data": {"job_id": batch_id, "type": "batch", "count": processed_count, "total": len(items_to_include), "message": f"Zpracováno {processed_count} / {len(items_to_include)} položek, vybráno {len(selected_items)} souborů..."}
+                        }))
+                
+                # Progress feedback - před vytvářením batch items
+                asyncio.run(websocket_manager.broadcast({
+                    "type": "job.progress",
+                    "data": {"job_id": batch_id, "type": "batch", "count": len(selected_items), "total": len(items_to_include), "message": f"Vytváření plánu: {len(selected_items)} souborů..."}
+                }))
                 
                 # Vytvoření batch items
                 for item in selected_items:

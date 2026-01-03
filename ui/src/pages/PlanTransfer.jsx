@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useMountStatus } from '../hooks/useMountStatus'
+import { useWebSocket } from '../hooks/useWebSocket'
 import './PlanCopy.css'
 import './Datasets.css'
 
 function PlanTransfer() {
   const mountStatus = useMountStatus()
+  const { messages } = useWebSocket()
   const [diffs, setDiffs] = useState([])
   const [batches, setBatches] = useState([])
   const [scans, setScans] = useState([])
@@ -13,6 +15,7 @@ function PlanTransfer() {
   const [expandedBatches, setExpandedBatches] = useState(new Set())
   const [batchItems, setBatchItems] = useState({})
   const [batchFormData, setBatchFormData] = useState({ diff_id: '', include_conflicts: false, exclude_patterns: '' })
+  const [batchProgress, setBatchProgress] = useState({}) // { batch_id: { count, total, message } }
   
   useEffect(() => {
     loadDiffs()
@@ -26,6 +29,35 @@ function PlanTransfer() {
     }, 2000)
     return () => clearInterval(interval)
   }, [])
+  
+  useEffect(() => {
+    // Zpracování WebSocket zpráv
+    messages.forEach(msg => {
+      if (msg.type === 'job.started' && msg.data.type === 'batch') {
+        setBatchProgress(prev => ({
+          ...prev,
+          [msg.data.job_id]: { count: 0, total: msg.data.total || 0, message: msg.data.message || '' }
+        }))
+      } else if (msg.type === 'job.progress' && msg.data.type === 'batch') {
+        setBatchProgress(prev => ({
+          ...prev,
+          [msg.data.job_id]: {
+            count: msg.data.count || 0,
+            total: msg.data.total || prev[msg.data.job_id]?.total || 0,
+            message: msg.data.message || prev[msg.data.job_id]?.message || ''
+          }
+        }))
+      } else if (msg.type === 'job.finished' && msg.data.type === 'batch') {
+        setBatchProgress(prev => {
+          const newState = { ...prev }
+          delete newState[msg.data.job_id]
+          return newState
+        })
+        loadBatches()
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages])
   
   const loadDatasets = async () => {
     try {
