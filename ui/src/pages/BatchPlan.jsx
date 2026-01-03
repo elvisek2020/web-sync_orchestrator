@@ -32,13 +32,26 @@ function BatchPlan() {
     loadBatches()
     loadScans()
     loadDatasets()
+    loadRecentJobs()
     
     const interval = setInterval(() => {
       loadDiffs()
       loadBatches()
+      loadRecentJobs()
     }, 2000)
     return () => clearInterval(interval)
   }, [])
+  
+  const loadRecentJobs = async () => {
+    try {
+      const response = await axios.get('/api/copy/jobs')
+      const jobs = Array.isArray(response.data) ? response.data.slice(0, 5) : []
+      setRecentJobs(jobs)
+    } catch (error) {
+      console.error('Failed to load jobs:', error)
+      setRecentJobs([])
+    }
+  }
   
   const loadDatasets = async () => {
     try {
@@ -52,10 +65,13 @@ function BatchPlan() {
   useEffect(() => {
     messages.forEach(msg => {
       if (msg.type === 'job.started') {
-        setRunningJobs(prev => ({ ...prev, [msg.data.job_id]: { type: msg.data.type, status: 'running' } }))
-        // Reset progress pro nový job a uložit batch_id do runningJobs pro snadné vyhledávání
+        // Pro copy joby uložit podle batch_id i job_id
         if (msg.data.type === 'copy' && msg.data.batch_id) {
-          setRunningJobs(prev => ({ ...prev, [msg.data.batch_id]: { type: msg.data.type, status: 'running', job_id: msg.data.job_id } }))
+          setRunningJobs(prev => ({
+            ...prev,
+            [msg.data.job_id]: { type: msg.data.type, status: 'running' },
+            [msg.data.batch_id]: { type: msg.data.type, status: 'running', job_id: msg.data.job_id }
+          }))
           setCopyProgress(prev => ({
             ...prev,
             [msg.data.batch_id]: {
@@ -67,6 +83,9 @@ function BatchPlan() {
               copiedSize: 0
             }
           }))
+        } else {
+          // Pro ostatní joby uložit jen podle job_id
+          setRunningJobs(prev => ({ ...prev, [msg.data.job_id]: { type: msg.data.type, status: 'running' } }))
         }
       } else if (msg.type === 'job.progress' && msg.data.type === 'copy') {
         // Aktualizace progressu

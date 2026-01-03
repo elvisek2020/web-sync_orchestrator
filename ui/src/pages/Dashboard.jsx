@@ -5,14 +5,12 @@ import './Dashboard.css'
 
 function Dashboard() {
   const mountStatus = useMountStatus()
-  const [recentJobs, setRecentJobs] = useState([])
   const [datasets, setDatasets] = useState([])
   const [connectionStatus, setConnectionStatus] = useState({}) // { datasetId: { connected, error, message } }
   const [testingConnections, setTestingConnections] = useState(new Set())
   const [phase, setPhase] = useState(localStorage.getItem('sync_phase') || 'planning')
   
   useEffect(() => {
-    loadRecentJobs()
     loadDatasets()
     // Poslouchat změny fáze
     const handlePhaseChange = (e) => {
@@ -22,17 +20,6 @@ function Dashboard() {
     window.addEventListener('syncPhaseChanged', handlePhaseChange)
     return () => window.removeEventListener('syncPhaseChanged', handlePhaseChange)
   }, [])
-  
-  const loadRecentJobs = async () => {
-    try {
-      const response = await axios.get('/api/copy/jobs')
-      const jobs = Array.isArray(response.data) ? response.data.slice(0, 5) : []
-      setRecentJobs(jobs)
-    } catch (error) {
-      console.error('Failed to load jobs:', error)
-      setRecentJobs([])
-    }
-  }
   
   const loadDatasets = async () => {
     try {
@@ -353,37 +340,6 @@ function Dashboard() {
         )}
       </div>
       
-      <div className="box box-compact">
-        <h2>Poslední joby</h2>
-        {recentJobs.length === 0 ? (
-          <p>Žádné nedávné joby</p>
-        ) : (
-          <table className="jobs-table">
-            <thead>
-              <tr>
-                <th>Typ</th>
-                <th>Status</th>
-                <th>Začátek</th>
-                <th>Konec</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentJobs.map(job => (
-                <tr key={job.id}>
-                  <td>{job.type}</td>
-                  <td>
-                    <span className={`status-badge ${job.status}`}>
-                      {job.status}
-                    </span>
-                  </td>
-                  <td>{new Date(job.started_at).toLocaleString('cs-CZ')}</td>
-                  <td>{job.finished_at ? new Date(job.finished_at).toLocaleString('cs-CZ') : '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
     </div>
   )
 }
