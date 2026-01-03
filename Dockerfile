@@ -30,6 +30,8 @@ COPY backend/ ./backend/
 COPY --from=frontend-builder /app/ui/dist ./static
 # Kopírování obrázků workflow
 COPY ui/images ./static/images
+# Kopírování version.json
+COPY ui/static/version.json ./static/version.json
 
 # Exponování portu
 EXPOSE 8000

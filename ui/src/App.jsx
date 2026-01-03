@@ -97,6 +97,7 @@ function App() {
   const { connected } = useWebSocket()
   const { safeMode, refresh } = useMountStatus()
   const [phase, setPhase] = useState(localStorage.getItem('sync_phase') || 'planning')
+  const [version, setVersion] = useState('')
   
   useEffect(() => {
     // Poslouchat změny fáze z jiných komponent
@@ -105,6 +106,17 @@ function App() {
     }
     window.addEventListener('syncPhaseChanged', handlePhaseChange)
     return () => window.removeEventListener('syncPhaseChanged', handlePhaseChange)
+  }, [])
+  
+  useEffect(() => {
+    // Načtení verze z version.json
+    fetch('/static/version.json')
+      .then(res => res.json())
+      .then(data => setVersion(data.version || ''))
+      .catch(err => {
+        console.error('Failed to load version:', err)
+        setVersion('')
+      })
   }, [])
   
   const handleRefresh = async () => {
@@ -176,6 +188,12 @@ function App() {
             </Routes>
           </PhaseRouter>
         </main>
+        
+        {version && (
+          <footer className="app-footer">
+            <span>Verze: {version}</span>
+          </footer>
+        )}
       </div>
     </BrowserRouter>
   )
