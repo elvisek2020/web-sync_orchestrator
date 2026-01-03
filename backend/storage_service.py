@@ -23,17 +23,30 @@ class StorageService:
         logger = logging.getLogger(__name__)
         
         db_path = get_db_path()
-        logger.info(f"initialize called: db_path={db_path}, dir_exists={os.path.exists(os.path.dirname(db_path)) if db_path else False}")
+        logger.info(f"initialize called: db_path={db_path}, dir_exists={os.path.exists(os.path.dirname(db_path)) if db_path else False}, file_exists={os.path.exists(db_path) if db_path else False}")
         
-        if db_path and os.path.exists(os.path.dirname(db_path)):
+        if db_path:
+            # Zkontrolovat, zda adresář existuje (nebo vytvořit)
+            db_dir = os.path.dirname(db_path)
+            if not os.path.exists(db_dir):
+                try:
+                    os.makedirs(db_dir, exist_ok=True)
+                    logger.info(f"Created database directory: {db_dir}")
+                except Exception as e:
+                    logger.error(f"Failed to create database directory: {e}", exc_info=True)
+                    self.available = False
+                    return
+            
             try:
                 await self._connect(db_path)
-                logger.info(f"Database initialized successfully. available={self.available}")
+                logger.info(f"Database initialized successfully. available={self.available}, SessionLocal={self.SessionLocal is not None}, engine={self.engine is not None}")
             except Exception as e:
                 logger.error(f"Failed to initialize DB: {e}", exc_info=True)
                 self.available = False
+                self.SessionLocal = None
+                self.engine = None
         else:
-            logger.warning(f"Cannot initialize DB: db_path={db_path}, dir_exists={os.path.exists(os.path.dirname(db_path)) if db_path else False}")
+            logger.warning(f"Cannot initialize DB: db_path is None")
 
     async def _connect(self, db_path: str):
         """Připojí se k databázi"""
