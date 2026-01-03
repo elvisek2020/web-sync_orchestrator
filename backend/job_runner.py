@@ -815,13 +815,22 @@ class JobRunner:
                 else:
                     raise ValueError(f"Unknown direction: {direction}")
                 
-                # Callbacky pro progress
+                # Callbacky pro progress a logování
                 total_files = len(file_entries)
                 copied_count = 0
                 copied_size = 0
                 processed_files = set()  # Sledovat už zpracované soubory pro správné počítání velikosti
                 log_messages = []  # Ukládat log zprávy
                 file_statuses = []  # Ukládat stav každého souboru
+                
+                # Definovat log_cb před použitím
+                def log_cb(message: str):
+                    nonlocal log_messages
+                    log_messages.append(message)
+                    asyncio.run(websocket_manager.broadcast({
+                        "type": "job.log",
+                        "data": {"job_id": job_id, "type": "copy", "message": message}
+                    }))
                 
                 def progress_cb(count: int, path: str, file_size: int = 0, success: bool = True, error: str = None):
                     nonlocal copied_count, copied_size
