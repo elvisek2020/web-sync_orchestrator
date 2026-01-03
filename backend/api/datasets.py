@@ -55,9 +55,15 @@ async def check_safe_mode():
 @router.post("/", response_model=DatasetResponse)
 async def create_dataset(dataset_data: DatasetCreate, _: None = Depends(check_safe_mode)):
     """Vytvořit nový dataset"""
+    # check_safe_mode už zkontroloval SAFE MODE, ale zkontrolujeme ještě dostupnost session
     session = storage_service.get_session()
     if not session:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        # Pokud check_safe_mode prošel, ale session není dostupná, je to problém s databází
+        mount_status = await mount_service.get_status()
+        if mount_status.get("safe_mode", True):
+            raise HTTPException(status_code=503, detail="SAFE MODE: USB/DB unavailable")
+        else:
+            raise HTTPException(status_code=503, detail="Database unavailable")
     
     try:
         # Kontrola, zda dataset se stejným názvem už neexistuje
