@@ -694,8 +694,10 @@ class JobRunner:
                     source_file = source_files_map.get(item.full_rel_path)
                     
                     if source_file:
+                        # Použít normalizovanou cestu (bez root) pro rsync
+                        # item.full_rel_path je už normalizovaná cesta (bez root složky)
                         file_entries.append(FileEntry(
-                            full_rel_path=source_file.full_rel_path,
+                            full_rel_path=item.full_rel_path,  # Normalizovaná cesta bez root
                             size=source_file.size,
                             mtime_epoch=source_file.mtime_epoch,
                             root_rel_path=source_file.root_rel_path
@@ -734,13 +736,19 @@ class JobRunner:
                 
                 # Určení source a target base paths a adapterů podle konfigurace datasetů
                 # USB je vždy lokální mount
+                # source_root je root složka datasetu (např. "NAS-POHADKY-SERIALY")
                 if direction == "nas1-usb":
                     # Source: NAS1 (může být lokální nebo SSH)
                     # Target: USB (vždy lokální) - vytvořit adresář s názvem jobu
                     job_dir = f"job-{job_id}"
                     if source_dataset.transfer_adapter_type == "ssh":
                         # NAS1 je přes SSH - kopírujeme z VZDÁLENÉHO na LOKÁLNÍ
-                        source_base = source_dataset.transfer_adapter_config.get("base_path", "/") if source_dataset.transfer_adapter_config else "/"
+                        base_path = source_dataset.transfer_adapter_config.get("base_path", "/") if source_dataset.transfer_adapter_config else "/"
+                        # Přidat root složku k base_path
+                        if source_root:
+                            source_base = f"{base_path.rstrip('/')}/{source_root}" if base_path != "/" else f"/{source_root}"
+                        else:
+                            source_base = base_path
                         target_base = f"/mnt/usb/{job_dir}"
                         # Vytvořit adresář na USB
                         import os
@@ -748,7 +756,11 @@ class JobRunner:
                         adapter = AdapterFactory.create_transfer_adapter(source_dataset)
                     else:
                         # NAS1 je lokální mount
-                        source_base = "/mnt/nas1"
+                        # Přidat root složku k mount pointu
+                        if source_root:
+                            source_base = f"/mnt/nas1/{source_root}"
+                        else:
+                            source_base = "/mnt/nas1"
                         target_base = f"/mnt/usb/{job_dir}"
                         # Vytvořit adresář na USB
                         import os
@@ -776,11 +788,20 @@ class JobRunner:
                     source_base = f"/mnt/usb/{job_dir}"
                     if target_dataset.transfer_adapter_type == "ssh":
                         # NAS2 je přes SSH - kopírujeme z LOKÁLNÍHO na VZDÁLENÝ
-                        target_base = target_dataset.transfer_adapter_config.get("base_path", "/") if target_dataset.transfer_adapter_config else "/"
+                        base_path = target_dataset.transfer_adapter_config.get("base_path", "/") if target_dataset.transfer_adapter_config else "/"
+                        # Přidat root složku k base_path
+                        if target_root:
+                            target_base = f"{base_path.rstrip('/')}/{target_root}" if base_path != "/" else f"/{target_root}"
+                        else:
+                            target_base = base_path
                         adapter = AdapterFactory.create_transfer_adapter(target_dataset)
                     else:
                         # NAS2 je lokální mount
-                        target_base = "/mnt/nas2"
+                        # Přidat root složku k mount pointu
+                        if target_root:
+                            target_base = f"/mnt/nas2/{target_root}"
+                        else:
+                            target_base = "/mnt/nas2"
                         from backend.adapters.local_transfer import LocalRsyncTransferAdapter
                         adapter = LocalRsyncTransferAdapter()
                 else:

@@ -342,56 +342,10 @@ function CopyHddToNas() {
                               Průběh kopírování
                             </h4>
                             <div style={{ marginBottom: '1rem' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
-                                <span><strong>Celkový průběh:</strong> {progress.currentFileNum || 0} / {progress.totalFiles || 0} souborů</span>
-                                <span style={{ whiteSpace: 'nowrap' }}>{progress.totalSize > 0 ? `${((progress.copiedSize || 0) / 1024 / 1024 / 1024).toFixed(1)} GB / ${(progress.totalSize / 1024 / 1024 / 1024).toFixed(1)} GB` : ''}</span>
+                              <div style={{ fontSize: '0.875rem' }}>
+                                <span><strong>Kopírováno:</strong> {progress.currentFileNum || 0} / {progress.totalFiles || 0} souborů</span>
                               </div>
-                              <div style={{ width: '100%', height: '24px', background: '#e0e0e0', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
-                                <div
-                                  style={{
-                                    height: '100%',
-                                    width: `${progress.totalFiles > 0 && progress.currentFileNum > 0 ? Math.min(100, ((progress.currentFileNum || 0) / progress.totalFiles * 100)) : 0}%`,
-                                    background: 'linear-gradient(90deg, #007bff 0%, #0056b3 100%)',
-                                    transition: 'width 0.3s ease',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: 'white',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 'bold'
-                                  }}
-                                >
-                                  {progress.totalFiles > 0 ? `${Math.min(100, Math.round((progress.currentFileNum || 0) / progress.totalFiles * 100))}%` : '0%'}
-                                </div>
-                              </div>
-                              {progress.currentFileNum >= progress.totalFiles && progress.totalFiles > 0 && (
-                                <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#28a745', fontStyle: 'italic' }}>
-                                  Dokončování kopírování...
-                                </div>
-                              )}
                             </div>
-                            {progress.currentFile && (
-                              <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
-                                  <span><strong>Aktuální soubor:</strong> <code style={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>{progress.currentFile}</code></span>
-                                  {progress.currentFileSize > 0 && (
-                                    <span style={{ whiteSpace: 'nowrap' }}>{((progress.currentFileSize || 0) / 1024 / 1024 / 1024).toFixed(1)} GB</span>
-                                  )}
-                                </div>
-                                <div style={{ width: '100%', height: '20px', background: '#e0e0e0', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
-                                  <div
-                                    style={{
-                                      height: '100%',
-                                      width: '100%',
-                                      background: 'linear-gradient(90deg, #28a745 0%, #20c997 50%, #28a745 100%)',
-                                      backgroundSize: '200% 100%',
-                                      animation: 'progress-animation 2s linear infinite',
-                                      transition: 'width 0.3s ease'
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            )}
                           </div>
                         </td>
                       </tr>
@@ -464,23 +418,6 @@ function CopyHddToNas() {
       <div className="box box-compact">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <h2 style={{ margin: 0 }}>Poslední joby</h2>
-          {recentJobs.length > 0 && (
-            <button
-              className="button"
-              onClick={async () => {
-                try {
-                  await axios.delete('/api/copy/jobs')
-                  loadRecentJobs()
-                } catch (error) {
-                  console.error('Failed to delete jobs:', error)
-                  alert('Chyba při mazání jobů: ' + (error.response?.data?.detail || error.message))
-                }
-              }}
-              style={{ background: '#dc3545', fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
-            >
-              Smazat všechny
-            </button>
-          )}
         </div>
         {recentJobs.length === 0 ? (
           <p>Žádné nedávné joby</p>
@@ -510,41 +447,25 @@ function CopyHddToNas() {
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button
                         className="button"
-                        onClick={async () => {
-                          try {
-                            const [jobResponse, filesResponse] = await Promise.all([
-                              axios.get(`/api/copy/jobs/${job.id}`),
-                              axios.get(`/api/copy/jobs/${job.id}/files`).catch(() => ({ data: [] }))
-                            ])
-                            const jobDetail = jobResponse.data
-                            const files = filesResponse.data || []
-                            const metadata = jobDetail.job_metadata || {}
-                            
-                            const filesText = files.length > 0 ? `\n\nSoubory (${files.length}):\n${files.map((f, idx) => 
-                              `${idx + 1}. ${f.file_path} (${((f.file_size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB) - ${f.status}${f.error_message ? ` - ${f.error_message}` : ''}`
-                            ).join('\n')}` : '\n\nŽádné soubory'
-                            
-                            const logText = jobDetail.job_log ? `\n\nLog:\n${jobDetail.job_log}` : ''
-                            const detailText = `
-Detail jobu #${job.id}:
-Typ: ${jobDetail.type}
-Status: ${jobDetail.status}
-Začátek: ${new Date(jobDetail.started_at).toLocaleString('cs-CZ')}
-Konec: ${jobDetail.finished_at ? new Date(jobDetail.finished_at).toLocaleString('cs-CZ') : 'Probíhá'}
-${jobDetail.error_message ? `Chyba: ${jobDetail.error_message}` : ''}
-${metadata.batch_id ? `Batch ID: ${metadata.batch_id}` : ''}
-${metadata.direction ? `Směr: ${metadata.direction}` : ''}
-${metadata.dry_run !== undefined ? `Dry run: ${metadata.dry_run}` : ''}${filesText}${logText}
-                            `.trim()
-                            alert(detailText)
-                          } catch (error) {
-                            console.error('Failed to load job detail:', error)
-                            alert('Chyba při načítání detailu jobu: ' + (error.response?.data?.detail || error.message))
-                          }
-                        }}
+                        onClick={() => setSelectedJob(selectedJob === job.id ? null : job.id)}
                         style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
                       >
-                        Detail
+                        {selectedJob === job.id ? 'Skrýt' : 'Detail'}
+                      </button>
+                      <button
+                        className="button"
+                        onClick={async () => {
+                          try {
+                            await axios.delete(`/api/copy/jobs/${job.id}`)
+                            loadRecentJobs()
+                          } catch (error) {
+                            console.error('Failed to delete job:', error)
+                            alert('Chyba při mazání jobu: ' + (error.response?.data?.detail || error.message))
+                          }
+                        }}
+                        style={{ background: '#dc3545', fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
+                      >
+                        Smazat
                       </button>
                     </div>
                   </td>
