@@ -6,10 +6,9 @@ WORKDIR /app/ui
 COPY ui/package*.json ./
 RUN npm install
 COPY ui/ ./
-# Vytvořit static adresář před buildem
+# Vytvořit static adresář před buildem (prebuild se spustí automaticky před build)
 RUN mkdir -p static
-# Spustit prebuild (generate-version.js) a pak build
-RUN npm run prebuild || (echo "prebuild failed, continuing..." && mkdir -p static && echo '{"version":"v.unknown"}' > static/version.json)
+# Spustit build (prebuild se spustí automaticky před build díky npm lifecycle hooks)
 RUN npm run build
 
 # Stage 2: Python backend + frontend
