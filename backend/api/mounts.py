@@ -33,13 +33,44 @@ class MountsStatusResponse(BaseModel):
 @router.get("/status")
 async def get_mounts_status():
     """Získat stav všech mountů a databáze - whitelisted v SAFE MODE"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     status = await mount_service.get_status()
     
-    # Stav databáze
+    # Stav databáze s detailním logováním
+    db_available = storage_service.available
+    db_path = storage_service.db_path
+    has_session_local = storage_service.SessionLocal is not None
+    has_engine = storage_service.engine is not None
+    
+    # Logování pro debugging
+    logger.info(f"Database status check: available={db_available}, db_path={db_path}, has_session_local={has_session_local}, has_engine={has_engine}")
+    
+    # Zjistit důvod nedostupnosti
+    error_msg = None
+    if not db_available:
+        reasons = []
+        if not db_path:
+            reasons.append("db_path is None")
+        if not has_engine:
+            reasons.append("engine is None")
+        if not has_session_local:
+            reasons.append("SessionLocal is None")
+        if status.get("safe_mode", True):
+            reasons.append("SAFE MODE is active")
+        if not status.get("usb", {}).get("available", False):
+            reasons.append("USB mount not available")
+        if not status.get("usb", {}).get("writable", False):
+            reasons.append("USB mount not writable")
+        
+        error_msg = f"Database not available. Reasons: {', '.join(reasons) if reasons else 'unknown'}"
+        logger.warning(f"Database unavailable: {error_msg}")
+    
     db_status = DatabaseStatus(
-        available=storage_service.available,
-        db_path=storage_service.db_path,
-        error=None if storage_service.available else "Database not available"
+        available=db_available,
+        db_path=db_path,
+        error=error_msg
     )
     
     return MountsStatusResponse(

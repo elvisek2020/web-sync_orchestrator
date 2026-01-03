@@ -19,13 +19,21 @@ class StorageService:
 
     async def initialize(self):
         """Inicializace storage service - zkusí připojit DB pokud je USB dostupné"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         db_path = get_db_path()
+        logger.info(f"initialize called: db_path={db_path}, dir_exists={os.path.exists(os.path.dirname(db_path)) if db_path else False}")
+        
         if db_path and os.path.exists(os.path.dirname(db_path)):
             try:
                 await self._connect(db_path)
+                logger.info(f"Database initialized successfully. available={self.available}")
             except Exception as e:
-                print(f"Failed to initialize DB: {e}")
+                logger.error(f"Failed to initialize DB: {e}", exc_info=True)
                 self.available = False
+        else:
+            logger.warning(f"Cannot initialize DB: db_path={db_path}, dir_exists={os.path.exists(os.path.dirname(db_path)) if db_path else False}")
 
     async def _connect(self, db_path: str):
         """Připojí se k databázi"""
@@ -162,15 +170,26 @@ class StorageService:
 
     async def handle_available(self):
         """Zpracuje událost dostupnosti USB/DB"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         if self.available:
+            logger.info("Database already available, skipping connection")
             return
         
         db_path = get_db_path()
+        logger.info(f"handle_available called: db_path={db_path}, dir_exists={os.path.exists(os.path.dirname(db_path)) if db_path else False}")
+        
         if db_path and os.path.exists(os.path.dirname(db_path)):
             try:
+                logger.info(f"Attempting to connect to database at {db_path}")
                 await self._connect(db_path)
+                logger.info(f"Successfully connected to database. available={self.available}, SessionLocal={self.SessionLocal is not None}")
             except Exception as e:
-                print(f"Failed to connect to DB: {e}")
+                logger.error(f"Failed to connect to DB: {e}", exc_info=True)
+                self.available = False
+        else:
+            logger.warning(f"Cannot connect to DB: db_path={db_path}, dir_exists={os.path.exists(os.path.dirname(db_path)) if db_path else False}")
 
     async def handle_unavailable(self, reason: str):
         """Zpracuje událost nedostupnosti USB/DB"""
