@@ -609,7 +609,6 @@ function BatchPlan() {
                                   ))}
                                 </tbody>
                               </table>
-                              </div>
                             )}
                           </div>
                         </td>
