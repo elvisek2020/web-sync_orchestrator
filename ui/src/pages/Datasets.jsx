@@ -106,7 +106,14 @@ function Datasets() {
   }
   
   const handleDuplicate = async (dataset) => {
+    if (mountStatus.safe_mode) {
+      alert('Duplikování datasetu není možné v SAFE MODE. Databáze není dostupná.')
+      return
+    }
+    
     try {
+      console.log('Duplikování datasetu:', dataset)
+      
       // Vytvoříme nový název - přidáme " (kopie)" nebo číslo, pokud už existuje
       let newName = `${dataset.name} (kopie)`
       let counter = 1
@@ -119,17 +126,22 @@ function Datasets() {
       const data = {
         name: newName,
         location: dataset.location,
-        roots: dataset.roots.length > 0 ? dataset.roots : ['/'],
-        scan_adapter_type: dataset.scan_adapter_type,
-        transfer_adapter_type: dataset.transfer_adapter_type,
+        roots: Array.isArray(dataset.roots) && dataset.roots.length > 0 ? dataset.roots : ['/'],
+        scan_adapter_type: dataset.scan_adapter_type || 'local',
+        transfer_adapter_type: dataset.transfer_adapter_type || 'local',
         scan_adapter_config: dataset.scan_adapter_config || {},
         transfer_adapter_config: dataset.transfer_adapter_config || {}
       }
       
-      await axios.post('/api/datasets/', data)
-      loadDatasets()
+      console.log('Vytváření duplikátu s daty:', data)
+      const response = await axios.post('/api/datasets/', data)
+      console.log('Duplikát vytvořen:', response.data)
+      
+      await loadDatasets()
+      alert(`Dataset "${newName}" byl úspěšně vytvořen.`)
     } catch (error) {
       console.error('Failed to duplicate dataset:', error)
+      console.error('Error details:', error.response?.data)
       alert('Chyba při duplikování datasetu: ' + (error.response?.data?.detail || error.message))
     }
   }
