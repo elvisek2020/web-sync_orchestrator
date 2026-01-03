@@ -126,4 +126,18 @@ class JobRun(Base):
     error_message = Column(Text)
     job_log = Column(Text)  # Log zprávy z jobu
     job_metadata = Column("job_metadata", JSON)  # Dodatečné informace o jobu (metadata je rezervované slovo v SQLAlchemy)
+    
+    file_statuses = relationship("JobFileStatus", backref="job_run", cascade="all, delete-orphan")
+
+# JobFileStatus - stav každého souboru v copy jobu
+class JobFileStatus(Base):
+    __tablename__ = "job_file_statuses"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(Integer, ForeignKey("job_runs.id"), nullable=False)
+    file_path = Column(String, nullable=False)
+    file_size = Column(Integer, nullable=False)
+    status = Column(String, nullable=False)  # copied/failed/skipped
+    error_message = Column(Text)  # Chybová zpráva pokud selhalo
+    copied_at = Column(DateTime)
 

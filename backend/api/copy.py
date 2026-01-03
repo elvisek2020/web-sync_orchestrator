@@ -7,7 +7,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from backend.storage_service import storage_service
-from backend.database import JobRun, Batch, Diff, Scan, Dataset
+from backend.database import JobRun, Batch, Diff, Scan, Dataset, JobFileStatus
 from backend.mount_service import mount_service
 
 router = APIRouter()
@@ -170,6 +170,35 @@ async def get_job(job_id: int):
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
         return JobRunResponse.model_validate(job)
+    finally:
+        session.close()
+
+@router.get("/jobs/{job_id}/files", response_model=List[dict])
+async def get_job_files(job_id: int):
+    """Seznam souborů v copy jobu s jejich stavy"""
+    session = storage_service.get_session()
+    if not session:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    
+    try:
+        job = session.query(JobRun).filter(JobRun.id == job_id).first()
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        file_statuses = session.query(JobFileStatus).filter(
+            JobFileStatus.job_id == job_id
+        ).order_by(JobFileStatus.id).all()
+        
+        return [
+            {
+                "file_path": fs.file_path,
+                "file_size": fs.file_size,
+                "status": fs.status,
+                "error_message": fs.error_message,
+                "copied_at": fs.copied_at.isoformat() if fs.copied_at else None
+            }
+            for fs in file_statuses
+        ]
     finally:
         session.close()
 

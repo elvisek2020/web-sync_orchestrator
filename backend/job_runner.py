@@ -5,7 +5,7 @@ import asyncio
 import threading
 from typing import Dict, Optional, Callable
 from datetime import datetime
-from backend.database import JobRun, Scan, Diff, DiffItem, Batch, BatchItem, FileEntry as DBFileEntry, Dataset
+from backend.database import JobRun, Scan, Diff, DiffItem, Batch, BatchItem, FileEntry as DBFileEntry, Dataset, JobFileStatus, JobFileStatus
 from backend.storage_service import storage_service
 from backend.websocket_manager import websocket_manager
 from backend.adapters.factory import AdapterFactory
@@ -507,23 +507,44 @@ class JobRunner:
                 # USB je vždy lokální mount
                 if direction == "nas1-usb":
                     # Source: NAS1 (může být lokální nebo SSH)
-                    # Target: USB (vždy lokální)
+                    # Target: USB (vždy lokální) - vytvořit adresář s názvem jobu
+                    job_dir = f"job-{job_id}"
                     if source_dataset.transfer_adapter_type == "ssh":
                         # NAS1 je přes SSH - kopírujeme z VZDÁLENÉHO na LOKÁLNÍ
                         source_base = source_dataset.transfer_adapter_config.get("base_path", "/") if source_dataset.transfer_adapter_config else "/"
-                        target_base = "/mnt/usb"
+                        target_base = f"/mnt/usb/{job_dir}"
+                        # Vytvořit adresář na USB
+                        import os
+                        os.makedirs(target_base, exist_ok=True)
                         adapter = AdapterFactory.create_transfer_adapter(source_dataset)
                     else:
                         # NAS1 je lokální mount
                         source_base = "/mnt/nas1"
-                        target_base = "/mnt/usb"
+                        target_base = f"/mnt/usb/{job_dir}"
+                        # Vytvořit adresář na USB
+                        import os
+                        os.makedirs(target_base, exist_ok=True)
                         from backend.adapters.local_transfer import LocalRsyncTransferAdapter
                         adapter = LocalRsyncTransferAdapter()
                         
                 elif direction == "usb-nas2":
-                    # Source: USB (vždy lokální)
-                    # Target: NAS2 (může být lokální nebo SSH)
-                    source_base = "/mnt/usb"
+                    # Source: USB (vždy lokální) - najít adresář s názvem jobu z předchozího nas1-usb jobu
+                    # Najít předchozí nas1-usb job pro stejný batch
+                    from sqlalchemy import text
+                    previous_job = session.query(JobRun).filter(
+                        JobRun.type == "copy"
+                    ).filter(
+                        text("json_extract(job_metadata, '$.batch_id') = :batch_id"),
+                        text("json_extract(job_metadata, '$.direction') = 'nas1-usb'")
+                    ).params(batch_id=str(batch_id)).order_by(JobRun.started_at.desc()).first()
+                    
+                    if previous_job:
+                        job_dir = f"job-{previous_job.id}"
+                    else:
+                        # Fallback - použít aktuální job_id (i když to není ideální)
+                        job_dir = f"job-{job_id}"
+                    
+                    source_base = f"/mnt/usb/{job_dir}"
                     if target_dataset.transfer_adapter_type == "ssh":
                         # NAS2 je přes SSH - kopírujeme z LOKÁLNÍHO na VZDÁLENÝ
                         target_base = target_dataset.transfer_adapter_config.get("base_path", "/") if target_dataset.transfer_adapter_config else "/"
@@ -542,14 +563,22 @@ class JobRunner:
                 copied_size = 0
                 processed_files = set()  # Sledovat už zpracované soubory pro správné počítání velikosti
                 log_messages = []  # Ukládat log zprávy
+                file_statuses = []  # Ukládat stav každého souboru
                 
-                def progress_cb(count: int, path: str, file_size: int = 0):
+                def progress_cb(count: int, path: str, file_size: int = 0, success: bool = True, error: str = None):
                     nonlocal copied_count, copied_size
                     copied_count = count
                     # Přidat velikost jen jednou pro každý soubor
                     if file_size > 0 and path not in processed_files:
                         copied_size += file_size
                         processed_files.add(path)
+                        # Uložit stav souboru
+                        file_statuses.append({
+                            "file_path": path,
+                            "file_size": file_size,
+                            "status": "copied" if success else "failed",
+                            "error_message": error
+                        })
                     asyncio.run(websocket_manager.broadcast({
                         "type": "job.progress",
                         "data": {
@@ -608,6 +637,18 @@ class JobRunner:
                         progress_cb=progress_cb,
                         log_cb=log_cb
                     )
+                
+                # Uložit stav každého souboru do databáze
+                for file_status in file_statuses:
+                    file_status_record = JobFileStatus(
+                        job_id=job_id,
+                        file_path=file_status["file_path"],
+                        file_size=file_status["file_size"],
+                        status=file_status["status"],
+                        error_message=file_status.get("error_message"),
+                        copied_at=datetime.utcnow() if file_status["status"] == "copied" else None
+                    )
+                    session.add(file_status_record)
                 
                 # Aktualizace jobu
                 job.status = "completed" if result.get("success") else "failed"

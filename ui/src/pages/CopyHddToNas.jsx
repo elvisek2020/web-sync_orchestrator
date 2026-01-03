@@ -18,13 +18,53 @@ function CopyHddToNas() {
   useEffect(() => {
     loadBatches()
     loadRecentJobs()
+    loadRunningJobs()
     
     const interval = setInterval(() => {
       loadBatches()
       loadRecentJobs()
+      loadRunningJobs()
     }, 2000)
     return () => clearInterval(interval)
   }, [])
+  
+  const loadRunningJobs = async () => {
+    try {
+      const response = await axios.get('/api/copy/jobs')
+      const allJobs = Array.isArray(response.data) ? response.data : []
+      // Najít běžící copy joby a obnovit jejich progress
+      const runningCopyJobs = allJobs.filter(job => job.type === 'copy' && job.status === 'running')
+      runningCopyJobs.forEach(job => {
+        const batchId = job.job_metadata?.batch_id
+        if (batchId) {
+          setRunningJobs(prev => ({
+            ...prev,
+            [job.id]: { type: job.type, status: 'running' },
+            [batchId]: { type: job.type, status: 'running', job_id: job.id }
+          }))
+          // Načíst detail jobu pro získání progress informací
+          axios.get(`/api/copy/jobs/${job.id}`).then(jobDetail => {
+            // Progress se bude aktualizovat přes WebSocket, ale můžeme nastavit základní stav
+            if (!copyProgress[batchId]) {
+              setCopyProgress(prev => ({
+                ...prev,
+                [batchId]: {
+                  currentFile: '',
+                  currentFileNum: 0,
+                  totalFiles: 0,
+                  currentFileSize: 0,
+                  totalSize: 0,
+                  copiedSize: 0
+                }
+              }))
+            }
+          }).catch(err => console.error('Failed to load job detail:', err))
+        }
+      })
+    } catch (error) {
+      console.error('Failed to load running jobs:', error)
+    }
+  }
   
   useEffect(() => {
     messages.forEach(msg => {
@@ -154,16 +194,15 @@ function CopyHddToNas() {
       </div>
       
       <div className="box box-compact">
-        <h2>Batchy</h2>
+        <h2>Plány</h2>
         {batches.length === 0 ? (
-          <p>Žádné batchy</p>
+          <p>Žádné plány</p>
         ) : (
           <table className="batches-table">
             <thead>
               <tr>
                 <th>ID</th>
                 <th>Diff ID</th>
-                <th>USB Limit %</th>
                 <th>Status</th>
                 <th>Kopírování</th>
                 <th>Akce</th>
@@ -174,13 +213,14 @@ function CopyHddToNas() {
                 const running = runningJobs[batch.id]
                 const progress = copyProgress[batch.id]
                 const isExpanded = expandedBatches.has(batch.id)
-                const items = batchItems[batch.id] || []
+                const allItems = batchItems[batch.id] || []
+                // Ve fázi 3 zobrazit pouze vybrané (enabled) soubory
+                const items = allItems.filter(item => item.enabled !== false)
                 return (
                   <React.Fragment key={batch.id}>
                     <tr>
                       <td>{batch.id}</td>
                       <td>{batch.diff_id}</td>
-                      <td>{batch.usb_limit_pct || 80}%</td>
                       <td>
                         <span className={`status-badge ${running ? 'running' : (batch.status || 'unknown')}`}>
                           {running ? 'running' : (batch.status || 'unknown')}
@@ -215,7 +255,7 @@ function CopyHddToNas() {
                     </tr>
                     {running && progress && (
                       <tr>
-                        <td colSpan="6" style={{ padding: '1rem', background: '#f0f7ff', borderTop: '2px solid #007bff' }}>
+                        <td colSpan="5" style={{ padding: '1rem', background: '#f0f7ff', borderTop: '2px solid #007bff' }}>
                           <div style={{ marginBottom: '1rem' }}>
                             <h4 style={{ marginBottom: '0.75rem', fontSize: '0.9375rem', fontWeight: 'bold' }}>
                               Průběh kopírování
@@ -277,7 +317,7 @@ function CopyHddToNas() {
                     )}
                     {isExpanded && (
                       <tr>
-                        <td colSpan="6" style={{ padding: '1rem', background: '#f8f9fa' }}>
+                        <td colSpan="5" style={{ padding: '1rem', background: '#f8f9fa' }}>
                           <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                               <h4 style={{ margin: 0, fontSize: '0.9375rem' }}>
@@ -377,9 +417,18 @@ function CopyHddToNas() {
                         className="button"
                         onClick={async () => {
                           try {
-                            const response = await axios.get(`/api/copy/jobs/${job.id}`)
-                            const jobDetail = response.data
+                            const [jobResponse, filesResponse] = await Promise.all([
+                              axios.get(`/api/copy/jobs/${job.id}`),
+                              axios.get(`/api/copy/jobs/${job.id}/files`).catch(() => ({ data: [] }))
+                            ])
+                            const jobDetail = jobResponse.data
+                            const files = filesResponse.data || []
                             const metadata = jobDetail.job_metadata || {}
+                            
+                            const filesText = files.length > 0 ? `\n\nSoubory (${files.length}):\n${files.map((f, idx) => 
+                              `${idx + 1}. ${f.file_path} (${(f.file_size / 1024 / 1024).toFixed(2)} MB) - ${f.status}${f.error_message ? ` - ${f.error_message}` : ''}`
+                            ).join('\n')}` : '\n\nŽádné soubory'
+                            
                             const logText = jobDetail.job_log ? `\n\nLog:\n${jobDetail.job_log}` : ''
                             const detailText = `
 Detail jobu #${job.id}:
@@ -390,7 +439,7 @@ Konec: ${jobDetail.finished_at ? new Date(jobDetail.finished_at).toLocaleString(
 ${jobDetail.error_message ? `Chyba: ${jobDetail.error_message}` : ''}
 ${metadata.batch_id ? `Batch ID: ${metadata.batch_id}` : ''}
 ${metadata.direction ? `Směr: ${metadata.direction}` : ''}
-${metadata.dry_run !== undefined ? `Dry run: ${metadata.dry_run}` : ''}${logText}
+${metadata.dry_run !== undefined ? `Dry run: ${metadata.dry_run}` : ''}${filesText}${logText}
                             `.trim()
                             alert(detailText)
                           } catch (error) {

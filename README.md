@@ -359,6 +359,7 @@ Aplikace poskytuje REST API na `/api/*`:
 - `DELETE /api/batches/{batch_id}` - Smazat plán
 - `GET /api/copy/jobs` - Seznam copy jobů
 - `GET /api/copy/jobs/{job_id}` - Detail copy jobu
+- `GET /api/copy/jobs/{job_id}/files` - Seznam souborů v copy jobu s jejich stavy
 - `DELETE /api/copy/jobs` - Smazat všechny copy joby
 - `DELETE /api/copy/jobs/{job_id}` - Smazat konkrétní copy job
 - `POST /api/copy/nas1-usb` - Kopírování NAS1 → USB
@@ -444,7 +445,18 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 
 ### 📝 Historie změn
 
-#### v.20250103.0938 (aktuální)
+#### v.20250103.0952 (aktuální)
+
+- ✅ **Přepínání mezi fázemi**: Při přepínání mezi fází 2 a 3 se přesměruje přímo na záložku kopírování
+- ✅ **Obnovení progress baru**: Po návratu na záložku Kopírování se zobrazí progress bar, pokud job ještě běží
+- ✅ **Filtrování souborů**: Ve fázi 2 a 3 se zobrazují pouze vybrané (enabled) soubory v seznamu
+- ✅ **Odebrán sloupec USB LIMIT %**: Odstraněn ze všech záložek
+- ✅ **Přejmenování Batchy → Plány**: Změněno ve všech záložkách
+- ✅ **Detail jobu s jednotlivými soubory**: Zobrazuje stav každého souboru (cesta, velikost, status, chybová zpráva)
+- ✅ **Adresářová struktura na HDD**: Každý job vytváří vlastní adresář `job-{job_id}` na USB disku pro oddělení různých jobů
+- ✅ **Ukládání stavu souborů**: Nová tabulka `job_file_statuses` pro sledování stavu každého zkopírovaného souboru
+
+#### v.20250103.0938
 
 - ✅ **Rozdělené záložky podle fází**: Každá fáze má vlastní záložku (Plán přenosu, Kopírování NAS→HDD, Kopírování HDD→NAS)
 - ✅ **Přejmenování fází**: Fáze 2a → Fáze 2, Fáze 2b → Fáze 3
@@ -522,6 +534,8 @@ Aplikace automaticky provádí migrace databáze při startu:
 - Přidání `error_message` do `scans`
 - Přidání `exclude_patterns` do `batches`
 - Přidání `enabled` do `batch_items`
+- Přidání `job_log` do `job_runs`
+- Vytvoření tabulky `job_file_statuses` pro sledování stavu souborů
 
 ## 📄 Licence
 

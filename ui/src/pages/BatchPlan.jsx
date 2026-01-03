@@ -419,16 +419,15 @@ function BatchPlan() {
       )}
       
       <div className="box box-compact">
-        <h2>Batchy</h2>
+        <h2>Plány</h2>
         {batches.length === 0 ? (
-          <p>Žádné batchy</p>
+          <p>Žádné plány</p>
         ) : (
           <table className="batches-table">
             <thead>
               <tr>
                 <th>ID</th>
                 <th>Diff ID</th>
-                <th>USB Limit %</th>
                 <th>Status</th>
                 <th>Kopírování</th>
                 <th>Akce</th>
@@ -444,7 +443,6 @@ function BatchPlan() {
                     <tr>
                       <td>{batch.id}</td>
                       <td>{batch.diff_id}</td>
-                      <td>{batch.usb_limit_pct || 80}%</td>
                       <td>
                         <span className={`status-badge ${running ? 'running' : (batch.status || 'unknown')}`}>
                           {running ? 'running' : (batch.status || 'unknown')}
@@ -507,7 +505,7 @@ function BatchPlan() {
                     </tr>
                     {running && progress && (
                       <tr>
-                        <td colSpan="6" style={{ padding: '1rem', background: '#f0f7ff', borderTop: '2px solid #007bff' }}>
+                        <td colSpan="5" style={{ padding: '1rem', background: '#f0f7ff', borderTop: '2px solid #007bff' }}>
                           <div style={{ marginBottom: '1rem' }}>
                             <h4 style={{ marginBottom: '0.75rem', fontSize: '0.9375rem', fontWeight: 'bold' }}>
                               Průběh kopírování
@@ -566,7 +564,7 @@ function BatchPlan() {
                     )}
                     {isExpanded && (
                       <tr>
-                        <td colSpan="6" style={{ padding: '1rem', background: '#f8f9fa' }}>
+                        <td colSpan="5" style={{ padding: '1rem', background: '#f8f9fa' }}>
                           <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                               <h4 style={{ margin: 0, fontSize: '0.9375rem' }}>

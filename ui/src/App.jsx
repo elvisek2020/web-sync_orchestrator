@@ -19,10 +19,17 @@ function Navigation() {
   useEffect(() => {
     const handlePhaseChange = (e) => {
       setPhase(e.detail)
-      // Pokud je aktuální stránka nedostupná v nové fázi, přesměruj na Dashboard
+      // Pokud je aktuální stránka nedostupná v nové fázi, přesměruj na příslušnou záložku
       const allowedPaths = getAllowedPaths(e.detail)
       if (!allowedPaths.includes(location.pathname)) {
-        navigate('/')
+        // Při přepínání mezi fází 2 a 3 přesměrovat na příslušnou záložku kopírování
+        if (e.detail === 'copy-nas-hdd') {
+          navigate('/copy-nas-hdd')
+        } else if (e.detail === 'copy-hdd-nas') {
+          navigate('/copy-hdd-nas')
+        } else {
+          navigate('/')
+        }
       }
     }
     window.addEventListener('syncPhaseChanged', handlePhaseChange)
@@ -90,7 +97,14 @@ function PhaseRouter({ phase, children }) {
     const allowedPaths = navItems.filter(item => item.phases.includes(phase)).map(item => item.path)
     
     if (!allowedPaths.includes(location.pathname)) {
-      navigate('/')
+      // Při přepínání mezi fází 2 a 3 přesměrovat na příslušnou záložku kopírování
+      if (phase === 'copy-nas-hdd') {
+        navigate('/copy-nas-hdd')
+      } else if (phase === 'copy-hdd-nas') {
+        navigate('/copy-hdd-nas')
+      } else {
+        navigate('/')
+      }
     }
   }, [phase, location.pathname, navigate])
   
@@ -132,6 +146,12 @@ function App() {
     localStorage.setItem('sync_phase', newPhase)
     // Broadcast změny fáze pro aktualizaci ostatních komponent
     window.dispatchEvent(new CustomEvent('syncPhaseChanged', { detail: newPhase }))
+    // Při přepínání mezi fází 2 a 3 přesměrovat na příslušnou záložku kopírování
+    if (newPhase === 'copy-nas-hdd') {
+      window.location.href = '/copy-nas-hdd'
+    } else if (newPhase === 'copy-hdd-nas') {
+      window.location.href = '/copy-hdd-nas'
+    }
   }
   
   return (

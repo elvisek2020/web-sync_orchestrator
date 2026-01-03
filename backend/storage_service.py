@@ -49,6 +49,8 @@ class StorageService:
         await self._migrate_batch_items_enabled()
         # Migrace - přidání job_log do job_runs pokud neexistuje
         await self._migrate_job_runs_log()
+        # Migrace - vytvoření job_file_statuses tabulky pokud neexistuje
+        await self._migrate_job_file_statuses()
         
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         self.available = True

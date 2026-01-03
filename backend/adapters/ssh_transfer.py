@@ -135,13 +135,18 @@ class SshRsyncTransferAdapter(TransferAdapter):
                     copied_files.add(matched_file)
                     copied += 1
                     if progress_cb:
-                        progress_cb(copied, current_file, file_size)
+                        # Předpokládáme úspěch, pokud rsync nevrátí chybu
+                        progress_cb(copied, current_file, file_size, success=True, error=None)
             
-            process.wait()
+            returncode = process.wait()
             
-            if process.returncode != 0:
+            if returncode != 0:
                 error_output = process.stderr.read()
-                raise Exception(f"Rsync failed with code {process.returncode}: {error_output}")
+                # Pokud některé soubory selhaly, označit je jako failed
+                if progress_cb and copied_files:
+                    for failed_file in copied_files:
+                        progress_cb(copied, failed_file, 0, success=False, error=f"Rsync failed with code {returncode}")
+                raise Exception(f"Rsync failed with code {returncode}: {error_output}")
             
             return {
                 "success": True,
