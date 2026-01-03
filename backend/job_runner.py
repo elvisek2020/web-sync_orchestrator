@@ -735,6 +735,22 @@ class JobRunner:
                     }
                 }))
                 
+                # Inicializace proměnných pro logování a progress
+                log_messages = []  # Ukládat log zprávy
+                file_statuses = []  # Ukládat stav každého souboru
+                copied_count = 0
+                copied_size = 0
+                processed_files = set()  # Sledovat už zpracované soubory pro správné počítání velikosti
+                
+                # Definovat log_cb před použitím
+                def log_cb(message: str):
+                    nonlocal log_messages
+                    log_messages.append(message)
+                    asyncio.run(websocket_manager.broadcast({
+                        "type": "job.log",
+                        "data": {"job_id": job_id, "type": "copy", "message": message}
+                    }))
+                
                 # Určení source a target base paths a adapterů podle konfigurace datasetů
                 # USB je vždy lokální mount
                 # source_root je root složka datasetu (např. "NAS-POHADKY-SERIALY")
@@ -743,8 +759,7 @@ class JobRunner:
                     # Target: USB (vždy lokální) - vytvořit adresář s názvem jobu
                     # Použít job.id z databáze pro jistotu správného ID
                     job_dir = f"job-{job.id}"
-                    if log_cb:
-                        log_cb(f"Creating job directory: {job_dir} (job_id parameter: {job_id}, job.id from DB: {job.id})")
+                    log_cb(f"Creating job directory: {job_dir} (job_id parameter: {job_id}, job.id from DB: {job.id})")
                     if source_dataset.transfer_adapter_type == "ssh":
                         # NAS1 je přes SSH - kopírujeme z VZDÁLENÉHO na LOKÁLNÍ
                         base_path = source_dataset.transfer_adapter_config.get("base_path", "/") if source_dataset.transfer_adapter_config else "/"
@@ -785,13 +800,11 @@ class JobRunner:
                     
                     if previous_job:
                         job_dir = f"job-{previous_job.id}"
-                        if log_cb:
-                            log_cb(f"Using previous job directory: {job_dir} (previous_job.id: {previous_job.id})")
+                        log_cb(f"Using previous job directory: {job_dir} (previous_job.id: {previous_job.id})")
                     else:
                         # Fallback - použít aktuální job.id z databáze
                         job_dir = f"job-{job.id}"
-                        if log_cb:
-                            log_cb(f"Using current job directory (fallback): {job_dir} (job.id from DB: {job.id}, job_id parameter: {job_id})")
+                        log_cb(f"Using current job directory (fallback): {job_dir} (job.id from DB: {job.id}, job_id parameter: {job_id})")
                     
                     source_base = f"/mnt/usb/{job_dir}"
                     if target_dataset.transfer_adapter_type == "ssh":
@@ -815,22 +828,8 @@ class JobRunner:
                 else:
                     raise ValueError(f"Unknown direction: {direction}")
                 
-                # Callbacky pro progress a logování
+                # Callbacky pro progress
                 total_files = len(file_entries)
-                copied_count = 0
-                copied_size = 0
-                processed_files = set()  # Sledovat už zpracované soubory pro správné počítání velikosti
-                log_messages = []  # Ukládat log zprávy
-                file_statuses = []  # Ukládat stav každého souboru
-                
-                # Definovat log_cb před použitím
-                def log_cb(message: str):
-                    nonlocal log_messages
-                    log_messages.append(message)
-                    asyncio.run(websocket_manager.broadcast({
-                        "type": "job.log",
-                        "data": {"job_id": job_id, "type": "copy", "message": message}
-                    }))
                 
                 def progress_cb(count: int, path: str, file_size: int = 0, success: bool = True, error: str = None):
                     nonlocal copied_count, copied_size
