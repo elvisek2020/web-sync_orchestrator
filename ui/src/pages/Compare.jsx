@@ -265,11 +265,6 @@ function Compare() {
                             ({progress.count || 0} / {progress.total || 0} souborů)
                           </span>
                         )}
-                        {progress?.message && (
-                          <div style={{ marginTop: '0.25rem', fontSize: '0.75rem', color: '#666', fontStyle: 'italic' }}>
-                            {progress.message}
-                          </div>
-                        )}
                       </div>
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>{new Date(diff.created_at).toLocaleString('cs-CZ')}</td>
