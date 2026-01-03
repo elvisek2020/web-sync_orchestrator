@@ -43,23 +43,34 @@ function CopyHddToNas() {
             [job.id]: { type: job.type, status: 'running' },
             [batchId]: { type: job.type, status: 'running', job_id: job.id }
           }))
-          // Načíst detail jobu pro získání progress informací
-          axios.get(`/api/copy/jobs/${job.id}`).then(jobDetail => {
-            // Progress se bude aktualizovat přes WebSocket, ale můžeme nastavit základní stav
-            if (!copyProgress[batchId]) {
+          // Načíst file statuses pro získání totalFiles a progress
+          axios.get(`/api/copy/jobs/${job.id}/files`).then(filesResponse => {
+            const files = filesResponse.data || []
+            // Spočítat totalFiles z batch items (enabled soubory)
+            axios.get(`/api/batches/${batchId}/items`).then(itemsResponse => {
+              const items = itemsResponse.data || []
+              const enabledItems = items.filter(item => item.enabled !== false)
+              const totalFiles = enabledItems.length
+              const totalSize = enabledItems.reduce((sum, item) => sum + (item.size || 0), 0)
+              const copiedCount = files.filter(f => f.status === 'copied').length
+              const copiedSize = files.reduce((sum, f) => sum + (f.file_size || 0), 0)
+              
               setCopyProgress(prev => ({
                 ...prev,
                 [batchId]: {
                   currentFile: '',
-                  currentFileNum: 0,
-                  totalFiles: 0,
+                  currentFileNum: copiedCount,
+                  totalFiles: totalFiles,
                   currentFileSize: 0,
-                  totalSize: 0,
-                  copiedSize: 0
+                  totalSize: totalSize,
+                  copiedSize: copiedSize,
+                  job_id: job.id
                 }
               }))
-            }
-          }).catch(err => console.error('Failed to load job detail:', err))
+              // Načíst file statuses
+              setFileStatuses(prev => ({ ...prev, [job.id]: files }))
+            }).catch(err => console.error('Failed to load batch items:', err))
+          }).catch(err => console.error('Failed to load file statuses:', err))
         }
       })
     } catch (error) {
