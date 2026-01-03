@@ -73,10 +73,10 @@ function Scan() {
     
     setLoading(true)
     setErrorMessage('')
-    setSuccessMessage('')
     
     try {
-      await axios.post('/api/scans/', { dataset_id: parseInt(selectedDataset) })
+      const response = await axios.post('/api/scans/', { dataset_id: parseInt(selectedDataset) })
+      console.log('Scan created:', response.data)
       setSelectedDataset('')
       loadScans()
     } catch (error) {
