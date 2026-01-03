@@ -189,7 +189,8 @@ function BatchPlan() {
       alert('Kopírování spuštěno')
     } catch (error) {
       console.error('Failed to start copy:', error)
-      alert('Chyba při spuštění kopírování')
+      const errorMessage = error.response?.data?.detail || error.message || 'Neznámá chyba'
+      alert(`Chyba při spuštění kopírování: ${errorMessage}`)
     }
   }
   

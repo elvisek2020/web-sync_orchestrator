@@ -63,7 +63,7 @@ async def copy_nas1_to_usb(request: CopyRequest, _: None = Depends(check_safe_mo
             raise HTTPException(status_code=404, detail="Source dataset not found")
         
         # Ověření mountů
-        mount_status = mount_service.get_status()
+        mount_status = await mount_service.get_status()
         # NAS1 mount kontrolujeme jen pokud se nepoužívá SSH adapter
         if source_dataset.transfer_adapter_type != "ssh" and not mount_status["nas1"]["available"]:
             raise HTTPException(status_code=503, detail="NAS1 not available")
@@ -117,7 +117,7 @@ async def copy_usb_to_nas2(request: CopyRequest, _: None = Depends(check_safe_mo
             raise HTTPException(status_code=404, detail="Target dataset not found")
         
         # Ověření mountů
-        mount_status = mount_service.get_status()
+        mount_status = await mount_service.get_status()
         # USB je vždy lokální, takže vždy kontrolujeme
         if not mount_status["usb"]["available"]:
             raise HTTPException(status_code=503, detail="USB not available")
