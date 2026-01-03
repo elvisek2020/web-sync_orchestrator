@@ -114,6 +114,10 @@ class MountService:
                     "type": "storage.db.available",
                     "data": {}
                 })
+        # Pokud SAFE MODE není aktivní, ale databáze není dostupná, zkusit připojit
+        elif not self.status["safe_mode"] and not storage_service.available:
+            # USB je dostupný, ale databáze není připojená - zkusit připojit
+            await storage_service.handle_available()
         
         return self.status
 
