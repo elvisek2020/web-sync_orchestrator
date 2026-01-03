@@ -645,6 +645,38 @@ function BatchPlan() {
           </table>
         )}
       </div>
+      
+      <div className="box box-compact">
+        <h2>Poslední joby</h2>
+        {recentJobs.length === 0 ? (
+          <p>Žádné nedávné joby</p>
+        ) : (
+          <table className="jobs-table">
+            <thead>
+              <tr>
+                <th>Typ</th>
+                <th>Status</th>
+                <th>Začátek</th>
+                <th>Konec</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentJobs.map(job => (
+                <tr key={job.id}>
+                  <td>{job.type}</td>
+                  <td>
+                    <span className={`status-badge ${job.status}`}>
+                      {job.status}
+                    </span>
+                  </td>
+                  <td>{new Date(job.started_at).toLocaleString('cs-CZ')}</td>
+                  <td>{job.finished_at ? new Date(job.finished_at).toLocaleString('cs-CZ') : '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   )
 }
