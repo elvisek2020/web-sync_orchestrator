@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     rsync \
     openssh-client \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Python závislosti
@@ -35,6 +36,10 @@ COPY --from=frontend-builder /app/ui/dist ./static
 COPY ui/images ./static/images
 # Kopírování version.json
 COPY ui/static/version.json ./static/version.json
+
+# Nastavení timezone
+ENV TZ=Europe/Prague
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Exponování portu
 EXPOSE 8000
