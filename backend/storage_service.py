@@ -97,6 +97,12 @@ class StorageService:
             except Exception as e:
                 logger.warning(f"Migration _migrate_batch_items_enabled failed: {e}", exc_info=True)
             
+            # Migrace - přidání error_message do batches pokud neexistuje
+            try:
+                await self._migrate_batches_error_message()
+            except Exception as e:
+                logger.warning(f"Migration _migrate_batches_error_message failed: {e}", exc_info=True)
+            
             # Migrace - přidání job_log do job_runs pokud neexistuje
             try:
                 await self._migrate_job_runs_log()
