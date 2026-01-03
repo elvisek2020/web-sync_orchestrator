@@ -183,6 +183,15 @@ function CopyNasToHdd() {
     }
   }
   
+  const loadFileStatuses = async (jobId) => {
+    try {
+      const response = await axios.get(`/api/copy/jobs/${jobId}/files`)
+      setFileStatuses(prev => ({ ...prev, [jobId]: response.data || [] }))
+    } catch (error) {
+      console.error('Failed to load file statuses:', error)
+    }
+  }
+  
   const toggleBatchExpanded = (batchId) => {
     const newExpanded = new Set(expandedBatches)
     if (newExpanded.has(batchId)) {
