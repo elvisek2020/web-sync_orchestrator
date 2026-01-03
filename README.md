@@ -444,7 +444,17 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 
 ### 📝 Historie změn
 
-#### v.20260103.0300 (aktuální)
+#### v.20250103.0938 (aktuální)
+
+- ✅ **Rozdělené záložky podle fází**: Každá fáze má vlastní záložku (Plán přenosu, Kopírování NAS→HDD, Kopírování HDD→NAS)
+- ✅ **Optimalizované hromadné označení**: Rychlé povolení/zakázání všech souborů v plánu
+- ✅ **Historie jobů**: Zobrazení posledních jobů s možností zobrazení detailu a mazání
+- ✅ **Nápověda k zakázaným tlačítkům**: Tooltip vysvětluje, proč je tlačítko zakázané
+- ✅ **Opravený progress bar**: Správné zobrazení průběhu kopírování s ignorováním informačních řádků rsync
+- ✅ **Log z kopírování**: Log zprávy z kopírování se ukládají do databáze a zobrazují v detailu jobu
+- ✅ **Indikace dokončování**: Progress bar zobrazuje "Dokončování kopírování..." když jsou všechny soubory ve frontě
+
+#### v.20260103.0300
 
 - ✅ **Základní infrastruktura**: Docker, FastAPI, React
 - ✅ **Datový model**: Kompletní SQLAlchemy modely
