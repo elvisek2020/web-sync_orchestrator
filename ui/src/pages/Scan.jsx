@@ -305,7 +305,13 @@ function ScanDetail({ scanId }) {
     setLoading(true)
     try {
       const response = await axios.get(`/api/scans/${scanId}/files?limit=100`)
-      setFiles(response.data)
+      // Seřadit podle abecedy (podle full_rel_path)
+      const sortedFiles = [...response.data].sort((a, b) => {
+        const pathA = (a.full_rel_path || '').toLowerCase()
+        const pathB = (b.full_rel_path || '').toLowerCase()
+        return pathA.localeCompare(pathB)
+      })
+      setFiles(sortedFiles)
     } catch (error) {
       console.error('Failed to load files:', error)
     } finally {

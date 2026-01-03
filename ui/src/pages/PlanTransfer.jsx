@@ -288,7 +288,7 @@ function PlanTransfer() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Diff ID</th>
+                <th>Porovnání</th>
                 <th>Status</th>
                 <th>Akce</th>
               </tr>

@@ -318,7 +318,20 @@ function DiffDetail({ diffId }) {
     setLoading(true)
     try {
       const response = await axios.get(`/api/diffs/${diffId}/items?limit=1000`)
-      setItems(response.data)
+      // Seřadit podle kategorie: chybí (missing), konflikt (conflict), stejné (same)
+      const categoryOrder = { 'missing': 1, 'conflict': 2, 'same': 3 }
+      const sortedItems = [...response.data].sort((a, b) => {
+        const orderA = categoryOrder[a.category] || 999
+        const orderB = categoryOrder[b.category] || 999
+        if (orderA !== orderB) {
+          return orderA - orderB
+        }
+        // Pokud je stejná kategorie, seřadit podle cesty
+        const pathA = (a.full_rel_path || '').toLowerCase()
+        const pathB = (b.full_rel_path || '').toLowerCase()
+        return pathA.localeCompare(pathB)
+      })
+      setItems(sortedItems)
     } catch (error) {
       console.error('Failed to load diff items:', error)
     } finally {
