@@ -301,7 +301,19 @@ function PlanTransfer() {
                   <React.Fragment key={batch.id}>
                     <tr>
                       <td>{batch.id}</td>
-                      <td>{batch.diff_id}</td>
+                      <td>
+                        {(() => {
+                          const diff = diffs.find(d => d.id === batch.diff_id)
+                          if (!diff) return `Porovnání #${batch.diff_id}`
+                          const sourceScan = scans.find(s => s.id === diff.source_scan_id)
+                          const targetScan = scans.find(s => s.id === diff.target_scan_id)
+                          const sourceDataset = sourceScan ? datasets.find(d => d.id === sourceScan.dataset_id) : null
+                          const targetDataset = targetScan ? datasets.find(d => d.id === targetScan.dataset_id) : null
+                          const sourceName = sourceDataset ? sourceDataset.name : `Scan #${diff.source_scan_id}`
+                          const targetName = targetDataset ? targetDataset.name : `Scan #${diff.target_scan_id}`
+                          return `Porovnání #${diff.id}: ${sourceName} → ${targetName}`
+                        })()}
+                      </td>
                       <td>
                         <span className={`status-badge ${batch.status || 'unknown'}`}>
                           {batch.status || 'unknown'}
