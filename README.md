@@ -436,7 +436,9 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 
 1. **Dashboard** - Přehled stavu, mountů, nedávných jobů, test SSH připojení
 2. **Datasety** - Správa datasetů (vytváření, úprava, mazání)
-   - **Procházení adresářů**: Pro lokální i SSH adaptéry je k dispozici tlačítko "Procházet" pro interaktivní výběr root složky
+   - **Procházení adresářů**: Pro lokální i SSH adaptéry je k dispozici tlačítko "Procházet" / "Procházet SSH hosta" pro interaktivní výběr root složky
+   - **Způsob skenování**: Výběr mezi lokálním souborovým systémem nebo vzdáleným SSH/SFTP serverem
+   - **Způsob kopírování**: Výběr mezi lokálním kopírováním (rsync) nebo vzdáleným SSH kopírováním (rsync)
 3. **Scan** - Spuštění scanu pro dataset s real-time progress
 4. **Porovnání** - Vytváření a správa diffů (dostupné pouze ve fázi 1)
 5. **Plán přenosu** - Vytváření a správa plánů (dostupné pouze ve fázi 1)
