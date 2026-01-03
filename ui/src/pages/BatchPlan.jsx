@@ -543,9 +543,34 @@ function BatchPlan() {
                       <tr>
                         <td colSpan="6" style={{ padding: '1rem', background: '#f8f9fa' }}>
                           <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                            <h4 style={{ marginBottom: '0.75rem', fontSize: '0.9375rem' }}>
-                              Seznam souborů k kopírování ({items.length} souborů)
-                            </h4>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                              <h4 style={{ margin: 0, fontSize: '0.9375rem' }}>
+                                Seznam souborů k kopírování ({items.length} souborů)
+                              </h4>
+                              {items.length > 0 && (
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                  <button
+                                    className="button"
+                                    onClick={() => handleToggleAllItems(batch.id, true)}
+                                    style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
+                                    title="Označit všechny soubory"
+                                  >
+                                    ✓ Označit vše
+                                  </button>
+                                  <button
+                                    className="button"
+                                    onClick={() => handleToggleAllItems(batch.id, false)}
+                                    style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
+                                    title="Odznačit všechny soubory"
+                                  >
+                                    ✗ Odznačit vše
+                                  </button>
+                                  <span style={{ fontSize: '0.875rem', color: '#666', marginLeft: '0.5rem' }}>
+                                    {items.filter(item => item.enabled !== false).length} / {items.length} označeno
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                             {items.length === 0 ? (
                               <p style={{ color: '#666', fontSize: '0.875rem' }}>Načítání souborů...</p>
                             ) : (

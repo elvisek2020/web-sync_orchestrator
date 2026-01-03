@@ -35,7 +35,6 @@ function Navigation() {
       { path: '/scan', phases: ['planning'] },
       { path: '/compare', phases: ['planning'] },
       { path: '/batch-plan', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] },
-      { path: '/logs', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] }
     ]
     return navItems.filter(item => item.phases.includes(currentPhase)).map(item => item.path)
   }
@@ -181,7 +180,6 @@ function App() {
               <Route path="/scan" element={<Scan />} />
               <Route path="/compare" element={<Compare />} />
               <Route path="/batch-plan" element={<BatchPlan />} />
-              <Route path="/logs" element={<Logs />} />
             </Routes>
           </PhaseRouter>
         </main>
