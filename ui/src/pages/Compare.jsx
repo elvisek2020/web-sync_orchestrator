@@ -255,9 +255,21 @@ function Compare() {
                         : `Scan #${diff.target_scan_id}`}
                     </td>
                     <td>
-                      <span className={`status-badge ${running ? 'running' : diff.status}`}>
-                        {running ? 'running' : diff.status}
-                      </span>
+                      <div>
+                        <span className={`status-badge ${running ? 'running' : diff.status}`}>
+                          {running ? 'running' : diff.status}
+                        </span>
+                        {progress && (
+                          <span style={{ marginLeft: '0.5rem', fontSize: '0.875rem', color: '#666' }}>
+                            ({progress.count || 0} / {progress.total || 0} souborů)
+                          </span>
+                        )}
+                        {progress?.message && (
+                          <div style={{ marginTop: '0.25rem', fontSize: '0.75rem', color: '#666', fontStyle: 'italic' }}>
+                            {progress.message}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>{new Date(diff.created_at).toLocaleString('cs-CZ')}</td>
                     <td>
