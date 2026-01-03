@@ -28,6 +28,45 @@ async def lifespan(app: FastAPI):
         logger = logging.getLogger(__name__)
         logger.info("USB is available but database is not connected, attempting to connect...")
         await storage_service.handle_available()
+    
+    # Zkontrolovat a označit uvízlé joby ve stavu "running" jako "failed"
+    # (mohly zůstat z předchozího běhu po restartu)
+    try:
+        session = storage_service.get_session()
+        if session:
+            from backend.database import Scan, Diff, Batch
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            # Zkontrolovat Scany
+            stuck_scans = session.query(Scan).filter(Scan.status == "running").all()
+            for scan in stuck_scans:
+                scan.status = "failed"
+                scan.error_message = "Job byl přerušen restartem aplikace"
+                logger.warning(f"Marking stuck scan {scan.id} as failed")
+            
+            # Zkontrolovat Diffy
+            stuck_diffs = session.query(Diff).filter(Diff.status == "running").all()
+            for diff in stuck_diffs:
+                diff.status = "failed"
+                logger.warning(f"Marking stuck diff {diff.id} as failed")
+            
+            # Zkontrolovat Batches (Plány)
+            stuck_batches = session.query(Batch).filter(Batch.status == "running").all()
+            for batch in stuck_batches:
+                batch.status = "failed"
+                batch.error_message = "Job byl přerušen restartem aplikace"
+                logger.warning(f"Marking stuck batch {batch.id} as failed")
+            
+            if stuck_scans or stuck_diffs or stuck_batches:
+                session.commit()
+                logger.info(f"Marked {len(stuck_scans)} scans, {len(stuck_diffs)} diffs, {len(stuck_batches)} batches as failed")
+            session.close()
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error checking stuck jobs: {e}", exc_info=True)
+    
     yield
     # Shutdown
     await mount_service.stop_monitoring()
