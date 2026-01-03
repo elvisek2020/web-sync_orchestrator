@@ -633,9 +633,21 @@ class JobRunner:
                     BatchItem.enabled == True
                 ).all()
                 
+                if not batch_items:
+                    job.status = "failed"
+                    job.error_message = "Žádné povolené soubory v plánu"
+                    job.finished_at = datetime.utcnow()
+                    session.commit()
+                    asyncio.run(websocket_manager.broadcast({
+                        "type": "job.finished",
+                        "data": {"job_id": job_id, "type": "copy", "status": "failed", "error": "Žádné povolené soubory v plánu"}
+                    }))
+                    return
+                
                 # Konverze na FileEntry a výpočet celkové velikosti
                 file_entries = []
                 total_size = 0
+                missing_files = []
                 for item in batch_items:
                     # Najít source file entry
                     source_file = session.query(DBFileEntry).filter(
@@ -651,6 +663,22 @@ class JobRunner:
                             root_rel_path=source_file.root_rel_path
                         ))
                         total_size += source_file.size
+                    else:
+                        missing_files.append(item.full_rel_path)
+                
+                if not file_entries:
+                    error_msg = f"Žádné soubory k kopírování. Nenalezeno {len(missing_files)} souborů v scanu."
+                    if missing_files:
+                        error_msg += f" První chybějící: {missing_files[0]}"
+                    job.status = "failed"
+                    job.error_message = error_msg
+                    job.finished_at = datetime.utcnow()
+                    session.commit()
+                    asyncio.run(websocket_manager.broadcast({
+                        "type": "job.finished",
+                        "data": {"job_id": job_id, "type": "copy", "status": "failed", "error": error_msg}
+                    }))
+                    return
                 
                 # Broadcast start s informacemi o batchi (pokud ještě nebyl odeslán z API)
                 # API endpoint už posílá job.started, ale potřebujeme poslat i total_files a total_size

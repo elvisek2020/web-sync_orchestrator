@@ -9,6 +9,9 @@ function CopyHddToNas() {
   const mountStatus = useMountStatus()
   const { messages } = useWebSocket()
   const [batches, setBatches] = useState([])
+  const [diffs, setDiffs] = useState([])
+  const [scans, setScans] = useState([])
+  const [datasets, setDatasets] = useState([])
   const [expandedBatches, setExpandedBatches] = useState(new Set())
   const [batchItems, setBatchItems] = useState({})
   const [runningJobs, setRunningJobs] = useState({})
@@ -19,16 +22,52 @@ function CopyHddToNas() {
   
   useEffect(() => {
     loadBatches()
+    loadDiffs()
+    loadScans()
+    loadDatasets()
     loadRecentJobs()
     loadRunningJobs()
     
     const interval = setInterval(() => {
       loadBatches()
+      loadDiffs()
+      loadScans()
+      loadDatasets()
       loadRecentJobs()
       loadRunningJobs()
     }, 2000)
     return () => clearInterval(interval)
   }, [])
+  
+  const loadDiffs = async () => {
+    try {
+      const response = await axios.get('/api/diffs/')
+      setDiffs(Array.isArray(response.data) ? response.data : [])
+    } catch (error) {
+      console.error('Failed to load diffs:', error)
+      setDiffs([])
+    }
+  }
+  
+  const loadScans = async () => {
+    try {
+      const response = await axios.get('/api/scans/')
+      setScans(Array.isArray(response.data) ? response.data : [])
+    } catch (error) {
+      console.error('Failed to load scans:', error)
+      setScans([])
+    }
+  }
+  
+  const loadDatasets = async () => {
+    try {
+      const response = await axios.get('/api/datasets/')
+      setDatasets(Array.isArray(response.data) ? response.data : [])
+    } catch (error) {
+      console.error('Failed to load datasets:', error)
+      setDatasets([])
+    }
+  }
   
   const loadRunningJobs = async () => {
     try {
@@ -224,7 +263,7 @@ function CopyHddToNas() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Diff ID</th>
+                <th>Porovnání</th>
                 <th>Status</th>
                 <th>Kopírování</th>
                 <th>Akce</th>
@@ -250,7 +289,19 @@ function CopyHddToNas() {
                   <React.Fragment key={batch.id}>
                     <tr>
                       <td>{batch.id}</td>
-                      <td>{batch.diff_id}</td>
+                      <td>
+                        {(() => {
+                          const diff = diffs.find(d => d.id === batch.diff_id)
+                          if (!diff) return `Porovnání #${batch.diff_id}`
+                          const sourceScan = scans.find(s => s.id === diff.source_scan_id)
+                          const targetScan = scans.find(s => s.id === diff.target_scan_id)
+                          const sourceDataset = sourceScan ? datasets.find(d => d.id === sourceScan.dataset_id) : null
+                          const targetDataset = targetScan ? datasets.find(d => d.id === targetScan.dataset_id) : null
+                          const sourceName = sourceDataset ? sourceDataset.name : `Scan #${diff.source_scan_id}`
+                          const targetName = targetDataset ? targetDataset.name : `Scan #${diff.target_scan_id}`
+                          return `Porovnání #${diff.id}: ${sourceName} → ${targetName}`
+                        })()}
+                      </td>
                       <td>
                         <span className={`status-badge ${running ? 'running' : (batch.status || 'unknown')}`}>
                           {running ? 'running' : (batch.status || 'unknown')}
