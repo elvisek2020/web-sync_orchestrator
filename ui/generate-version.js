@@ -22,9 +22,8 @@ const versionData = {
   version: version
 };
 
-// Použít process.cwd() jako fallback, pokud __dirname nefunguje správně
-const baseDir = __dirname || process.cwd();
-const outputPath = path.join(baseDir, 'static', 'version.json');
+// V Docker kontextu je WORKDIR /app/ui, takže static adresář je relativně k __dirname
+const outputPath = path.join(__dirname, 'static', 'version.json');
 const outputDir = path.dirname(outputPath);
 
 try {
@@ -40,6 +39,8 @@ try {
   console.log(`Written to: ${outputPath}`);
 } catch (error) {
   console.error('Error generating version.json:', error);
+  console.error('Error details:', error.message);
+  console.error('Stack:', error.stack);
   process.exit(1);
 }
 

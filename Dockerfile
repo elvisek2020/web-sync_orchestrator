@@ -8,6 +8,8 @@ RUN npm install
 COPY ui/ ./
 # Vytvořit static adresář před buildem
 RUN mkdir -p static
+# Spustit prebuild (generate-version.js) a pak build
+RUN npm run prebuild || (echo "prebuild failed, continuing..." && mkdir -p static && echo '{"version":"v.unknown"}' > static/version.json)
 RUN npm run build
 
 # Stage 2: Python backend + frontend
