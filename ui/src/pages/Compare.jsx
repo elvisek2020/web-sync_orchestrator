@@ -203,7 +203,7 @@ function Compare() {
         {diffs.length === 0 ? (
           <p>Žádné diffy</p>
         ) : (
-          <table className="diffs-table">
+          <table className="diffs-table" style={{ width: '100%' }}>
             <thead>
               <tr>
                 <th>ID</th>

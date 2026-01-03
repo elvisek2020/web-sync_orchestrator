@@ -14,6 +14,7 @@ function CopyHddToNas() {
   const [runningJobs, setRunningJobs] = useState({})
   const [copyProgress, setCopyProgress] = useState({})
   const [recentJobs, setRecentJobs] = useState([])
+  const [fileStatuses, setFileStatuses] = useState({}) // { job_id: [file_statuses] }
   
   useEffect(() => {
     loadBatches()
@@ -83,9 +84,14 @@ function CopyHddToNas() {
               totalFiles: msg.data.total_files || 0,
               currentFileSize: 0,
               totalSize: msg.data.total_size || 0,
-              copiedSize: 0
+              copiedSize: 0,
+              job_id: msg.data.job_id
             }
           }))
+          // Načíst file statuses pro běžící job
+          if (msg.data.job_id) {
+            loadFileStatuses(msg.data.job_id)
+          }
         }
       } else if (msg.type === 'job.progress' && msg.data.type === 'copy') {
         const batchId = msg.data.batch_id
@@ -95,11 +101,18 @@ function CopyHddToNas() {
             [batchId]: {
               ...prev[batchId],
               currentFile: msg.data.current_file || prev[batchId]?.currentFile || '',
-              currentFileNum: msg.data.count || 0,
+              currentFileNum: msg.data.count || prev[batchId]?.currentFileNum || 0, // count je počet zkopírovaných souborů
+              totalFiles: msg.data.total_files || prev[batchId]?.totalFiles || 0,
               currentFileSize: msg.data.current_file_size || 0,
-              copiedSize: msg.data.copied_size || 0
+              copiedSize: msg.data.copied_size || 0,
+              totalSize: msg.data.total_size || prev[batchId]?.totalSize || 0,
+              job_id: msg.data.job_id || prev[batchId]?.job_id
             }
           }))
+          // Aktualizovat file statuses
+          if (msg.data.job_id) {
+            loadFileStatuses(msg.data.job_id)
+          }
         }
       } else if (msg.type === 'job.finished') {
         if (msg.data.batch_id) {
@@ -216,6 +229,14 @@ function CopyHddToNas() {
                 const allItems = batchItems[batch.id] || []
                 // Ve fázi 3 zobrazit pouze vybrané (enabled) soubory
                 const items = allItems.filter(item => item.enabled !== false)
+                // Načíst file statuses pro běžící job
+                const jobId = progress?.job_id || running?.job_id
+                const fileStatusesForJob = jobId ? (fileStatuses[jobId] || []) : []
+                // Vytvořit mapu file statuses podle cesty
+                const fileStatusMap = {}
+                fileStatusesForJob.forEach(fs => {
+                  fileStatusMap[fs.file_path] = fs
+                })
                 return (
                   <React.Fragment key={batch.id}>
                     <tr>
@@ -269,7 +290,7 @@ function CopyHddToNas() {
                                 <div
                                   style={{
                                     height: '100%',
-                                    width: `${progress.totalFiles > 0 ? Math.min(100, ((progress.currentFileNum || 0) / progress.totalFiles * 100)) : 0}%`,
+                                    width: `${progress.totalFiles > 0 && progress.currentFileNum > 0 ? Math.min(100, ((progress.currentFileNum || 0) / progress.totalFiles * 100)) : 0}%`,
                                     background: 'linear-gradient(90deg, #007bff 0%, #0056b3 100%)',
                                     transition: 'width 0.3s ease',
                                     display: 'flex',

@@ -14,6 +14,7 @@ function CopyNasToHdd() {
   const [runningJobs, setRunningJobs] = useState({})
   const [copyProgress, setCopyProgress] = useState({})
   const [recentJobs, setRecentJobs] = useState([])
+  const [fileStatuses, setFileStatuses] = useState({}) // { job_id: [file_statuses] }
   
   useEffect(() => {
     loadBatches()
@@ -95,11 +96,18 @@ function CopyNasToHdd() {
             [batchId]: {
               ...prev[batchId],
               currentFile: msg.data.current_file || prev[batchId]?.currentFile || '',
-              currentFileNum: msg.data.count || 0,
+              currentFileNum: msg.data.count || prev[batchId]?.currentFileNum || 0, // count je počet zkopírovaných souborů
+              totalFiles: msg.data.total_files || prev[batchId]?.totalFiles || 0,
               currentFileSize: msg.data.current_file_size || 0,
-              copiedSize: msg.data.copied_size || 0
+              copiedSize: msg.data.copied_size || 0,
+              totalSize: msg.data.total_size || prev[batchId]?.totalSize || 0,
+              job_id: msg.data.job_id || prev[batchId]?.job_id
             }
           }))
+          // Aktualizovat file statuses
+          if (msg.data.job_id) {
+            loadFileStatuses(msg.data.job_id)
+          }
         }
       } else if (msg.type === 'job.finished') {
         if (msg.data.batch_id) {
@@ -215,6 +223,14 @@ function CopyNasToHdd() {
                 const allItems = batchItems[batch.id] || []
                 // Ve fázi 2 zobrazit pouze vybrané (enabled) soubory
                 const items = allItems.filter(item => item.enabled !== false)
+                // Načíst file statuses pro běžící job
+                const jobId = progress?.job_id || running?.job_id
+                const fileStatusesForJob = jobId ? (fileStatuses[jobId] || []) : []
+                // Vytvořit mapu file statuses podle cesty
+                const fileStatusMap = {}
+                fileStatusesForJob.forEach(fs => {
+                  fileStatusMap[fs.file_path] = fs
+                })
                 return (
                   <React.Fragment key={batch.id}>
                     <tr>
@@ -332,24 +348,38 @@ function CopyNasToHdd() {
                                     <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Cesta</th>
                                     <th style={{ padding: '0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Velikost</th>
                                     <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Kategorie</th>
+                                    {jobId && <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Stav</th>}
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {items.map(item => (
-                                    <tr key={item.id} style={{ borderBottom: '1px solid #e9ecef' }}>
-                                      <td style={{ padding: '0.5rem', fontFamily: 'monospace', fontSize: '0.8rem' }}>
-                                        {item.full_rel_path}
-                                      </td>
-                                      <td style={{ padding: '0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                        {((item.size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB
-                                      </td>
-                                      <td style={{ padding: '0.5rem' }}>
-                                        <span className={`status-badge ${item.category}`} style={{ fontSize: '0.75rem' }}>
-                                          {item.category}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  ))}
+                                  {items.map(item => {
+                                    const fileStatus = fileStatusMap[item.full_rel_path]
+                                    const status = fileStatus?.status || (jobId ? 'čeká' : null)
+                                    return (
+                                      <tr key={item.id} style={{ borderBottom: '1px solid #e9ecef', opacity: status === 'copied' ? 0.6 : 1 }}>
+                                        <td style={{ padding: '0.5rem', fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                                          {item.full_rel_path}
+                                        </td>
+                                        <td style={{ padding: '0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                          {((item.size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB
+                                        </td>
+                                        <td style={{ padding: '0.5rem' }}>
+                                          <span className={`status-badge ${item.category}`} style={{ fontSize: '0.75rem' }}>
+                                            {item.category}
+                                          </span>
+                                        </td>
+                                        {jobId && (
+                                          <td style={{ padding: '0.5rem' }}>
+                                            {status && (
+                                              <span className={`status-badge ${status === 'copied' ? 'completed' : status === 'failed' ? 'failed' : 'running'}`} style={{ fontSize: '0.75rem' }}>
+                                                {status === 'copied' ? 'Zkopírováno' : status === 'failed' ? 'Chyba' : 'Čeká'}
+                                              </span>
+                                            )}
+                                          </td>
+                                        )}
+                                      </tr>
+                                    )
+                                  })}
                                 </tbody>
                               </table>
                             )}

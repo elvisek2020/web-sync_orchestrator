@@ -331,7 +331,7 @@ function PlanTransfer() {
                               try {
                                 const response = await axios.get(`/api/batches/${batch.id}/summary`)
                                 const data = response.data
-                                alert(`Batch #${batch.id}:\nSoubory: ${data.total_files || 0}\nVelikost: ${((data.total_size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB\nUSB dostupné: ${((data.usb_available || 0) / 1024 / 1024 / 1024).toFixed(1)} GB\nUSB limit: ${((data.usb_limit || 0) / 1024 / 1024 / 1024).toFixed(1)} GB`)
+                                alert(`Batch #${batch.id}:\nSoubory: ${data.total_files || 0}\nVelikost: ${((data.total_size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB`)
                               } catch (error) {
                                 console.error('Failed to load batch summary:', error)
                                 alert('Chyba při načítání shrnutí batchu')
