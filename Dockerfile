@@ -6,6 +6,8 @@ WORKDIR /app/ui
 COPY ui/package*.json ./
 RUN npm install
 COPY ui/ ./
+# Vytvořit static adresář před buildem
+RUN mkdir -p static
 RUN npm run build
 
 # Stage 2: Python backend + frontend

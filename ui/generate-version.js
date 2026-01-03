@@ -22,17 +22,24 @@ const versionData = {
   version: version
 };
 
-const outputPath = path.join(__dirname, 'static', 'version.json');
+// Použít process.cwd() jako fallback, pokud __dirname nefunguje správně
+const baseDir = __dirname || process.cwd();
+const outputPath = path.join(baseDir, 'static', 'version.json');
 const outputDir = path.dirname(outputPath);
 
-// Vytvořit adresář, pokud neexistuje
-if (!fs.existsSync(outputDir)) {
-  fs.mkdirSync(outputDir, { recursive: true });
+try {
+  // Vytvořit adresář, pokud neexistuje
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  // Zapsat version.json
+  fs.writeFileSync(outputPath, JSON.stringify(versionData, null, 2) + '\n');
+
+  console.log(`Generated version: ${version}`);
+  console.log(`Written to: ${outputPath}`);
+} catch (error) {
+  console.error('Error generating version.json:', error);
+  process.exit(1);
 }
-
-// Zapsat version.json
-fs.writeFileSync(outputPath, JSON.stringify(versionData, null, 2) + '\n');
-
-console.log(`Generated version: ${version}`);
-console.log(`Written to: ${outputPath}`);
 
