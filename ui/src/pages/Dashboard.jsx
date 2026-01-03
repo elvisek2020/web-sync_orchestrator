@@ -335,7 +335,7 @@ function Dashboard() {
         {/* Stav databáze */}
         <div style={{ marginTop: '1rem', padding: '0.75rem', background: mountStatus.database?.available ? '#d4edda' : '#f8d7da', borderRadius: '4px', border: `1px solid ${mountStatus.database?.available ? '#c3e6cb' : '#f5c6cb'}` }}>
           <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', color: mountStatus.database?.available ? '#155724' : '#721c24' }}>
-            Databáze {mountStatus.database?.available ? '✓ Dostupné' : '✗ Nedostupné'}
+            Databáze {mountStatus.database?.available ? '✓ Připojena' : '✗ Není připojena'}
           </h3>
           {mountStatus.database?.db_path && (
             <p style={{ margin: '0.25rem 0', fontSize: '0.875rem', color: mountStatus.database?.available ? '#155724' : '#721c24' }}>
