@@ -267,7 +267,7 @@ class JobRunner:
                 all_paths = set(source_files.keys()) | set(target_files.keys())
                 total_paths = len(all_paths)
                 
-                # Progress feedback
+                # Progress feedback - start
                 asyncio.run(websocket_manager.broadcast({
                     "type": "job.progress",
                     "data": {"job_id": diff_id, "type": "diff", "count": 0, "total": total_paths, "message": f"Porovnávání {total_paths} souborů..."}

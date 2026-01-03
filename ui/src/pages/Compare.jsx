@@ -14,6 +14,7 @@ function Compare() {
   const [phase, setPhase] = useState(localStorage.getItem('sync_phase') || 'planning')
   const [diffFormData, setDiffFormData] = useState({ source_scan_id: '', target_scan_id: '' })
   const [runningJobs, setRunningJobs] = useState({})
+  const [diffProgress, setDiffProgress] = useState({}) // { diff_id: { count, total, message } }
   const [selectedDiff, setSelectedDiff] = useState(null)
   
   useEffect(() => {
@@ -49,10 +50,28 @@ function Compare() {
   useEffect(() => {
     // Zpracování WebSocket zpráv
     messages.forEach(msg => {
-      if (msg.type === 'job.started') {
+      if (msg.type === 'job.started' && msg.data.type === 'diff') {
         setRunningJobs(prev => ({ ...prev, [msg.data.job_id]: { type: msg.data.type, status: 'running' } }))
-      } else if (msg.type === 'job.finished') {
+        setDiffProgress(prev => ({
+          ...prev,
+          [msg.data.job_id]: { count: 0, total: msg.data.total || 0, message: msg.data.message || '' }
+        }))
+      } else if (msg.type === 'job.progress' && msg.data.type === 'diff') {
+        setDiffProgress(prev => ({
+          ...prev,
+          [msg.data.job_id]: {
+            count: msg.data.count || 0,
+            total: msg.data.total || prev[msg.data.job_id]?.total || 0,
+            message: msg.data.message || prev[msg.data.job_id]?.message || ''
+          }
+        }))
+      } else if (msg.type === 'job.finished' && msg.data.type === 'diff') {
         setRunningJobs(prev => {
+          const newState = { ...prev }
+          delete newState[msg.data.job_id]
+          return newState
+        })
+        setDiffProgress(prev => {
           const newState = { ...prev }
           delete newState[msg.data.job_id]
           return newState
