@@ -15,6 +15,7 @@ function CopyNasToHdd() {
   const [copyProgress, setCopyProgress] = useState({})
   const [recentJobs, setRecentJobs] = useState([])
   const [fileStatuses, setFileStatuses] = useState({}) // { job_id: [file_statuses] }
+  const [selectedJob, setSelectedJob] = useState(null) // ID vybraného jobu pro detail
   
   useEffect(() => {
     loadBatches()
