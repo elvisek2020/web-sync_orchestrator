@@ -105,6 +105,35 @@ function Datasets() {
     }
   }
   
+  const handleDuplicate = async (dataset) => {
+    try {
+      // Vytvoříme nový název - přidáme " (kopie)" nebo číslo, pokud už existuje
+      let newName = `${dataset.name} (kopie)`
+      let counter = 1
+      while (datasets.some(ds => ds.name === newName)) {
+        counter++
+        newName = `${dataset.name} (kopie ${counter})`
+      }
+      
+      // Vytvoříme nový dataset se všemi stejnými parametry
+      const data = {
+        name: newName,
+        location: dataset.location,
+        roots: dataset.roots.length > 0 ? dataset.roots : ['/'],
+        scan_adapter_type: dataset.scan_adapter_type,
+        transfer_adapter_type: dataset.transfer_adapter_type,
+        scan_adapter_config: dataset.scan_adapter_config || {},
+        transfer_adapter_config: dataset.transfer_adapter_config || {}
+      }
+      
+      await axios.post('/api/datasets/', data)
+      loadDatasets()
+    } catch (error) {
+      console.error('Failed to duplicate dataset:', error)
+      alert('Chyba při duplikování datasetu: ' + (error.response?.data?.detail || error.message))
+    }
+  }
+  
   const addRoot = () => {
     setFormData({ ...formData, roots: [...formData.roots, ''] })
   }
