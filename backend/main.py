@@ -20,6 +20,14 @@ async def lifespan(app: FastAPI):
     # Startup
     await mount_service.start_monitoring()
     await storage_service.initialize()
+    # Po startu monitoringu zkontrolovat, zda je USB dostupný a databáze není připojená
+    # Pokud ano, zkusit připojit
+    mount_status = await mount_service.get_status()
+    if not mount_status.get("safe_mode", True) and not storage_service.available:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("USB is available but database is not connected, attempting to connect...")
+        await storage_service.handle_available()
     yield
     # Shutdown
     await mount_service.stop_monitoring()

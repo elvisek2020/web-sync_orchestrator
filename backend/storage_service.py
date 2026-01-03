@@ -37,31 +37,50 @@ class StorageService:
 
     async def _connect(self, db_path: str):
         """Připojí se k databázi"""
-        # SQLite s pool pro thread-safety
-        self.db_path = db_path
-        self.engine = create_engine(
-            f"sqlite:///{db_path}",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-            echo=False
-        )
+        import logging
+        logger = logging.getLogger(__name__)
         
-        # Vytvoření tabulek
-        Base.metadata.create_all(bind=self.engine)
+        logger.info(f"_connect called with db_path={db_path}")
         
-        # Migrace - přidání error_message do scans pokud neexistuje
-        await self._migrate_scans_error_message()
-        # Migrace - přidání exclude_patterns do batches pokud neexistuje
-        await self._migrate_batches_exclude_patterns()
-        # Migrace - přidání enabled do batch_items pokud neexistuje
-        await self._migrate_batch_items_enabled()
-        # Migrace - přidání job_log do job_runs pokud neexistuje
-        await self._migrate_job_runs_log()
-        # Migrace - vytvoření job_file_statuses tabulky pokud neexistuje
-        await self._migrate_job_file_statuses()
-        
-        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-        self.available = True
+        try:
+            # SQLite s pool pro thread-safety
+            self.db_path = db_path
+            logger.info(f"Creating engine for {db_path}")
+            self.engine = create_engine(
+                f"sqlite:///{db_path}",
+                connect_args={"check_same_thread": False},
+                poolclass=StaticPool,
+                echo=False
+            )
+            logger.info("Engine created successfully")
+            
+            # Vytvoření tabulek
+            logger.info("Creating/verifying tables")
+            Base.metadata.create_all(bind=self.engine)
+            logger.info("Tables created/verified")
+            
+            # Migrace - přidání error_message do scans pokud neexistuje
+            await self._migrate_scans_error_message()
+            # Migrace - přidání exclude_patterns do batches pokud neexistuje
+            await self._migrate_batches_exclude_patterns()
+            # Migrace - přidání enabled do batch_items pokud neexistuje
+            await self._migrate_batch_items_enabled()
+            # Migrace - přidání job_log do job_runs pokud neexistuje
+            await self._migrate_job_runs_log()
+            # Migrace - vytvoření job_file_statuses tabulky pokud neexistuje
+            await self._migrate_job_file_statuses()
+            logger.info("Migrations completed")
+            
+            logger.info("Creating SessionLocal")
+            self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+            self.available = True
+            logger.info(f"Database connection successful. available={self.available}, SessionLocal={self.SessionLocal is not None}, engine={self.engine is not None}")
+        except Exception as e:
+            logger.error(f"Error in _connect: {e}", exc_info=True)
+            self.available = False
+            self.SessionLocal = None
+            self.engine = None
+            raise
     
     async def _migrate_scans_error_message(self):
         """Migrace: přidá error_message sloupec do scans tabulky pokud neexistuje"""
