@@ -63,17 +63,20 @@ function CopyNasToHdd() {
         }
       } else if (msg.type === 'job.finished') {
         if (msg.data.batch_id) {
-          setRunningJobs(prev => {
-            const newState = { ...prev }
-            delete newState[msg.data.batch_id]
-            delete newState[msg.data.job_id]
-            return newState
-          })
-          setCopyProgress(prev => {
-            const newState = { ...prev }
-            delete newState[msg.data.batch_id]
-            return newState
-          })
+          // Počkat chvíli před smazáním progress baru, aby uživatel viděl 100%
+          setTimeout(() => {
+            setRunningJobs(prev => {
+              const newState = { ...prev }
+              delete newState[msg.data.batch_id]
+              delete newState[msg.data.job_id]
+              return newState
+            })
+            setCopyProgress(prev => {
+              const newState = { ...prev }
+              delete newState[msg.data.batch_id]
+              return newState
+            })
+          }, 2000)
         }
         loadBatches()
       }
@@ -225,7 +228,7 @@ function CopyNasToHdd() {
                                 <div
                                   style={{
                                     height: '100%',
-                                    width: `${progress.totalFiles > 0 ? ((progress.currentFileNum || 0) / progress.totalFiles * 100) : 0}%`,
+                                    width: `${progress.totalFiles > 0 ? Math.min(100, ((progress.currentFileNum || 0) / progress.totalFiles * 100)) : 0}%`,
                                     background: 'linear-gradient(90deg, #007bff 0%, #0056b3 100%)',
                                     transition: 'width 0.3s ease',
                                     display: 'flex',
@@ -236,9 +239,14 @@ function CopyNasToHdd() {
                                     fontWeight: 'bold'
                                   }}
                                 >
-                                  {progress.totalFiles > 0 ? `${Math.round((progress.currentFileNum || 0) / progress.totalFiles * 100)}%` : '0%'}
+                                  {progress.totalFiles > 0 ? `${Math.min(100, Math.round((progress.currentFileNum || 0) / progress.totalFiles * 100))}%` : '0%'}
                                 </div>
                               </div>
+                              {progress.currentFileNum >= progress.totalFiles && progress.totalFiles > 0 && (
+                                <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#28a745', fontStyle: 'italic' }}>
+                                  Dokončování kopírování...
+                                </div>
+                              )}
                             </div>
                             {progress.currentFile && (
                               <div>

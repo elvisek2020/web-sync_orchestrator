@@ -614,6 +614,9 @@ class JobRunner:
                 job.finished_at = datetime.utcnow()
                 if not result.get("success"):
                     job.error_message = result.get("error", "Unknown error")
+                # Uložit log zprávy
+                if log_messages:
+                    job.job_log = "\n".join(log_messages)
                 
                 # Aktualizace batch statusu
                 batch.status = "completed" if result.get("success") else "failed"

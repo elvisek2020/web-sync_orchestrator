@@ -63,17 +63,20 @@ function CopyHddToNas() {
         }
       } else if (msg.type === 'job.finished') {
         if (msg.data.batch_id) {
-          setRunningJobs(prev => {
-            const newState = { ...prev }
-            delete newState[msg.data.batch_id]
-            delete newState[msg.data.job_id]
-            return newState
-          })
-          setCopyProgress(prev => {
-            const newState = { ...prev }
-            delete newState[msg.data.batch_id]
-            return newState
-          })
+          // Počkat chvíli před smazáním progress baru, aby uživatel viděl 100%
+          setTimeout(() => {
+            setRunningJobs(prev => {
+              const newState = { ...prev }
+              delete newState[msg.data.batch_id]
+              delete newState[msg.data.job_id]
+              return newState
+            })
+            setCopyProgress(prev => {
+              const newState = { ...prev }
+              delete newState[msg.data.batch_id]
+              return newState
+            })
+          }, 2000)
         }
         loadBatches()
       }
