@@ -465,41 +465,10 @@ function CopyNasToHdd() {
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button
                         className="button"
-                        onClick={async () => {
-                          try {
-                            const [jobResponse, filesResponse] = await Promise.all([
-                              axios.get(`/api/copy/jobs/${job.id}`),
-                              axios.get(`/api/copy/jobs/${job.id}/files`).catch(() => ({ data: [] }))
-                            ])
-                            const jobDetail = jobResponse.data
-                            const files = filesResponse.data || []
-                            const metadata = jobDetail.job_metadata || {}
-                            
-                            const filesText = files.length > 0 ? `\n\nSoubory (${files.length}):\n${files.map((f, idx) => 
-                              `${idx + 1}. ${f.file_path} (${((f.file_size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB) - ${f.status}${f.error_message ? ` - ${f.error_message}` : ''}`
-                            ).join('\n')}` : '\n\nŽádné soubory'
-                            
-                            const logText = jobDetail.job_log ? `\n\nLog:\n${jobDetail.job_log}` : ''
-                            const detailText = `
-Detail jobu #${job.id}:
-Typ: ${jobDetail.type}
-Status: ${jobDetail.status}
-Začátek: ${new Date(jobDetail.started_at).toLocaleString('cs-CZ')}
-Konec: ${jobDetail.finished_at ? new Date(jobDetail.finished_at).toLocaleString('cs-CZ') : 'Probíhá'}
-${jobDetail.error_message ? `Chyba: ${jobDetail.error_message}` : ''}
-${metadata.batch_id ? `Batch ID: ${metadata.batch_id}` : ''}
-${metadata.direction ? `Směr: ${metadata.direction}` : ''}
-${metadata.dry_run !== undefined ? `Dry run: ${metadata.dry_run}` : ''}${filesText}${logText}
-                            `.trim()
-                            alert(detailText)
-                          } catch (error) {
-                            console.error('Failed to load job detail:', error)
-                            alert('Chyba při načítání detailu jobu: ' + (error.response?.data?.detail || error.message))
-                          }
-                        }}
+                        onClick={() => setSelectedJob(selectedJob === job.id ? null : job.id)}
                         style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
                       >
-                        Detail
+                        {selectedJob === job.id ? 'Skrýt' : 'Detail'}
                       </button>
                     </div>
                   </td>
@@ -509,6 +478,136 @@ ${metadata.dry_run !== undefined ? `Dry run: ${metadata.dry_run}` : ''}${filesTe
           </table>
         )}
       </div>
+      
+      {selectedJob && (
+        <div className="box">
+          <h2>Detail jobu #{selectedJob}</h2>
+          <JobDetail jobId={selectedJob} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function JobDetail({ jobId }) {
+  const [jobDetail, setJobDetail] = useState(null)
+  const [files, setFiles] = useState([])
+  const [loading, setLoading] = useState(true)
+  
+  useEffect(() => {
+    loadDetail()
+  }, [jobId])
+  
+  const loadDetail = async () => {
+    setLoading(true)
+    try {
+      const [jobResponse, filesResponse] = await Promise.all([
+        axios.get(`/api/copy/jobs/${jobId}`),
+        axios.get(`/api/copy/jobs/${jobId}/files`)
+      ])
+      setJobDetail(jobResponse.data)
+      setFiles(filesResponse.data || [])
+    } catch (error) {
+      console.error('Failed to load job detail:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+  
+  if (loading) return <p>Načítání...</p>
+  if (!jobDetail) return <p>Job nenalezen</p>
+  
+  const getStatusLabel = (status) => {
+    switch(status) {
+      case 'copied': return 'Zkopírováno'
+      case 'failed': return 'Chyba'
+      default: return status
+    }
+  }
+  
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'copied': return '#28a745'
+      case 'failed': return '#dc3545'
+      default: return '#6c757d'
+    }
+  }
+  
+  return (
+    <div>
+      <div style={{ marginBottom: '1rem', padding: '0.75rem', background: '#f8f9fa', borderRadius: '4px' }}>
+        <p><strong>Typ:</strong> {jobDetail.type}</p>
+        <p><strong>Status:</strong> <span className={`status-badge ${jobDetail.status}`}>{jobDetail.status}</span></p>
+        <p><strong>Začátek:</strong> {new Date(jobDetail.started_at).toLocaleString('cs-CZ')}</p>
+        <p><strong>Konec:</strong> {jobDetail.finished_at ? new Date(jobDetail.finished_at).toLocaleString('cs-CZ') : 'Probíhá'}</p>
+        {jobDetail.error_message && (
+          <p><strong>Chyba:</strong> <span style={{ color: '#dc3545' }}>{jobDetail.error_message}</span></p>
+        )}
+        {jobDetail.job_metadata && (
+          <>
+            {jobDetail.job_metadata.batch_id && <p><strong>Batch ID:</strong> {jobDetail.job_metadata.batch_id}</p>}
+            {jobDetail.job_metadata.direction && <p><strong>Směr:</strong> {jobDetail.job_metadata.direction}</p>}
+          </>
+        )}
+      </div>
+      
+      {files.length > 0 && (
+        <div>
+          <p>Zobrazeno {files.length} souborů</p>
+          <table className="scans-table" style={{ fontSize: '0.875rem' }}>
+            <thead>
+              <tr>
+                <th>Stav</th>
+                <th>Cesta</th>
+                <th>Velikost</th>
+                {files.some(f => f.error_message) && <th>Chyba</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {files.map((file, idx) => (
+                <tr key={idx}>
+                  <td>
+                    <span style={{ 
+                      padding: '0.25rem 0.5rem', 
+                      borderRadius: '4px', 
+                      backgroundColor: getStatusColor(file.status),
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold'
+                    }}>
+                      {getStatusLabel(file.status)}
+                    </span>
+                  </td>
+                  <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{file.file_path}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{((file.file_size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB</td>
+                  {files.some(f => f.error_message) && (
+                    <td style={{ fontSize: '0.75rem', color: '#dc3545' }}>{file.error_message || '-'}</td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      
+      {jobDetail.job_log && (
+        <div style={{ marginTop: '1rem' }}>
+          <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Log:</h3>
+          <pre style={{ 
+            padding: '0.75rem', 
+            background: '#f8f9fa', 
+            borderRadius: '4px', 
+            overflow: 'auto', 
+            maxHeight: '400px',
+            fontSize: '0.75rem',
+            fontFamily: 'monospace',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word'
+          }}>
+            {jobDetail.job_log}
+          </pre>
+        </div>
+      )}
     </div>
   )
 }
