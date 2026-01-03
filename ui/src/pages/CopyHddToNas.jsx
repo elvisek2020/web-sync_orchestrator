@@ -177,6 +177,15 @@ function CopyHddToNas() {
     }
   }
   
+  const loadFileStatuses = async (jobId) => {
+    try {
+      const response = await axios.get(`/api/copy/jobs/${jobId}/files`)
+      setFileStatuses(prev => ({ ...prev, [jobId]: response.data || [] }))
+    } catch (error) {
+      console.error('Failed to load file statuses:', error)
+    }
+  }
+  
   const toggleBatchExpanded = (batchId) => {
     const newExpanded = new Set(expandedBatches)
     if (newExpanded.has(batchId)) {
@@ -354,24 +363,38 @@ function CopyHddToNas() {
                                     <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Cesta</th>
                                     <th style={{ padding: '0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Velikost</th>
                                     <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Kategorie</th>
+                                    {jobId && <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Stav</th>}
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {items.map(item => (
-                                    <tr key={item.id} style={{ borderBottom: '1px solid #e9ecef' }}>
-                                      <td style={{ padding: '0.5rem', fontFamily: 'monospace', fontSize: '0.8rem' }}>
-                                        {item.full_rel_path}
-                                      </td>
-                                      <td style={{ padding: '0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                        {((item.size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB
-                                      </td>
-                                      <td style={{ padding: '0.5rem' }}>
-                                        <span className={`status-badge ${item.category}`} style={{ fontSize: '0.75rem' }}>
-                                          {item.category}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  ))}
+                                  {items.map(item => {
+                                    const fileStatus = fileStatusMap[item.full_rel_path]
+                                    const status = fileStatus?.status || (jobId ? 'čeká' : null)
+                                    return (
+                                      <tr key={item.id} style={{ borderBottom: '1px solid #e9ecef', opacity: status === 'copied' ? 0.6 : 1 }}>
+                                        <td style={{ padding: '0.5rem', fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                                          {item.full_rel_path}
+                                        </td>
+                                        <td style={{ padding: '0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                          {((item.size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB
+                                        </td>
+                                        <td style={{ padding: '0.5rem' }}>
+                                          <span className={`status-badge ${item.category}`} style={{ fontSize: '0.75rem' }}>
+                                            {item.category}
+                                          </span>
+                                        </td>
+                                        {jobId && (
+                                          <td style={{ padding: '0.5rem' }}>
+                                            {status && (
+                                              <span className={`status-badge ${status === 'copied' ? 'completed' : status === 'failed' ? 'failed' : 'running'}`} style={{ fontSize: '0.75rem' }}>
+                                                {status === 'copied' ? 'Zkopírováno' : status === 'failed' ? 'Chyba' : 'Čeká'}
+                                              </span>
+                                            )}
+                                          </td>
+                                        )}
+                                      </tr>
+                                    )
+                                  })}
                                 </tbody>
                               </table>
                             )}
