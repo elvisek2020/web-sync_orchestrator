@@ -540,12 +540,15 @@ class JobRunner:
                 total_files = len(file_entries)
                 copied_count = 0
                 copied_size = 0
+                processed_files = set()  # Sledovat už zpracované soubory pro správné počítání velikosti
                 
                 def progress_cb(count: int, path: str, file_size: int = 0):
                     nonlocal copied_count, copied_size
                     copied_count = count
-                    if file_size > 0:
+                    # Přidat velikost jen jednou pro každý soubor
+                    if file_size > 0 and path not in processed_files:
                         copied_size += file_size
+                        processed_files.add(path)
                     asyncio.run(websocket_manager.broadcast({
                         "type": "job.progress",
                         "data": {
