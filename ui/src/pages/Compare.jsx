@@ -236,6 +236,7 @@ function Compare() {
             <tbody>
               {diffs.map(diff => {
                 const running = runningJobs[diff.id]
+                const progress = diffProgress[diff.id]
                 const sourceScan = scans.find(s => s.id === diff.source_scan_id)
                 const targetScan = scans.find(s => s.id === diff.target_scan_id)
                 const sourceDataset = sourceScan ? datasets.find(d => d.id === sourceScan.dataset_id) : null
