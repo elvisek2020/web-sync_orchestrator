@@ -447,7 +447,16 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 
 ### 📝 Historie změn
 
-#### v.20250103.1055 (aktuální)
+#### v.20250103.1241 (aktuální)
+
+- ✅ **Datasety - tlačítko Procházet**: Tlačítko Procházet je neaktivní při vytváření nového datasetu, aktivní pouze při editaci. Root složka má výchozí hodnotu "/".
+- ✅ **Scan - filtrování datasetů**: V záložce Scan se zobrazují pouze datasety typu NAS1 a NAS2 (USB datasety jsou skryté).
+- ✅ **Aktualizované nápovědy**: Všechny nápovědy mají jednotný formát s nadpisem "📖 Nápověda: ". Odstraněn odstavec o macOS s Docker Desktop z nápovědy k Datasets.
+- ✅ **Porovnání - přejmenování**: "Vytvořit diff" → "Vytvořit porovnání", "Diffy" → "Seznam porovnání".
+- ✅ **Detail porovnání**: Tlačítko "Shrnutí" změněno na "Detail", zobrazuje tabulku souborů s kategoriemi (Chybí, Konflikt, Stejné), cestou a velikostí.
+- ✅ **Plán přenosu - přejmenování**: "diff" → "porovnání", "Vytvořit batch" → "Vytvořit plán", "Plány" → "Seznam plánů".
+
+#### v.20250103.1055
 
 - ✅ **Vylepšené názvy adapterů**: "Scan adapter" → "Způsob skenování", "Transfer adapter" → "Způsob kopírování" s výstižnějšími popisky
 - ✅ **Přesunutá Root složka**: Root složka je nyní umístěna pod výběr způsobů skenování a kopírování

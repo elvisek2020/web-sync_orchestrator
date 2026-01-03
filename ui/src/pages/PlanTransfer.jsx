@@ -198,29 +198,29 @@ function PlanTransfer() {
   return (
     <div className="plan-copy-page">
       <div className="box box-compact help-box">
-        <h3>📖 Plán přenosu</h3>
-        <p><strong>Účel:</strong> Vytvořit plán kopírování založený na diffu.</p>
-        <p><strong>Požadavky:</strong> Dokončený diff z porovnání.</p>
+        <h3>📖 Nápověda: Plán přenosu</h3>
+        <p><strong>Účel:</strong> Vytvořit plán kopírování založený na porovnání.</p>
+        <p><strong>Požadavky:</strong> Dokončené porovnání.</p>
         <ol>
-          <li><strong>Vytvořte batch:</strong> Z diffu vytvořte plán kopírování s respektováním limitu USB kapacity.</li>
-          <li><strong>Upravte batch:</strong> Můžete vybrat, které soubory se zkopírují pomocí checkboxů.</li>
+          <li><strong>Vytvořte plán:</strong> Z porovnání vytvořte plán kopírování s respektováním limitu USB kapacity.</li>
+          <li><strong>Upravte plán:</strong> Můžete vybrat, které soubory se zkopírují pomocí checkboxů.</li>
         </ol>
-        <p><strong>Výsledek:</strong> Batch, který se použije ve fázi 2 pro kopírování na HDD a následně na cílový NAS2.</p>
+        <p><strong>Výsledek:</strong> Plán, který se použije ve fázi 2 pro kopírování na HDD a následně na cílový NAS2.</p>
       </div>
       
       <div className="box box-compact">
         <h2>Vytvořit plán</h2>
-        <p>Plán přenosu založený na diffu.</p>
+        <p>Plán přenosu založený na porovnání.</p>
         
         <div style={{ marginTop: '1rem' }}>
           <div className="form-group">
-            <label className="label">Diff</label>
+            <label className="label">Porovnání</label>
             <select
               className="input"
               value={batchFormData.diff_id}
               onChange={(e) => setBatchFormData({ ...batchFormData, diff_id: e.target.value })}
             >
-              <option value="">-- Vyberte diff --</option>
+              <option value="">-- Vyberte porovnání --</option>
               {Array.isArray(diffs) && diffs.filter(d => d.status === 'completed').map(diff => {
                 const sourceScan = scans.find(s => s.id === diff.source_scan_id)
                 const targetScan = scans.find(s => s.id === diff.target_scan_id)
@@ -230,7 +230,7 @@ function PlanTransfer() {
                 const targetName = targetDataset ? targetDataset.name : `Scan #${diff.target_scan_id}`
                 return (
                   <option key={diff.id} value={diff.id}>
-                    Diff #{diff.id}: {sourceName} → {targetName}
+                    Porovnání #{diff.id}: {sourceName} → {targetName}
                   </option>
                 )
               })}
@@ -273,14 +273,14 @@ function PlanTransfer() {
               onClick={handleCreateBatch}
               disabled={!canPlan || !batchFormData.diff_id}
             >
-              Vytvořit batch
+              Vytvořit plán
             </button>
           </div>
         </div>
       </div>
       
       <div className="box box-compact">
-        <h2>Plány</h2>
+        <h2>Seznam plánů</h2>
         {batches.length === 0 ? (
           <p>Žádné plány</p>
         ) : (

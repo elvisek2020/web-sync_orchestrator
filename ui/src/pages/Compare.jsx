@@ -115,7 +115,7 @@ function Compare() {
     <div className="plan-copy-page">
       {phase === 'planning' && (
         <div className="box box-compact help-box">
-          <h3>📖 Porovnání</h3>
+          <h3>📖 Nápověda: Porovnání</h3>
           <p><strong>Účel:</strong> Porovnat obsah NAS1 a NAS2 pro identifikaci rozdílů.</p>
           <p><strong>Požadavky:</strong> NAS1 a NAS2 musí být dostupné (mohou být přes SSH).</p>
           <ol>
@@ -128,7 +128,7 @@ function Compare() {
       )}
       
       <div className="box box-compact">
-        <h2>Vytvořit diff</h2>
+        <h2>Vytvořit porovnání</h2>
         <p>Porovnání dvou scanů pro identifikaci změn.</p>
         
         {!canPlan && (
@@ -191,14 +191,14 @@ function Compare() {
               onClick={handleCreateDiff}
               disabled={!canPlan || !diffFormData.source_scan_id || !diffFormData.target_scan_id}
             >
-              Vytvořit diff
+              Vytvořit porovnání
             </button>
           </div>
         </div>
       </div>
       
       <div className="box box-compact">
-        <h2>Diffy</h2>
+        <h2>Seznam porovnání</h2>
         {diffs.length === 0 ? (
           <p>Žádné diffy</p>
         ) : (
@@ -244,17 +244,10 @@ function Compare() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap', justifyContent: 'flex-end' }}>
                         <button
                           className="button"
-                          onClick={async () => {
-                            try {
-                              const response = await axios.get(`/api/diffs/${diff.id}/summary`)
-                              alert(`Diff #${diff.id}:\nCelkem: ${response.data.total_files} souborů\nChybí: ${response.data.missing_count} (${(response.data.missing_size / 1024 / 1024).toFixed(2)} MB)\nStejné: ${response.data.same_count} (${(response.data.same_size / 1024 / 1024).toFixed(2)} MB)\nKonflikty: ${response.data.conflict_count} (${(response.data.conflict_size / 1024 / 1024).toFixed(2)} MB)`)
-                            } catch (error) {
-                              console.error('Failed to load diff summary:', error)
-                            }
-                          }}
+                          onClick={() => setSelectedDiff(selectedDiff === diff.id ? null : diff.id)}
                           style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem', flexShrink: 0 }}
                         >
-                          Shrnutí
+                          {selectedDiff === diff.id ? 'Skrýt' : 'Detail'}
                         </button>
                         <button
                           className="button"
@@ -274,6 +267,89 @@ function Compare() {
           </table>
         )}
       </div>
+      
+      {selectedDiff && (
+        <div className="box">
+          <h2>Detail porovnání #{selectedDiff}</h2>
+          <DiffDetail diffId={selectedDiff} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DiffDetail({ diffId }) {
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  
+  useEffect(() => {
+    loadItems()
+  }, [diffId])
+  
+  const loadItems = async () => {
+    setLoading(true)
+    try {
+      const response = await axios.get(`/api/diffs/${diffId}/items?limit=1000`)
+      setItems(response.data)
+    } catch (error) {
+      console.error('Failed to load diff items:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+  
+  if (loading) return <p>Načítání...</p>
+  
+  const getCategoryLabel = (category) => {
+    switch(category) {
+      case 'missing': return 'Chybí'
+      case 'conflict': return 'Konflikt'
+      case 'same': return 'Stejné'
+      default: return category
+    }
+  }
+  
+  const getCategoryColor = (category) => {
+    switch(category) {
+      case 'missing': return '#ffc107'
+      case 'conflict': return '#dc3545'
+      case 'same': return '#28a745'
+      default: return '#6c757d'
+    }
+  }
+  
+  return (
+    <div>
+      <p>Zobrazeno {items.length} souborů (max 1000)</p>
+      <table className="scans-table" style={{ fontSize: '0.875rem' }}>
+        <thead>
+          <tr>
+            <th>Kategorie</th>
+            <th>Cesta</th>
+            <th>Velikost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map(item => (
+            <tr key={item.id}>
+              <td>
+                <span style={{ 
+                  padding: '0.25rem 0.5rem', 
+                  borderRadius: '4px', 
+                  backgroundColor: getCategoryColor(item.category),
+                  color: 'white',
+                  fontSize: '0.75rem',
+                  fontWeight: 'bold'
+                }}>
+                  {getCategoryLabel(item.category)}
+                </span>
+              </td>
+              <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{item.full_rel_path}</td>
+              <td>{item.source_size ? ((item.source_size / 1024).toFixed(2) + ' KB') : (item.target_size ? ((item.target_size / 1024).toFixed(2) + ' KB') : '-')}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

@@ -263,14 +263,6 @@ function Datasets() {
           <li><strong>Způsob skenování:</strong> Jak se data skenují - z lokálního souborového systému nebo přes SSH ze vzdáleného serveru</li>
           <li><strong>Způsob kopírování:</strong> Jak se data kopírují - lokálně pomocí rsync nebo přes SSH na vzdálený server</li>
         </ul>
-        <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.5)', borderRadius: '4px' }}>
-          <strong>💡 Důležité pro macOS s Docker Desktop:</strong>
-          <ul style={{ marginTop: '0.5rem', marginBottom: 0 }}>
-            <li>Pro <strong>NAS1</strong> (SMB/CIFS disky) <strong>použijte vzdálený SSH přístup</strong> - Docker Desktop nemá přístup k SMB mountům z macOS</li>
-            <li>Pro <strong>USB</strong> použijte lokální souborový systém (pokud je fyzicky připojený)</li>
-            <li>Pro <strong>NAS2</strong> můžete použít lokální souborový systém nebo vzdálený SSH přístup</li>
-          </ul>
-        </div>
         {phase === 'planning' && (
           <p style={{ marginTop: '0.75rem' }}><strong>Pro fázi 1 (Plánování):</strong> Vytvořte dataset pro NAS1 (lokace: NAS1, může být SSH) a dataset pro NAS2 (lokace: NAS2, může být SSH).</p>
         )}
@@ -293,7 +285,7 @@ function Datasets() {
               setFormData({
                 name: '',
                 location: 'NAS1',
-                roots: [''],
+                roots: ['/'],
                 scan_adapter_type: 'local',
                 transfer_adapter_type: 'local',
                 scan_adapter_config: {},
@@ -544,20 +536,14 @@ function Datasets() {
                     type="button"
                     className="button"
                     onClick={() => {
-                      // Pro nový dataset potřebujeme nejdřív uložit lokaci
-                      if (!formData.location) {
-                        alert('Nejdříve vyberte Lokaci pro dataset')
-                        return
-                      }
                       // Pro existující dataset můžeme procházet přímo
                       if (editingDataset) {
                         browseLocal(editingDataset.id, '/')
-                      } else {
-                        // Pro nový dataset můžeme použít dočasný dataset ID -1 a použít lokaci
-                        browseLocal(-1, '/', formData.location)
                       }
                     }}
-                    style={{ background: '#17a2b8', whiteSpace: 'nowrap' }}
+                    disabled={!editingDataset}
+                    style={{ background: editingDataset ? '#17a2b8' : '#6c757d', whiteSpace: 'nowrap', cursor: editingDataset ? 'pointer' : 'not-allowed' }}
+                    title={!editingDataset ? 'Procházení je dostupné pouze při editaci existujícího datasetu' : 'Procházet'}
                   >
                     📁 Procházet
                   </button>
@@ -567,19 +553,14 @@ function Datasets() {
                     type="button"
                     className="button"
                     onClick={() => {
-                      // Pro nový dataset potřebujeme nejdřív uložit SSH konfiguraci
-                      if (!formData.scan_adapter_config?.host || !formData.scan_adapter_config?.username) {
-                        alert('Nejdříve vyplňte Host a Username pro SSH připojení')
-                        return
-                      }
                       // Pro existující dataset můžeme procházet přímo
                       if (editingDataset) {
                         browseSSH(editingDataset.id, formData.scan_adapter_config?.base_path || '/')
-                      } else {
-                        alert('Pro procházení SSH hosta nejdříve uložte dataset s SSH konfigurací')
                       }
                     }}
-                    style={{ background: '#17a2b8', whiteSpace: 'nowrap' }}
+                    disabled={!editingDataset}
+                    style={{ background: editingDataset ? '#17a2b8' : '#6c757d', whiteSpace: 'nowrap', cursor: editingDataset ? 'pointer' : 'not-allowed' }}
+                    title={!editingDataset ? 'Procházení je dostupné pouze při editaci existujícího datasetu' : 'Procházet SSH hosta'}
                   >
                     📁 Procházet SSH hosta
                   </button>

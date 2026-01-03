@@ -182,7 +182,7 @@ function CopyHddToNas() {
   return (
     <div className="plan-copy-page">
       <div className="box box-compact help-box">
-        <h3>📖 Fáze 3: Kopírování HDD → NAS</h3>
+        <h3>📖 Nápověda: Kopírování HDD → NAS</h3>
         <p><strong>Účel:</strong> Zkopírovat data z USB HDD na NAS2 podle stejného plánu z fáze 1.</p>
         <p><strong>Požadavky:</strong> USB HDD (s daty z fáze 2) a NAS2 musí být dostupné.</p>
         <ol>

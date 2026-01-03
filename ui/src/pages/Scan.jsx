@@ -131,7 +131,7 @@ function Scan() {
     <div className="scan-page">
       {phase === 'planning' && (
         <div className="box box-compact help-box">
-          <h3>📖 Fáze 1: Plánování - Scan</h3>
+          <h3>📖 Nápověda: Scan</h3>
           <p><strong>Účel:</strong> Vytvořit inventuru souborů na NAS1 a NAS2 pro porovnání a plánování synchronizace.</p>
           <ol>
             <li><strong>Vytvořte Dataset pro NAS1:</strong> Na záložce "Datasety" vytvořte dataset s lokací "NAS1" a zadejte "Root složky". Můžete použít SSH adapter, pokud NAS1 není lokálně namountovaný.</li>
@@ -147,7 +147,7 @@ function Scan() {
       )}
       {(phase === 'copy-nas-hdd' || phase === 'copy-hdd-nas') && (
         <div className="box box-compact help-box">
-          <h3>📖 Fáze 2: Kopírování - Scan</h3>
+          <h3>📖 Nápověda: Scan</h3>
           <p><strong>Účel:</strong> Ve fázi 2 obvykle nepotřebujete nové scany - použijete batch vytvořený ve fázi 1.</p>
           <p>Pokud potřebujete aktualizovat scan (např. po změnách na NAS), můžete vytvořit nový scan a následně nový diff a batch.</p>
         </div>
@@ -208,11 +208,13 @@ function Scan() {
               disabled={!canScan || datasets.length === 0}
             >
               <option value="">-- Vyberte dataset --</option>
-              {Array.isArray(datasets) && datasets.map(ds => (
-                <option key={ds.id} value={ds.id}>
-                  {ds.name || 'Dataset'} ({ds.location || 'unknown'})
-                </option>
-              ))}
+              {Array.isArray(datasets) && datasets
+                .filter(ds => ds.location === 'NAS1' || ds.location === 'NAS2')
+                .map(ds => (
+                  <option key={ds.id} value={ds.id}>
+                    {ds.name || 'Dataset'} ({ds.location || 'unknown'})
+                  </option>
+                ))}
             </select>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
