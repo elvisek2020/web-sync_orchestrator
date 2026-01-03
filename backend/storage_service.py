@@ -55,6 +55,8 @@ class StorageService:
         
         logger.info(f"_connect called with db_path={db_path}")
         
+        # Nejdřív vytvořit engine a SessionLocal, pak provést migrace
+        # To zajistí, že i když migrace selže, engine a SessionLocal budou nastaveny
         try:
             # SQLite s pool pro thread-safety
             self.db_path = db_path
@@ -72,27 +74,52 @@ class StorageService:
             Base.metadata.create_all(bind=self.engine)
             logger.info("Tables created/verified")
             
-            # Migrace - přidání error_message do scans pokud neexistuje
-            await self._migrate_scans_error_message()
-            # Migrace - přidání exclude_patterns do batches pokud neexistuje
-            await self._migrate_batches_exclude_patterns()
-            # Migrace - přidání enabled do batch_items pokud neexistuje
-            await self._migrate_batch_items_enabled()
-            # Migrace - přidání job_log do job_runs pokud neexistuje
-            await self._migrate_job_runs_log()
-            # Migrace - vytvoření job_file_statuses tabulky pokud neexistuje
-            await self._migrate_job_file_statuses()
-            logger.info("Migrations completed")
-            
+            # Vytvořit SessionLocal PŘED migracemi, aby byl dostupný i když migrace selže
             logger.info("Creating SessionLocal")
             self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+            logger.info("SessionLocal created successfully")
+            
+            # Migrace - přidání error_message do scans pokud neexistuje
+            try:
+                await self._migrate_scans_error_message()
+            except Exception as e:
+                logger.warning(f"Migration _migrate_scans_error_message failed: {e}", exc_info=True)
+            
+            # Migrace - přidání exclude_patterns do batches pokud neexistuje
+            try:
+                await self._migrate_batches_exclude_patterns()
+            except Exception as e:
+                logger.warning(f"Migration _migrate_batches_exclude_patterns failed: {e}", exc_info=True)
+            
+            # Migrace - přidání enabled do batch_items pokud neexistuje
+            try:
+                await self._migrate_batch_items_enabled()
+            except Exception as e:
+                logger.warning(f"Migration _migrate_batch_items_enabled failed: {e}", exc_info=True)
+            
+            # Migrace - přidání job_log do job_runs pokud neexistuje
+            try:
+                await self._migrate_job_runs_log()
+            except Exception as e:
+                logger.warning(f"Migration _migrate_job_runs_log failed: {e}", exc_info=True)
+            
+            # Migrace - vytvoření job_file_statuses tabulky pokud neexistuje
+            try:
+                await self._migrate_job_file_statuses()
+            except Exception as e:
+                logger.warning(f"Migration _migrate_job_file_statuses failed: {e}", exc_info=True)
+            
+            logger.info("Migrations completed")
+            
             self.available = True
             logger.info(f"Database connection successful. available={self.available}, SessionLocal={self.SessionLocal is not None}, engine={self.engine is not None}")
         except Exception as e:
             logger.error(f"Error in _connect: {e}", exc_info=True)
-            self.available = False
-            self.SessionLocal = None
-            self.engine = None
+            # I při chybě zkusit zachovat engine a SessionLocal, pokud byly vytvořeny
+            if self.engine is None or self.SessionLocal is None:
+                self.available = False
+                self.SessionLocal = None
+                self.engine = None
             raise
     
     async def _migrate_scans_error_message(self):
