@@ -447,12 +447,18 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 #### v.20250103.0938 (aktuální)
 
 - ✅ **Rozdělené záložky podle fází**: Každá fáze má vlastní záložku (Plán přenosu, Kopírování NAS→HDD, Kopírování HDD→NAS)
-- ✅ **Optimalizované hromadné označení**: Rychlé povolení/zakázání všech souborů v plánu
+- ✅ **Přejmenování fází**: Fáze 2a → Fáze 2, Fáze 2b → Fáze 3
+- ✅ **Přejmenování Batch → Plán**: Terminologie změněna z Batch/Batchy na Plán/Plány
+- ✅ **Optimalizované hromadné označení**: Rychlé povolení/zakázání všech souborů v plánu (nový endpoint `/api/batches/{batch_id}/items/toggle-all`)
 - ✅ **Historie jobů**: Zobrazení posledních jobů s možností zobrazení detailu a mazání
 - ✅ **Nápověda k zakázaným tlačítkům**: Tooltip vysvětluje, proč je tlačítko zakázané
 - ✅ **Opravený progress bar**: Správné zobrazení průběhu kopírování s ignorováním informačních řádků rsync
 - ✅ **Log z kopírování**: Log zprávy z kopírování se ukládají do databáze a zobrazují v detailu jobu
 - ✅ **Indikace dokončování**: Progress bar zobrazuje "Dokončování kopírování..." když jsou všechny soubory ve frontě
+- ✅ **Zmenšené obrázky fází**: Obrázky fází zmenšeny o 1/4 (z 75% na 56.25%)
+- ✅ **Zjednodušený formulář**: Formulář Výjimky zmenšen na jeden řádek (input místo textarea)
+- ✅ **Odebrán sloupec USB LIMIT %**: Z tabulky plánů odebrán sloupec USB LIMIT %
+- ✅ **Odebrán potvrzovací dialog**: Při vytvoření plánu a mazání jobů není potřeba potvrzování
 
 #### v.20260103.0300
 
