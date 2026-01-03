@@ -818,6 +818,7 @@ class JobRunner:
                 
                 def progress_cb(count: int, path: str, file_size: int = 0, success: bool = True, error: str = None):
                     nonlocal copied_count, copied_size
+                    # count je počet zkopírovaných souborů z adapteru
                     copied_count = count
                     # Přidat velikost jen jednou pro každý soubor
                     if file_size > 0 and path not in processed_files:
@@ -830,13 +831,14 @@ class JobRunner:
                             "status": "copied" if success else "failed",
                             "error_message": error
                         })
+                    # Broadcast progress - použít copied_count (aktuální počet zkopírovaných souborů)
                     asyncio.run(websocket_manager.broadcast({
                         "type": "job.progress",
                         "data": {
                             "job_id": job_id,
                             "type": "copy",
                             "batch_id": batch_id,
-                            "count": count,
+                            "count": copied_count,  # Použít copied_count místo count
                             "total_files": total_files,
                             "current_file": path,
                             "current_file_size": file_size,

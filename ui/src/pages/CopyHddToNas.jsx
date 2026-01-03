@@ -147,6 +147,11 @@ function CopyHddToNas() {
       } else if (msg.type === 'job.progress' && msg.data.type === 'copy') {
         const batchId = msg.data.batch_id
         if (batchId) {
+          // Aktualizovat file statuses nejdřív, aby se progress aktualizoval z aktuálních dat
+          if (msg.data.job_id) {
+            loadFileStatuses(msg.data.job_id)
+          }
+          // Pak aktualizovat progress z WebSocket zprávy
           setCopyProgress(prev => ({
             ...prev,
             [batchId]: {
@@ -160,10 +165,6 @@ function CopyHddToNas() {
               job_id: msg.data.job_id || prev[batchId]?.job_id
             }
           }))
-          // Aktualizovat file statuses
-          if (msg.data.job_id) {
-            loadFileStatuses(msg.data.job_id)
-          }
         }
       } else if (msg.type === 'job.finished') {
         if (msg.data.batch_id) {
