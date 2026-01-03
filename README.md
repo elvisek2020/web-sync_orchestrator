@@ -447,7 +447,11 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 
 ### 📝 Historie změn
 
-#### v.20250103.1241 (aktuální)
+#### v.20250103.1627 (aktuální)
+
+- ✅ **Detail u Poslední joby**: Detail jobu ve fázi 2 a 3 má nyní stejnou formu jako detail u "Seznam porovnání" - zobrazuje se jako samostatný box pod tabulkou s tabulkou souborů a logem místo alertu
+
+#### v.20250103.1241
 
 - ✅ **Datasety - tlačítko Procházet**: Tlačítko Procházet je neaktivní při vytváření nového datasetu, aktivní pouze při editaci. Root složka má výchozí hodnotu "/".
 - ✅ **Scan - filtrování datasetů**: V záložce Scan se zobrazují pouze datasety typu NAS1 a NAS2 (USB datasety jsou skryté).
