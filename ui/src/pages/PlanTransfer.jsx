@@ -137,10 +137,8 @@ function PlanTransfer() {
     if (items.length === 0) return
     
     try {
-      const promises = items.map(item => 
-        axios.put(`/api/batches/${batchId}/items/${item.id}/enabled?enabled=${enabled}`)
-      )
-      await Promise.all(promises)
+      // Použít nový endpoint pro hromadné označení
+      await axios.put(`/api/batches/${batchId}/items/toggle-all?enabled=${enabled}`)
       
       setBatchItems(prev => ({
         ...prev,

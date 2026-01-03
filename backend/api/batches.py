@@ -224,3 +224,23 @@ async def toggle_batch_item_enabled(batch_id: int, item_id: int, enabled: bool, 
     finally:
         session.close()
 
+@router.put("/{batch_id}/items/toggle-all")
+async def toggle_all_batch_items(batch_id: int, enabled: bool, _: None = Depends(check_safe_mode)):
+    """Povolit/zakázat všechny soubory v batchi najednou"""
+    session = storage_service.get_session()
+    if not session:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    
+    try:
+        items = session.query(BatchItem).filter(BatchItem.batch_id == batch_id).all()
+        if not items:
+            raise HTTPException(status_code=404, detail="No batch items found")
+        
+        for item in items:
+            item.enabled = enabled
+        
+        session.commit()
+        return {"message": f"All batch items {'enabled' if enabled else 'disabled'}", "count": len(items)}
+    finally:
+        session.close()
+
