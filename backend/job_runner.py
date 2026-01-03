@@ -627,6 +627,33 @@ class JobRunner:
                     session.commit()
                     return
                 
+                # Získání root složky pro normalizaci cest (stejně jako v run_diff)
+                source_root = source_dataset.roots[0] if source_dataset.roots else ""
+                
+                # Normalizační funkce - stejná jako v run_diff
+                def normalize_path(path, root):
+                    """Odstraní root složku z cesty a vrátí normalizovanou cestu"""
+                    if not root:
+                        return path
+                    # Normalizace - odstranit úvodní lomítka
+                    root_clean = root.strip("/")
+                    path_clean = path.strip("/")
+                    
+                    # Pokud cesta začíná root složkou, odstranit ji
+                    if path_clean.startswith(root_clean + "/"):
+                        return path_clean[len(root_clean) + 1:]
+                    elif path_clean == root_clean:
+                        return ""  # Cesta je přímo root složka
+                    elif path_clean.startswith(root_clean):
+                        return path_clean[len(root_clean):].lstrip("/")
+                    else:
+                        # Pokud cesta nezačíná root, zkusit najít root v cestě
+                        # Např. pokud root je "NAS-FILMY" a cesta je "NAS-FILMY/Movie/file.mkv"
+                        parts = path_clean.split("/")
+                        if parts[0] == root_clean:
+                            return "/".join(parts[1:])
+                        return path_clean
+                
                 # Načtení batch items (pouze povolené)
                 batch_items = session.query(BatchItem).filter(
                     BatchItem.batch_id == batch_id,
@@ -644,16 +671,27 @@ class JobRunner:
                     }))
                     return
                 
+                # Načtení všech source file entries a vytvoření mapy normalizovaných cest -> soubory
+                source_files_raw = session.query(DBFileEntry).filter(
+                    DBFileEntry.scan_id == diff.source_scan_id
+                ).all()
+                
+                # Vytvoření mapy normalizovaných cest -> soubory (stejně jako v run_diff)
+                source_files_map = {}
+                for f in source_files_raw:
+                    normalized = normalize_path(f.full_rel_path, source_root)
+                    if normalized not in source_files_map:
+                        source_files_map[normalized] = f
+                    # Pokud už existuje, použít první (může být duplicita)
+                
                 # Konverze na FileEntry a výpočet celkové velikosti
                 file_entries = []
                 total_size = 0
                 missing_files = []
                 for item in batch_items:
-                    # Najít source file entry
-                    source_file = session.query(DBFileEntry).filter(
-                        DBFileEntry.scan_id == diff.source_scan_id,
-                        DBFileEntry.full_rel_path == item.full_rel_path
-                    ).first()
+                    # item.full_rel_path je normalizovaná cesta (z DiffItem)
+                    # Najít source file entry pomocí normalizované cesty
+                    source_file = source_files_map.get(item.full_rel_path)
                     
                     if source_file:
                         file_entries.append(FileEntry(
