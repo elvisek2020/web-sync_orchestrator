@@ -17,6 +17,7 @@ function BatchPlan() {
   const [batchItems, setBatchItems] = useState({})
   const [batchFormData, setBatchFormData] = useState({ diff_id: '', include_conflicts: false, exclude_patterns: '' })
   const [runningJobs, setRunningJobs] = useState({})
+  const [copyProgress, setCopyProgress] = useState({}) // { batchId: { currentFile: '', currentFileNum: 0, totalFiles: 0, currentFileSize: 0, totalSize: 0, copiedSize: 0 } }
   
   useEffect(() => {
     const handlePhaseChange = (e) => {
@@ -52,12 +53,49 @@ function BatchPlan() {
     messages.forEach(msg => {
       if (msg.type === 'job.started') {
         setRunningJobs(prev => ({ ...prev, [msg.data.job_id]: { type: msg.data.type, status: 'running' } }))
+        // Reset progress pro nový job
+        if (msg.data.type === 'copy' && msg.data.batch_id) {
+          setCopyProgress(prev => ({
+            ...prev,
+            [msg.data.batch_id]: {
+              currentFile: '',
+              currentFileNum: 0,
+              totalFiles: msg.data.total_files || 0,
+              currentFileSize: 0,
+              totalSize: msg.data.total_size || 0,
+              copiedSize: 0
+            }
+          }))
+        }
+      } else if (msg.type === 'job.progress' && msg.data.type === 'copy') {
+        // Aktualizace progressu
+        const batchId = msg.data.batch_id
+        if (batchId) {
+          setCopyProgress(prev => ({
+            ...prev,
+            [batchId]: {
+              ...prev[batchId],
+              currentFile: msg.data.current_file || prev[batchId]?.currentFile || '',
+              currentFileNum: msg.data.count || 0,
+              currentFileSize: msg.data.current_file_size || 0,
+              copiedSize: msg.data.copied_size || 0
+            }
+          }))
+        }
       } else if (msg.type === 'job.finished') {
         setRunningJobs(prev => {
           const newState = { ...prev }
           delete newState[msg.data.job_id]
           return newState
         })
+        // Smazat progress po dokončení
+        if (msg.data.batch_id) {
+          setCopyProgress(prev => {
+            const newState = { ...prev }
+            delete newState[msg.data.batch_id]
+            return newState
+          })
+        }
         loadDiffs()
         loadBatches()
       }
@@ -186,7 +224,7 @@ function BatchPlan() {
         alert('Kopírování je dostupné pouze ve fázi 2a nebo 2b')
         return
       }
-      alert('Kopírování spuštěno')
+      // Dialog odstraněn - progress se zobrazí v progress barech
     } catch (error) {
       console.error('Failed to start copy:', error)
       const errorMessage = error.response?.data?.detail || error.message || 'Neznámá chyba'
@@ -420,6 +458,65 @@ function BatchPlan() {
                         </div>
                       </td>
                     </tr>
+                    {running && progress && (
+                      <tr>
+                        <td colSpan="6" style={{ padding: '1rem', background: '#f0f7ff', borderTop: '2px solid #007bff' }}>
+                          <div style={{ marginBottom: '1rem' }}>
+                            <h4 style={{ marginBottom: '0.75rem', fontSize: '0.9375rem', fontWeight: 'bold' }}>
+                              Průběh kopírování
+                            </h4>
+                            {/* Celkový progress bar */}
+                            <div style={{ marginBottom: '1rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+                                <span><strong>Celkový průběh:</strong> {progress.currentFileNum || 0} / {progress.totalFiles || 0} souborů</span>
+                                <span>{progress.totalSize > 0 ? `${((progress.copiedSize || 0) / 1024 / 1024).toFixed(2)} MB / ${(progress.totalSize / 1024 / 1024).toFixed(2)} MB` : ''}</span>
+                              </div>
+                              <div style={{ width: '100%', height: '24px', background: '#e0e0e0', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
+                                <div
+                                  style={{
+                                    height: '100%',
+                                    width: `${progress.totalFiles > 0 ? ((progress.currentFileNum || 0) / progress.totalFiles * 100) : 0}%`,
+                                    background: 'linear-gradient(90deg, #007bff 0%, #0056b3 100%)',
+                                    transition: 'width 0.3s ease',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: 'white',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 'bold'
+                                  }}
+                                >
+                                  {progress.totalFiles > 0 ? `${Math.round((progress.currentFileNum || 0) / progress.totalFiles * 100)}%` : '0%'}
+                                </div>
+                              </div>
+                            </div>
+                            {/* Progress bar pro aktuální soubor */}
+                            {progress.currentFile && (
+                              <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+                                  <span><strong>Aktuální soubor:</strong> <code style={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>{progress.currentFile}</code></span>
+                                  {progress.currentFileSize > 0 && (
+                                    <span>{(progress.currentFileSize / 1024 / 1024).toFixed(2)} MB</span>
+                                  )}
+                                </div>
+                                <div style={{ width: '100%', height: '20px', background: '#e0e0e0', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
+                                  <div
+                                    style={{
+                                      height: '100%',
+                                      width: '100%',
+                                      background: 'linear-gradient(90deg, #28a745 0%, #20c997 50%, #28a745 100%)',
+                                      backgroundSize: '200% 100%',
+                                      animation: 'progress-animation 2s linear infinite',
+                                      transition: 'width 0.3s ease'
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                     {isExpanded && (
                       <tr>
                         <td colSpan="6" style={{ padding: '1rem', background: '#f8f9fa' }}>

@@ -96,13 +96,23 @@ class SshRsyncTransferAdapter(TransferAdapter):
             
             # Čtení výstupu
             copied = 0
+            current_file = ""
             for line in process.stdout:
                 if log_cb:
                     log_cb(line.strip())
-                if not line.startswith("building") and not line.startswith("sending"):
+                # Rsync výstup: "filename" nebo "filename\n"
+                line_stripped = line.strip()
+                if line_stripped and not line_stripped.startswith("building") and not line_stripped.startswith("sending"):
+                    # Najít odpovídající soubor pro získání velikosti
+                    current_file = line_stripped
+                    file_size = 0
+                    for file_entry in files:
+                        if file_entry.full_rel_path.endswith(current_file) or current_file.endswith(file_entry.full_rel_path):
+                            file_size = file_entry.size
+                            break
                     copied += 1
                     if progress_cb:
-                        progress_cb(copied, "")
+                        progress_cb(copied, current_file, file_size)
             
             process.wait()
             

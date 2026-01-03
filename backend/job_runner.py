@@ -464,20 +464,15 @@ class JobRunner:
                     session.commit()
                     return
                 
-                # Broadcast start
-                asyncio.run(websocket_manager.broadcast({
-                    "type": "job.started",
-                    "data": {"job_id": job_id, "type": "copy", "direction": direction}
-                }))
-                
                 # Načtení batch items (pouze povolené)
                 batch_items = session.query(BatchItem).filter(
                     BatchItem.batch_id == batch_id,
                     BatchItem.enabled == True
                 ).all()
                 
-                # Konverze na FileEntry
+                # Konverze na FileEntry a výpočet celkové velikosti
                 file_entries = []
+                total_size = 0
                 for item in batch_items:
                     # Najít source file entry
                     source_file = session.query(DBFileEntry).filter(
@@ -492,6 +487,21 @@ class JobRunner:
                             mtime_epoch=source_file.mtime_epoch,
                             root_rel_path=source_file.root_rel_path
                         ))
+                        total_size += source_file.size
+                
+                # Broadcast start s informacemi o batchi (pokud ještě nebyl odeslán z API)
+                # API endpoint už posílá job.started, ale potřebujeme poslat i total_files a total_size
+                asyncio.run(websocket_manager.broadcast({
+                    "type": "job.started",
+                    "data": {
+                        "job_id": job_id,
+                        "type": "copy",
+                        "direction": direction,
+                        "batch_id": batch_id,
+                        "total_files": len(file_entries),
+                        "total_size": total_size
+                    }
+                }))
                 
                 # Určení source a target base paths a adapterů podle konfigurace datasetů
                 # USB je vždy lokální mount
@@ -526,11 +536,29 @@ class JobRunner:
                 else:
                     raise ValueError(f"Unknown direction: {direction}")
                 
-                # Callbacky
-                def progress_cb(count: int, path: str):
+                # Callbacky pro progress
+                total_files = len(file_entries)
+                copied_count = 0
+                copied_size = 0
+                
+                def progress_cb(count: int, path: str, file_size: int = 0):
+                    nonlocal copied_count, copied_size
+                    copied_count = count
+                    if file_size > 0:
+                        copied_size += file_size
                     asyncio.run(websocket_manager.broadcast({
                         "type": "job.progress",
-                        "data": {"job_id": job_id, "type": "copy", "count": count, "path": path}
+                        "data": {
+                            "job_id": job_id,
+                            "type": "copy",
+                            "batch_id": batch_id,
+                            "count": count,
+                            "total_files": total_files,
+                            "current_file": path,
+                            "current_file_size": file_size,
+                            "copied_size": copied_size,
+                            "total_size": total_size
+                        }
                     }))
                 
                 def log_cb(message: str):
@@ -624,7 +652,7 @@ class JobRunner:
                     session.rollback()
                 asyncio.run(websocket_manager.broadcast({
                     "type": "job.finished",
-                    "data": {"job_id": job_id, "type": "copy", "status": "failed", "error": str(e)}
+                    "data": {"job_id": job_id, "type": "copy", "status": "failed", "batch_id": batch_id, "error": str(e)}
                 }))
             finally:
                 session.close()
