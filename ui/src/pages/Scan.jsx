@@ -64,7 +64,6 @@ function Scan() {
   }, [messages])
   
   const [errorMessage, setErrorMessage] = useState('')
-  const [successMessage, setSuccessMessage] = useState('')
   
   const handleStartScan = async () => {
     if (!selectedDataset) {
@@ -79,10 +78,7 @@ function Scan() {
     try {
       await axios.post('/api/scans/', { dataset_id: parseInt(selectedDataset) })
       setSelectedDataset('')
-      setSuccessMessage('Scan byl spuštěn. Sledujte průběh v historii scanů níže.')
       loadScans()
-      // Automaticky skrýt success zprávu po 5 sekundách
-      setTimeout(() => setSuccessMessage(''), 5000)
     } catch (error) {
       console.error('Failed to start scan:', error)
       setErrorMessage('Chyba při spuštění scanu: ' + (error.response?.data?.detail || error.message))
@@ -98,8 +94,6 @@ function Scan() {
         setSelectedScan(null)
       }
       loadScans()
-      setSuccessMessage('Scan byl smazán.')
-      setTimeout(() => setSuccessMessage(''), 3000)
     } catch (error) {
       console.error('Failed to delete scan:', error)
       setErrorMessage('Chyba při mazání scanu: ' + (error.response?.data?.detail || error.message))
@@ -181,19 +175,6 @@ function Scan() {
           </div>
         )}
         
-        {successMessage && (
-          <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#d4edda', border: '1px solid #c3e6cb', borderRadius: '4px', color: '#155724' }}>
-            <strong>✓ Úspěch:</strong> {successMessage}
-            <button
-              onClick={() => setSuccessMessage('')}
-              style={{ float: 'right', background: 'none', border: 'none', color: '#155724', cursor: 'pointer', fontSize: '1.2rem' }}
-              title="Zavřít"
-            >
-              ×
-            </button>
-          </div>
-        )}
-        
         <div style={{ marginTop: '1rem' }}>
           <div className="form-group">
             <label className="label">Vyberte dataset</label>
@@ -238,7 +219,7 @@ function Scan() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Dataset ID</th>
+                <th>Dataset</th>
                 <th>Status</th>
                 <th>Vytvořeno</th>
                 <th>Soubory</th>
@@ -249,10 +230,11 @@ function Scan() {
             <tbody>
               {Array.isArray(scans) && scans.map(scan => {
                 const running = runningScans[scan.id]
+                const dataset = datasets.find(d => d.id === scan.dataset_id)
                 return (
                   <tr key={scan.id}>
                     <td>{scan.id}</td>
-                    <td>{scan.dataset_id}</td>
+                    <td>{dataset ? `${dataset.name} (ID: ${dataset.id})` : `Dataset ID: ${scan.dataset_id}`}</td>
                     <td>
                       <div>
                         <span className={`status-badge ${scan.status || 'unknown'}`}>

@@ -138,7 +138,6 @@ function Datasets() {
       console.log('Duplikát vytvořen:', response.data)
       
       await loadDatasets()
-      alert(`Dataset "${newName}" byl úspěšně vytvořen.`)
     } catch (error) {
       console.error('Failed to duplicate dataset:', error)
       console.error('Error details:', error.response?.data)

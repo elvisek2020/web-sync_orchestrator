@@ -251,7 +251,6 @@ function PlanCopy() {
         alert('Kopírování je dostupné pouze ve fázi 2a nebo 2b')
         return
       }
-      alert('Kopírování spuštěno')
     } catch (error) {
       console.error('Failed to start copy:', error)
       alert('Chyba při spuštění kopírování')
