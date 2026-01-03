@@ -44,12 +44,18 @@ class DatasetResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 async def check_safe_mode():
-    """Dependency - kontroluje SAFE MODE"""
+    """Dependency - kontroluje SAFE MODE a dostupnost databáze"""
     mount_status = await mount_service.get_status()
     if mount_status.get("safe_mode", True):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="SAFE MODE: USB/DB unavailable"
+        )
+    # Zkontrolovat také dostupnost databáze
+    if not storage_service.available or not storage_service.get_session():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database unavailable"
         )
 
 @router.post("/", response_model=DatasetResponse)
