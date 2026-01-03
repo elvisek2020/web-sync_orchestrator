@@ -656,6 +656,15 @@ function Datasets() {
                       </button>
                       <button
                         className="button"
+                        onClick={() => handleDuplicate(dataset)}
+                        disabled={mountStatus.safe_mode}
+                        style={{ marginRight: '0.5rem', fontSize: '0.875rem', padding: '0.25rem 0.5rem', background: '#17a2b8' }}
+                        title="Vytvořit kopii datasetu se všemi parametry"
+                      >
+                        Duplikovat
+                      </button>
+                      <button
+                        className="button"
                         onClick={() => handleDelete(dataset.id)}
                         disabled={mountStatus.safe_mode}
                         style={{ background: '#dc3545', fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
