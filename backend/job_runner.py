@@ -741,7 +741,10 @@ class JobRunner:
                 if direction == "nas1-usb":
                     # Source: NAS1 (může být lokální nebo SSH)
                     # Target: USB (vždy lokální) - vytvořit adresář s názvem jobu
-                    job_dir = f"job-{job_id}"
+                    # Použít job.id z databáze pro jistotu správného ID
+                    job_dir = f"job-{job.id}"
+                    if log_cb:
+                        log_cb(f"Creating job directory: {job_dir} (job_id parameter: {job_id}, job.id from DB: {job.id})")
                     if source_dataset.transfer_adapter_type == "ssh":
                         # NAS1 je přes SSH - kopírujeme z VZDÁLENÉHO na LOKÁLNÍ
                         base_path = source_dataset.transfer_adapter_config.get("base_path", "/") if source_dataset.transfer_adapter_config else "/"
