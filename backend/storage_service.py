@@ -47,6 +47,8 @@ class StorageService:
         await self._migrate_batches_exclude_patterns()
         # Migrace - přidání enabled do batch_items pokud neexistuje
         await self._migrate_batch_items_enabled()
+        # Migrace - přidání job_log do job_runs pokud neexistuje
+        await self._migrate_job_runs_log()
         
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         self.available = True
@@ -118,7 +120,29 @@ class StorageService:
             print(f"Migration error: {e}")
             import traceback
             traceback.print_exc()
-
+    
+    async def _migrate_job_runs_log(self):
+        """Migrace: přidá job_log sloupec do job_runs tabulky pokud neexistuje"""
+        try:
+            from sqlalchemy import text
+            with self.engine.begin() as conn:
+                # Zkontrolovat, zda sloupec existuje
+                result = conn.execute(text("""
+                    SELECT COUNT(*) FROM pragma_table_info('job_runs') WHERE name='job_log'
+                """))
+                count = result.scalar()
+                
+                if count == 0:
+                    # Sloupec neexistuje, přidat ho
+                    conn.execute(text("ALTER TABLE job_runs ADD COLUMN job_log TEXT"))
+                    print("Migration: Added job_log column to job_runs table")
+                else:
+                    print("Migration: job_log column already exists")
+        except Exception as e:
+            print(f"Migration error: {e}")
+            import traceback
+            traceback.print_exc()
+    
     async def _disconnect(self):
         """Odpojí se od databáze"""
         if self.engine:

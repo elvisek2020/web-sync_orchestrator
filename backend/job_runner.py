@@ -541,6 +541,7 @@ class JobRunner:
                 copied_count = 0
                 copied_size = 0
                 processed_files = set()  # Sledovat už zpracované soubory pro správné počítání velikosti
+                log_messages = []  # Ukládat log zprávy
                 
                 def progress_cb(count: int, path: str, file_size: int = 0):
                     nonlocal copied_count, copied_size
@@ -565,6 +566,8 @@ class JobRunner:
                     }))
                 
                 def log_cb(message: str):
+                    nonlocal log_messages
+                    log_messages.append(message)
                     asyncio.run(websocket_manager.broadcast({
                         "type": "job.log",
                         "data": {"job_id": job_id, "type": "copy", "message": message}

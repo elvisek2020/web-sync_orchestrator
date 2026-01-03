@@ -124,5 +124,6 @@ class JobRun(Base):
     started_at = Column(DateTime, default=datetime.utcnow)
     finished_at = Column(DateTime)
     error_message = Column(Text)
+    job_log = Column(Text)  # Log zprávy z jobu
     job_metadata = Column("job_metadata", JSON)  # Dodatečné informace o jobu (metadata je rezervované slovo v SQLAlchemy)
 

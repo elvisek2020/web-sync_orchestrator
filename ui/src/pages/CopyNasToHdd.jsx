@@ -324,14 +324,12 @@ function CopyNasToHdd() {
             <button
               className="button"
               onClick={async () => {
-                if (confirm('Opravdu chcete smazat všechny joby?')) {
-                  try {
-                    await axios.delete('/api/copy/jobs')
-                    loadRecentJobs()
-                  } catch (error) {
-                    console.error('Failed to delete jobs:', error)
-                    alert('Chyba při mazání jobů: ' + (error.response?.data?.detail || error.message))
-                  }
+                try {
+                  await axios.delete('/api/copy/jobs')
+                  loadRecentJobs()
+                } catch (error) {
+                  console.error('Failed to delete jobs:', error)
+                  alert('Chyba při mazání jobů: ' + (error.response?.data?.detail || error.message))
                 }
               }}
               style={{ background: '#dc3545', fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
@@ -373,6 +371,7 @@ function CopyNasToHdd() {
                             const response = await axios.get(`/api/copy/jobs/${job.id}`)
                             const jobDetail = response.data
                             const metadata = jobDetail.job_metadata || {}
+                            const logText = jobDetail.job_log ? `\n\nLog:\n${jobDetail.job_log}` : ''
                             const detailText = `
 Detail jobu #${job.id}:
 Typ: ${jobDetail.type}
@@ -382,7 +381,7 @@ Konec: ${jobDetail.finished_at ? new Date(jobDetail.finished_at).toLocaleString(
 ${jobDetail.error_message ? `Chyba: ${jobDetail.error_message}` : ''}
 ${metadata.batch_id ? `Batch ID: ${metadata.batch_id}` : ''}
 ${metadata.direction ? `Směr: ${metadata.direction}` : ''}
-${metadata.dry_run !== undefined ? `Dry run: ${metadata.dry_run}` : ''}
+${metadata.dry_run !== undefined ? `Dry run: ${metadata.dry_run}` : ''}${logText}
                             `.trim()
                             alert(detailText)
                           } catch (error) {

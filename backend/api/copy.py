@@ -23,6 +23,7 @@ class JobRunResponse(BaseModel):
     started_at: datetime
     finished_at: Optional[datetime]
     error_message: Optional[str]
+    job_log: Optional[str] = None
     job_metadata: Optional[dict]
     
     model_config = {"from_attributes": True}
