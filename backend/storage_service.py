@@ -212,6 +212,37 @@ class StorageService:
             import traceback
             traceback.print_exc()
     
+    async def _migrate_job_file_statuses(self):
+        """Migrace: vytvoří job_file_statuses tabulku pokud neexistuje"""
+        try:
+            from sqlalchemy import text, inspect
+            inspector = inspect(self.engine)
+            existing_tables = inspector.get_table_names()
+            
+            if 'job_file_statuses' not in existing_tables:
+                # Tabulka neexistuje, vytvořit ji
+                with self.engine.begin() as conn:
+                    conn.execute(text("""
+                        CREATE TABLE job_file_statuses (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            job_id INTEGER NOT NULL,
+                            file_path TEXT NOT NULL,
+                            file_size INTEGER NOT NULL,
+                            status TEXT NOT NULL,
+                            error_message TEXT,
+                            copied_at DATETIME,
+                            FOREIGN KEY (job_id) REFERENCES job_runs(id)
+                        )
+                    """))
+                    conn.execute(text("CREATE INDEX idx_job_file_statuses_job_id ON job_file_statuses(job_id)"))
+                    print("Migration: Created job_file_statuses table")
+            else:
+                print("Migration: job_file_statuses table already exists")
+        except Exception as e:
+            print(f"Migration error: {e}")
+            import traceback
+            traceback.print_exc()
+    
     async def _disconnect(self):
         """Odpojí se od databáze"""
         if self.engine:
