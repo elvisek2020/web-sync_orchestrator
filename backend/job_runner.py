@@ -265,7 +265,15 @@ class JobRunner:
                 
                 # Deterministické porovnání podle normalizovaných cest
                 all_paths = set(source_files.keys()) | set(target_files.keys())
+                total_paths = len(all_paths)
                 
+                # Progress feedback
+                asyncio.run(websocket_manager.broadcast({
+                    "type": "job.progress",
+                    "data": {"job_id": diff_id, "type": "diff", "count": 0, "total": total_paths, "message": f"Porovnávání {total_paths} souborů..."}
+                }))
+                
+                processed_count = 0
                 for normalized_path in all_paths:
                     source_file = source_files.get(normalized_path)
                     target_file = target_files.get(normalized_path)
@@ -291,9 +299,35 @@ class JobRunner:
                         category=category
                     )
                     session.add(diff_item)
+                    processed_count += 1
+                    
+                    # Batch commit každých 1000 záznamů pro lepší výkon
+                    if processed_count % 1000 == 0:
+                        try:
+                            session.commit()
+                            # Progress feedback každých 1000 souborů
+                            asyncio.run(websocket_manager.broadcast({
+                                "type": "job.progress",
+                                "data": {"job_id": diff_id, "type": "diff", "count": processed_count, "total": total_paths, "message": f"Zpracováno {processed_count} / {total_paths} souborů..."}
+                            }))
+                        except Exception as commit_error:
+                            session.rollback()
+                            asyncio.run(websocket_manager.broadcast({
+                                "type": "job.log",
+                                "data": {"job_id": diff_id, "type": "diff", "message": f"Commit error: {commit_error}, retrying..."}
+                            }))
+                            session.commit()
                 
                 diff.status = "completed"
-                session.commit()
+                try:
+                    session.commit()
+                except Exception as commit_error:
+                    session.rollback()
+                    asyncio.run(websocket_manager.broadcast({
+                        "type": "job.log",
+                        "data": {"job_id": diff_id, "type": "diff", "message": f"Final commit error: {commit_error}, retrying..."}
+                    }))
+                    session.commit()
                 
                 asyncio.run(websocket_manager.broadcast({
                     "type": "job.finished",
