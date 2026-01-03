@@ -529,13 +529,13 @@ class JobRunner:
                     )
                     session.add(batch_item)
                 
-                batch.status = "completed"
+                batch.status = "ready"
                 session.commit()
                 
                 # Broadcast success
                 asyncio.run(websocket_manager.broadcast({
                     "type": "job.finished",
-                    "data": {"job_id": batch_id, "type": "batch", "status": "completed"}
+                    "data": {"job_id": batch_id, "type": "batch", "status": "ready"}
                 }))
                 
             except Exception as e:
