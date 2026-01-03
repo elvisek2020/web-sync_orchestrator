@@ -69,13 +69,35 @@ function PlanTransfer() {
   
   const handleCreateBatch = async () => {
     try {
-      await axios.post('/api/batches/', batchFormData)
+      // Převést exclude_patterns z stringu na seznam řádků
+      const excludePatternsList = batchFormData.exclude_patterns
+        ? batchFormData.exclude_patterns.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+        : null
+      
+      const payload = {
+        diff_id: parseInt(batchFormData.diff_id),
+        include_conflicts: batchFormData.include_conflicts,
+        exclude_patterns: excludePatternsList
+      }
+      
+      await axios.post('/api/batches/', payload)
       setBatchFormData({ diff_id: '', include_conflicts: false, exclude_patterns: '' })
       loadBatches()
       alert('Batch byl úspěšně vytvořen')
     } catch (error) {
       console.error('Failed to create batch:', error)
-      const errorMessage = error.response?.data?.detail || error.message || 'Neznámá chyba'
+      let errorMessage = 'Neznámá chyba'
+      if (error.response?.data) {
+        if (typeof error.response.data.detail === 'string') {
+          errorMessage = error.response.data.detail
+        } else if (typeof error.response.data.detail === 'object') {
+          errorMessage = JSON.stringify(error.response.data.detail)
+        } else {
+          errorMessage = String(error.response.data.detail)
+        }
+      } else if (error.message) {
+        errorMessage = error.message
+      }
       alert(`Chyba při vytváření batchu: ${errorMessage}`)
     }
   }
