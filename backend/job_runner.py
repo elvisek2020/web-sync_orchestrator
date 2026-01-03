@@ -114,38 +114,57 @@ class JobRunner:
                                 log_cb(f"Committed {total_files} files so far...")
                     
                     # Finální commit - refresh scan objektu před aktualizací
-                    session.refresh(scan)
+                    try:
+                        session.refresh(scan)
+                    except Exception:
+                        # Pokud refresh selže, zkusit načíst scan znovu
+                        scan = session.query(Scan).filter(Scan.id == scan_id).first()
+                        if not scan:
+                            raise Exception(f"Scan {scan_id} not found for final commit")
+                    
                     scan.total_files = total_files
                     scan.total_size = total_size
                     scan.status = "completed"
+                    
+                    commit_success = False
                     try:
                         session.commit()
+                        commit_success = True
                     except Exception as commit_error:
                         session.rollback()
                         if log_cb:
                             log_cb(f"Final commit error: {commit_error}, retrying...")
                         # Zkusit znovu načíst scan a aktualizovat
-                        session.refresh(scan)
-                        scan.total_files = total_files
-                        scan.total_size = total_size
-                        scan.status = "completed"
                         try:
-                            session.commit()
+                            scan = session.query(Scan).filter(Scan.id == scan_id).first()
+                            if scan:
+                                scan.total_files = total_files
+                                scan.total_size = total_size
+                                scan.status = "completed"
+                                session.commit()
+                                commit_success = True
                         except Exception:
-                            # Pokud ani to nefunguje, použít novou session
-                            new_session = storage_service.get_session()
-                            if new_session:
-                                try:
-                                    scan_new = new_session.query(Scan).filter(Scan.id == scan_id).first()
-                                    if scan_new:
-                                        scan_new.total_files = total_files
-                                        scan_new.total_size = total_size
-                                        scan_new.status = "completed"
-                                        new_session.commit()
-                                except Exception:
-                                    new_session.rollback()
-                                finally:
-                                    new_session.close()
+                            pass
+                    
+                    # Pokud ani to nefunguje, použít novou session
+                    if not commit_success:
+                        new_session = storage_service.get_session()
+                        if new_session:
+                            try:
+                                scan_new = new_session.query(Scan).filter(Scan.id == scan_id).first()
+                                if scan_new:
+                                    scan_new.total_files = total_files
+                                    scan_new.total_size = total_size
+                                    scan_new.status = "completed"
+                                    new_session.commit()
+                                    if log_cb:
+                                        log_cb(f"Scan status updated using new session")
+                            except Exception as e:
+                                new_session.rollback()
+                                if log_cb:
+                                    log_cb(f"Failed to update scan status in new session: {e}")
+                            finally:
+                                new_session.close()
                     
                     if log_cb:
                         log_cb(f"Scan completed: {total_files} files, {total_size / 1024 / 1024:.2f} MB")
@@ -154,11 +173,15 @@ class JobRunner:
                         log_cb(f"Error during scan iteration: {scan_error}")
                     raise
                 
-                # Broadcast finish
-                asyncio.run(websocket_manager.broadcast({
-                    "type": "job.finished",
-                    "data": {"job_id": scan_id, "type": "scan", "status": "completed"}
-                }))
+                # Broadcast finish - vždy poslat, i když commit selhal
+                try:
+                    asyncio.run(websocket_manager.broadcast({
+                        "type": "job.finished",
+                        "data": {"job_id": scan_id, "type": "scan", "status": "completed"}
+                    }))
+                except Exception as broadcast_error:
+                    if log_cb:
+                        log_cb(f"Failed to broadcast job.finished: {broadcast_error}")
                 
             except Exception as e:
                 try:
