@@ -51,8 +51,8 @@ async def check_safe_mode():
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="SAFE MODE: USB/DB unavailable"
         )
-    # Zkontrolovat také dostupnost databáze
-    if not storage_service.available or not storage_service.get_session():
+    # Zkontrolovat také dostupnost databáze (bez vytváření session)
+    if not storage_service.available or not storage_service.SessionLocal:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database unavailable"

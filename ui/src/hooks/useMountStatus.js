@@ -7,7 +7,8 @@ export function useMountStatus() {
     nas1: { available: false, writable: false },
     usb: { available: false, writable: false },
     nas2: { available: false, writable: false },
-    safe_mode: true
+    safe_mode: true,
+    database: { available: false, db_path: null, error: null }
   })
   const { messages } = useWebSocket()
   
