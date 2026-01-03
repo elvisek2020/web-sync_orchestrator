@@ -83,8 +83,7 @@ async def copy_nas1_to_usb(request: CopyRequest, _: None = Depends(check_safe_mo
         
         # Spustit background job pro copy (job.started se pošle z job_runner s kompletními informacemi)
         from backend.job_runner import job_runner
-        import asyncio
-        asyncio.create_task(job_runner.run_copy(job.id, request.batch_id, "nas1-usb", request.dry_run))
+        job_runner.run_copy(job.id, request.batch_id, "nas1-usb", request.dry_run)
         
         return JobRunResponse.model_validate(job)
     finally:
@@ -137,8 +136,7 @@ async def copy_usb_to_nas2(request: CopyRequest, _: None = Depends(check_safe_mo
         
         # Spustit background job pro copy (job.started se pošle z job_runner s kompletními informacemi)
         from backend.job_runner import job_runner
-        import asyncio
-        asyncio.create_task(job_runner.run_copy(job.id, request.batch_id, "usb-nas2", request.dry_run))
+        job_runner.run_copy(job.id, request.batch_id, "usb-nas2", request.dry_run)
         
         return JobRunResponse.model_validate(job)
     finally:

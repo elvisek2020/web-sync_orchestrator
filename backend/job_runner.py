@@ -403,7 +403,7 @@ class JobRunner:
         self.running_jobs[batch_id] = thread
         thread.start()
     
-    async def run_copy(self, job_id: int, batch_id: int, direction: str, dry_run: bool = False):
+    def run_copy(self, job_id: int, batch_id: int, direction: str, dry_run: bool = False):
         """Spustí copy job"""
         def copy_thread():
             session = storage_service.get_session()
