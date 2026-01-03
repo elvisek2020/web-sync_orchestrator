@@ -301,15 +301,17 @@ class JobRunner:
                     session.add(diff_item)
                     processed_count += 1
                     
-                    # Batch commit každých 1000 záznamů pro lepší výkon
+                    # Progress feedback každých 100 souborů (častější feedback pro lepší UX)
+                    if processed_count % 100 == 0:
+                        asyncio.run(websocket_manager.broadcast({
+                            "type": "job.progress",
+                            "data": {"job_id": diff_id, "type": "diff", "count": processed_count, "total": total_paths, "message": f"Zpracováno {processed_count} / {total_paths} souborů..."}
+                        }))
+                    
+                    # Batch commit každých 1000 záznamů pro lepší výkon (commit je dražší než progress feedback)
                     if processed_count % 1000 == 0:
                         try:
                             session.commit()
-                            # Progress feedback každých 1000 souborů
-                            asyncio.run(websocket_manager.broadcast({
-                                "type": "job.progress",
-                                "data": {"job_id": diff_id, "type": "diff", "count": processed_count, "total": total_paths, "message": f"Zpracováno {processed_count} / {total_paths} souborů..."}
-                            }))
                         except Exception as commit_error:
                             session.rollback()
                             asyncio.run(websocket_manager.broadcast({
