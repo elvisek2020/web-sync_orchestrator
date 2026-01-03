@@ -862,14 +862,6 @@ class JobRunner:
                         }
                     }))
                 
-                def log_cb(message: str):
-                    nonlocal log_messages
-                    log_messages.append(message)
-                    asyncio.run(websocket_manager.broadcast({
-                        "type": "job.log",
-                        "data": {"job_id": job_id, "type": "copy", "message": message}
-                    }))
-                
                 # Spuštění kopírování
                 # Pro SSH adapter předáme source_is_remote parametr, pokud je potřeba
                 from backend.adapters.ssh_transfer import SshRsyncTransferAdapter
