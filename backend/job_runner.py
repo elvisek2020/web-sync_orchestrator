@@ -529,7 +529,7 @@ class JobRunner:
                     )
                     session.add(batch_item)
                 
-                batch.status = "ready"
+                batch.status = "completed"
                 session.commit()
                 
                 # Broadcast success

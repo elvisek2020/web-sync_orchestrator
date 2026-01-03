@@ -123,30 +123,6 @@ function Scan() {
   
   return (
     <div className="scan-page">
-      {phase === 'planning' && (
-        <div className="box box-compact help-box">
-          <h3>📖 Nápověda: Scan</h3>
-          <p><strong>Účel:</strong> Vytvořit inventuru souborů na NAS1 a NAS2 pro porovnání a plánování synchronizace.</p>
-          <ol>
-            <li><strong>Vytvořte Dataset pro NAS1:</strong> Na záložce "Datasety" vytvořte dataset s lokací "NAS1" a zadejte "Root složky". Můžete použít SSH adapter, pokud NAS1 není lokálně namountovaný.</li>
-            <li><strong>Vytvořte Dataset pro NAS2:</strong> Vytvořte dataset s lokací "NAS2" a zadejte "Root složky". Můžete použít SSH adapter.</li>
-            <li><strong>Spustit scan NAS1:</strong> Vyberte dataset NAS1 a spusťte scan. Aplikace projde všechny soubory a uloží jejich metadata.</li>
-            <li><strong>Spustit scan NAS2:</strong> Vyberte dataset NAS2 a spusťte scan.</li>
-            <li><strong>Výsledek:</strong> Po dokončení obou scanů přejděte na záložku "Plan & Copy" a vytvořte diff (NAS1 jako source, NAS2 jako target).</li>
-          </ol>
-          <p style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.5)', borderRadius: '4px' }}>
-            <strong>💡 Tip:</strong> NAS1 a NAS2 mohou být dostupné přes SSH - mount nemusí být lokálně namountovaný.
-          </p>
-        </div>
-      )}
-      {(phase === 'copy-nas-hdd' || phase === 'copy-hdd-nas') && (
-        <div className="box box-compact help-box">
-          <h3>📖 Nápověda: Scan</h3>
-          <p><strong>Účel:</strong> Ve fázi 2 obvykle nepotřebujete nové scany - použijete batch vytvořený ve fázi 1.</p>
-          <p>Pokud potřebujete aktualizovat scan (např. po změnách na NAS), můžete vytvořit nový scan a následně nový diff a batch.</p>
-        </div>
-      )}
-      
       <div className="box box-compact">
         <h2>Spustit scan</h2>
         <p>Scan vytvoří snapshot souborů v zadaném datasetu.</p>
@@ -342,6 +318,32 @@ function ScanDetail({ scanId }) {
           ))}
         </tbody>
       </table>
+    </div>
+  )}
+      
+      {phase === 'planning' && (
+        <div className="box box-compact help-box">
+          <h3>📖 Nápověda: Scan</h3>
+          <p><strong>Účel:</strong> Vytvořit inventuru souborů na NAS1 a NAS2 pro porovnání a plánování synchronizace.</p>
+          <ol>
+            <li><strong>Vytvořte Dataset pro NAS1:</strong> Na záložce "Datasety" vytvořte dataset s lokací "NAS1" a zadejte "Root složky". Můžete použít SSH adapter, pokud NAS1 není lokálně namountovaný.</li>
+            <li><strong>Vytvořte Dataset pro NAS2:</strong> Vytvořte dataset s lokací "NAS2" a zadejte "Root složky". Můžete použít SSH adapter.</li>
+            <li><strong>Spustit scan NAS1:</strong> Vyberte dataset NAS1 a spusťte scan. Aplikace projde všechny soubory a uloží jejich metadata.</li>
+            <li><strong>Spustit scan NAS2:</strong> Vyberte dataset NAS2 a spusťte scan.</li>
+            <li><strong>Výsledek:</strong> Po dokončení obou scanů přejděte na záložku "Plan & Copy" a vytvořte diff (NAS1 jako source, NAS2 jako target).</li>
+          </ol>
+          <p style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.5)', borderRadius: '4px' }}>
+            <strong>💡 Tip:</strong> NAS1 a NAS2 mohou být dostupné přes SSH - mount nemusí být lokálně namountovaný.
+          </p>
+        </div>
+      )}
+      {(phase === 'copy-nas-hdd' || phase === 'copy-hdd-nas') && (
+        <div className="box box-compact help-box">
+          <h3>📖 Nápověda: Scan</h3>
+          <p><strong>Účel:</strong> Ve fázi 2 obvykle nepotřebujete nové scany - použijete batch vytvořený ve fázi 1.</p>
+          <p>Pokud potřebujete aktualizovat scan (např. po změnách na NAS), můžete vytvořit nový scan a následně nový diff a batch.</p>
+        </div>
+      )}
     </div>
   )
 }

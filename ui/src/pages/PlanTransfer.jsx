@@ -134,9 +134,6 @@ function PlanTransfer() {
   }
   
   const handleDeleteBatch = async (batchId) => {
-    if (!confirm(`Opravdu chcete smazat batch #${batchId}?`)) {
-      return
-    }
     try {
       await axios.delete(`/api/batches/${batchId}`)
       loadBatches()
@@ -229,17 +226,6 @@ function PlanTransfer() {
   
   return (
     <div className="plan-copy-page">
-      <div className="box box-compact help-box">
-        <h3>📖 Nápověda: Plán přenosu</h3>
-        <p><strong>Účel:</strong> Vytvořit plán kopírování založený na porovnání.</p>
-        <p><strong>Požadavky:</strong> Dokončené porovnání.</p>
-        <ol>
-          <li><strong>Vytvořte plán:</strong> Z porovnání vytvořte plán kopírování s respektováním limitu USB kapacity.</li>
-          <li><strong>Upravte plán:</strong> Můžete vybrat, které soubory se zkopírují pomocí checkboxů.</li>
-        </ol>
-        <p><strong>Výsledek:</strong> Plán, který se použije ve fázi 2 pro kopírování na HDD a následně na cílový NAS2.</p>
-      </div>
-      
       <div className="box box-compact">
         <h2>Vytvořit plán</h2>
         <p>Plán přenosu založený na porovnání.</p>

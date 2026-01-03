@@ -133,20 +133,6 @@ function Compare() {
   
   return (
     <div className="plan-copy-page">
-      {phase === 'planning' && (
-        <div className="box box-compact help-box">
-          <h3>📖 Nápověda: Porovnání</h3>
-          <p><strong>Účel:</strong> Porovnat obsah NAS1 a NAS2 pro identifikaci rozdílů.</p>
-          <p><strong>Požadavky:</strong> NAS1 a NAS2 musí být dostupné (mohou být přes SSH).</p>
-          <ol>
-            <li><strong>Vytvořte dataset pro NAS1:</strong> Na záložce "Datasety" vytvořte dataset s lokací NAS1 a spusťte scan.</li>
-            <li><strong>Vytvořte dataset pro NAS2:</strong> Vytvořte dataset s lokací NAS2 a spusťte scan.</li>
-            <li><strong>Vytvořte diff:</strong> Porovnejte scan NAS1 (source) s scanem NAS2 (target) - identifikuje, co je na NAS1 a chybí na NAS2.</li>
-          </ol>
-          <p><strong>Výsledek:</strong> Diff, který se použije pro vytvoření plánu přenosu.</p>
-        </div>
-      )}
-      
       <div className="box box-compact">
         <h2>Vytvořit porovnání</h2>
         <p>Porovnání dvou scanů pro identifikaci změn.</p>
@@ -300,6 +286,20 @@ function Compare() {
         <div className="box">
           <h2>Detail porovnání #{selectedDiff}</h2>
           <DiffDetail diffId={selectedDiff} />
+        </div>
+      )}
+      
+      {phase === 'planning' && (
+        <div className="box box-compact help-box">
+          <h3>📖 Nápověda: Porovnání</h3>
+          <p><strong>Účel:</strong> Porovnat obsah NAS1 a NAS2 pro identifikaci rozdílů.</p>
+          <p><strong>Požadavky:</strong> NAS1 a NAS2 musí být dostupné (mohou být přes SSH).</p>
+          <ol>
+            <li><strong>Vytvořte dataset pro NAS1:</strong> Na záložce "Datasety" vytvořte dataset s lokací NAS1 a spusťte scan.</li>
+            <li><strong>Vytvořte dataset pro NAS2:</strong> Vytvořte dataset s lokací NAS2 a spusťte scan.</li>
+            <li><strong>Vytvořte diff:</strong> Porovnejte scan NAS1 (source) s scanem NAS2 (target) - identifikuje, co je na NAS1 a chybí na NAS2.</li>
+          </ol>
+          <p><strong>Výsledek:</strong> Diff, který se použije pro vytvoření plánu přenosu.</p>
         </div>
       )}
     </div>

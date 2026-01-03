@@ -210,17 +210,6 @@ function CopyNasToHdd() {
   
   return (
     <div className="plan-copy-page">
-      <div className="box box-compact help-box">
-        <h3>📖 Nápověda: Kopírování NAS → HDD</h3>
-        <p><strong>Účel:</strong> Zkopírovat data z NAS1 na USB HDD podle batchu vytvořeného ve fázi 1.</p>
-        <p><strong>Požadavky:</strong> NAS1 a USB HDD musí být dostupné.</p>
-        <ol>
-          <li><strong>Vyberte batch:</strong> Zvolte batch vytvořený ve fázi 1.</li>
-          <li><strong>Kopírování:</strong> Spusťte kopírování NAS1 → USB HDD. Systém použije rsync pro efektivní přenos.</li>
-        </ol>
-        <p><strong>Výsledek:</strong> Data zkopírovaná na USB HDD, připravená k přenosu na cílový systém.</p>
-      </div>
-      
       <div className="box box-compact">
         <h2>Plány</h2>
         {batches.length === 0 ? (
@@ -608,6 +597,17 @@ function JobDetail({ jobId }) {
           </pre>
         </div>
       )}
+      
+      <div className="box box-compact help-box">
+        <h3>📖 Nápověda: Kopírování NAS → HDD</h3>
+        <p><strong>Účel:</strong> Zkopírovat data z NAS1 na USB HDD podle batchu vytvořeného ve fázi 1.</p>
+        <p><strong>Požadavky:</strong> NAS1 a USB HDD musí být dostupné.</p>
+        <ol>
+          <li><strong>Vyberte batch:</strong> Zvolte batch vytvořený ve fázi 1.</li>
+          <li><strong>Kopírování:</strong> Spusťte kopírování NAS1 → USB HDD. Systém použije rsync pro efektivní přenos.</li>
+        </ol>
+        <p><strong>Výsledek:</strong> Data zkopírovaná na USB HDD, připravená k přenosu na cílový systém.</p>
+      </div>
     </div>
   )
 }

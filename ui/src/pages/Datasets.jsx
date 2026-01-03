@@ -294,26 +294,6 @@ function Datasets() {
   
   return (
     <div className="datasets-page">
-      <div className="box box-compact help-box">
-        <h3>📖 Nápověda: Datasety</h3>
-        <p><strong>Dataset</strong> je logická jednotka, která definuje:</p>
-        <ul>
-          <li><strong>Lokace:</strong> Asociace k fyzickému úložišti - NAS1 (zdrojový NAS), USB (přechodné úložiště), nebo NAS2 (cílový NAS). Určuje, který mount point nebo SSH server se použije.</li>
-          <li><strong>Root složka:</strong> Každý dataset má pouze jednu root složku (např. `/data/photos`). Pokud chcete skenovat více složek na stejném serveru, vytvořte více datasetů - každý s jednou root složkou. To umožní spouštět scany a diffy pro každou složku samostatně.</li>
-          <li><strong>Způsob skenování:</strong> Jak se data skenují - z lokálního souborového systému nebo přes SSH ze vzdáleného serveru</li>
-          <li><strong>Způsob kopírování:</strong> Jak se data kopírují - lokálně pomocí rsync nebo přes SSH na vzdálený server</li>
-        </ul>
-        {phase === 'planning' && (
-          <p style={{ marginTop: '0.75rem' }}><strong>Pro fázi 1 (Plánování):</strong> Vytvořte dataset pro NAS1 (lokace: NAS1, může být SSH) a dataset pro NAS2 (lokace: NAS2, může být SSH).</p>
-        )}
-        {phase === 'copy-nas-hdd' && (
-          <p style={{ marginTop: '0.75rem' }}><strong>Pro fázi 2a (NAS → HDD):</strong> Dataset pro NAS1 by měl být již vytvořen ve fázi 1. USB dataset není potřeba - kopírování probíhá přímo.</p>
-        )}
-        {phase === 'copy-hdd-nas' && (
-          <p style={{ marginTop: '0.75rem' }}><strong>Pro fázi 2b (HDD → NAS):</strong> Dataset pro NAS2 by měl být již vytvořen ve fázi 1. USB dataset není potřeba - kopírování probíhá přímo.</p>
-        )}
-      </div>
-      
       <div className="box box-compact">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2>Datasety</h2>
@@ -869,6 +849,26 @@ function Datasets() {
           </div>
         </div>
       )}
+      
+      <div className="box box-compact help-box">
+        <h3>📖 Nápověda: Datasety</h3>
+        <p><strong>Dataset</strong> je logická jednotka, která definuje:</p>
+        <ul>
+          <li><strong>Lokace:</strong> Asociace k fyzickému úložišti - NAS1 (zdrojový NAS), USB (přechodné úložiště), nebo NAS2 (cílový NAS). Určuje, který mount point nebo SSH server se použije.</li>
+          <li><strong>Root složka:</strong> Každý dataset má pouze jednu root složku (např. `/data/photos`). Pokud chcete skenovat více složek na stejném serveru, vytvořte více datasetů - každý s jednou root složkou. To umožní spouštět scany a diffy pro každou složku samostatně.</li>
+          <li><strong>Způsob skenování:</strong> Jak se data skenují - z lokálního souborového systému nebo přes SSH ze vzdáleného serveru</li>
+          <li><strong>Způsob kopírování:</strong> Jak se data kopírují - lokálně pomocí rsync nebo přes SSH na vzdálený server</li>
+        </ul>
+        {phase === 'planning' && (
+          <p style={{ marginTop: '0.75rem' }}><strong>Pro fázi 1 (Plánování):</strong> Vytvořte dataset pro NAS1 (lokace: NAS1, může být SSH) a dataset pro NAS2 (lokace: NAS2, může být SSH).</p>
+        )}
+        {phase === 'copy-nas-hdd' && (
+          <p style={{ marginTop: '0.75rem' }}><strong>Pro fázi 2a (NAS → HDD):</strong> Dataset pro NAS1 by měl být již vytvořen ve fázi 1. USB dataset není potřeba - kopírování probíhá přímo.</p>
+        )}
+        {phase === 'copy-hdd-nas' && (
+          <p style={{ marginTop: '0.75rem' }}><strong>Pro fázi 2b (HDD → NAS):</strong> Dataset pro NAS2 by měl být již vytvořen ve fázi 1. USB dataset není potřeba - kopírování probíhá přímo.</p>
+        )}
+      </div>
     </div>
   )
 }
