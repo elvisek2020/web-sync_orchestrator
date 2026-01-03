@@ -14,6 +14,7 @@ function Compare() {
   const [phase, setPhase] = useState(localStorage.getItem('sync_phase') || 'planning')
   const [diffFormData, setDiffFormData] = useState({ source_scan_id: '', target_scan_id: '' })
   const [runningJobs, setRunningJobs] = useState({})
+  const [selectedDiff, setSelectedDiff] = useState(null)
   
   useEffect(() => {
     // Poslouchat změny fáze z hlavičky
