@@ -580,7 +580,21 @@ class JobRunner:
                 job.finished_at = datetime.utcnow()
                 if not result.get("success"):
                     job.error_message = result.get("error", "Unknown error")
-                session.commit()
+                
+                # Aktualizace batch statusu
+                batch.status = "completed" if result.get("success") else "failed"
+                
+                try:
+                    session.commit()
+                except Exception as commit_error:
+                    session.rollback()
+                    if log_cb:
+                        log_cb(f"Commit error: {commit_error}, retrying...")
+                    try:
+                        session.commit()
+                    except Exception:
+                        session.rollback()
+                        raise
                 
                 # Broadcast finish
                 asyncio.run(websocket_manager.broadcast({
@@ -595,10 +609,19 @@ class JobRunner:
                 
             except Exception as e:
                 session.rollback()
-                job.status = "failed"
-                job.error_message = str(e)
-                job.finished_at = datetime.utcnow()
-                session.commit()
+                # Znovu načíst job a batch pro aktualizaci
+                job = session.query(JobRun).filter(JobRun.id == job_id).first()
+                batch = session.query(Batch).filter(Batch.id == batch_id).first()
+                if job:
+                    job.status = "failed"
+                    job.error_message = str(e)
+                    job.finished_at = datetime.utcnow()
+                if batch:
+                    batch.status = "failed"
+                try:
+                    session.commit()
+                except Exception:
+                    session.rollback()
                 asyncio.run(websocket_manager.broadcast({
                     "type": "job.finished",
                     "data": {"job_id": job_id, "type": "copy", "status": "failed", "error": str(e)}

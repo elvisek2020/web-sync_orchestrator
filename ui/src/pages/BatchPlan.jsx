@@ -259,11 +259,12 @@ function BatchPlan() {
         </div>
       )}
       
-      <div className="box box-compact">
-        <h2>Vytvořit batch</h2>
-        <p>Plán přenosu založený na diffu.</p>
-        
-        <div style={{ marginTop: '1rem' }}>
+      {phase === 'planning' && (
+        <div className="box box-compact">
+          <h2>Vytvořit batch</h2>
+          <p>Plán přenosu založený na diffu.</p>
+          
+          <div style={{ marginTop: '1rem' }}>
           <div className="form-group">
             <label className="label">Diff</label>
             <select
@@ -329,6 +330,7 @@ function BatchPlan() {
           </div>
         </div>
       </div>
+      )}
       
       <div className="box box-compact">
         <h2>Batchy</h2>
