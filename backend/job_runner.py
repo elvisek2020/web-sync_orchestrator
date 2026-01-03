@@ -329,8 +329,24 @@ class JobRunner:
                 if not batch:
                     return
                 
+                # Broadcast start
+                asyncio.run(websocket_manager.broadcast({
+                    "type": "job.started",
+                    "data": {"job_id": batch_id, "type": "batch"}
+                }))
+                
+                batch.status = "running"
+                session.commit()
+                
                 diff = session.query(Diff).filter(Diff.id == batch.diff_id).first()
                 if not diff:
+                    batch.status = "failed"
+                    batch.error_message = "Diff not found"
+                    session.commit()
+                    asyncio.run(websocket_manager.broadcast({
+                        "type": "job.finished",
+                        "data": {"job_id": batch_id, "type": "batch", "status": "failed", "error": "Diff not found"}
+                    }))
                     return
                 
                 # Načtení diff items
@@ -361,8 +377,16 @@ class JobRunner:
                 try:
                     total, used, free = shutil.disk_usage("/mnt/usb")
                     usb_limit = int(free * (batch.usb_limit_pct / 100))
-                except:
+                except Exception as e:
                     usb_limit = 0
+                    batch.status = "failed"
+                    batch.error_message = f"Failed to get USB disk usage: {str(e)}"
+                    session.commit()
+                    asyncio.run(websocket_manager.broadcast({
+                        "type": "job.finished",
+                        "data": {"job_id": batch_id, "type": "batch", "status": "failed", "error": str(e)}
+                    }))
+                    return
                 
                 # Výběr souborů do limitu
                 selected_items = []
@@ -390,10 +414,31 @@ class JobRunner:
                 batch.status = "ready"
                 session.commit()
                 
+                # Broadcast success
+                asyncio.run(websocket_manager.broadcast({
+                    "type": "job.finished",
+                    "data": {"job_id": batch_id, "type": "batch", "status": "completed"}
+                }))
+                
             except Exception as e:
-                session.rollback()
-                batch.status = "failed"
-                session.commit()
+                import traceback
+                error_msg = str(e)
+                traceback.print_exc()
+                
+                try:
+                    session.rollback()
+                    batch = session.query(Batch).filter(Batch.id == batch_id).first()
+                    if batch:
+                        batch.status = "failed"
+                        batch.error_message = error_msg
+                        session.commit()
+                except:
+                    pass
+                
+                asyncio.run(websocket_manager.broadcast({
+                    "type": "job.finished",
+                    "data": {"job_id": batch_id, "type": "batch", "status": "failed", "error": error_msg}
+                }))
             finally:
                 session.close()
                 if batch_id in self.running_jobs:
