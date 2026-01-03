@@ -785,9 +785,13 @@ class JobRunner:
                     
                     if previous_job:
                         job_dir = f"job-{previous_job.id}"
+                        if log_cb:
+                            log_cb(f"Using previous job directory: {job_dir} (previous_job.id: {previous_job.id})")
                     else:
-                        # Fallback - použít aktuální job_id (i když to není ideální)
-                        job_dir = f"job-{job_id}"
+                        # Fallback - použít aktuální job.id z databáze
+                        job_dir = f"job-{job.id}"
+                        if log_cb:
+                            log_cb(f"Using current job directory (fallback): {job_dir} (job.id from DB: {job.id}, job_id parameter: {job_id})")
                     
                     source_base = f"/mnt/usb/{job_dir}"
                     if target_dataset.transfer_adapter_type == "ssh":
