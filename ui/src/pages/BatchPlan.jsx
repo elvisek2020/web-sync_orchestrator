@@ -191,6 +191,28 @@ function BatchPlan() {
     }
   }
   
+  const handleToggleAllItems = async (batchId, enabled) => {
+    const items = batchItems[batchId] || []
+    if (items.length === 0) return
+    
+    try {
+      // Aktualizovat všechny soubory najednou
+      const promises = items.map(item => 
+        axios.put(`/api/batches/${batchId}/items/${item.id}/enabled?enabled=${enabled}`)
+      )
+      await Promise.all(promises)
+      
+      // Aktualizovat lokální stav
+      setBatchItems(prev => ({
+        ...prev,
+        [batchId]: items.map(item => ({ ...item, enabled }))
+      }))
+    } catch (error) {
+      console.error('Failed to toggle all items:', error)
+      alert('Chyba při změně stavu souborů: ' + (error.response?.data?.detail || error.message))
+    }
+  }
+  
   const loadBatchItems = async (batchId) => {
     try {
       const response = await axios.get(`/api/batches/${batchId}/items?limit=1000`)
@@ -562,6 +584,7 @@ function BatchPlan() {
                                   ))}
                                 </tbody>
                               </table>
+                              </div>
                             )}
                           </div>
                         </td>

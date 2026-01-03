@@ -5,7 +5,6 @@ import Datasets from './pages/Datasets'
 import Scan from './pages/Scan'
 import Compare from './pages/Compare'
 import BatchPlan from './pages/BatchPlan'
-import Logs from './pages/Logs'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useMountStatus } from './hooks/useMountStatus'
 import './App.css'
@@ -47,8 +46,7 @@ function Navigation() {
     { path: '/datasets', label: 'Datasety', phases: ['planning'] },
     { path: '/scan', label: 'Scan', phases: ['planning'] },
     { path: '/compare', label: 'Porovnání', phases: ['planning'] },
-    { path: '/batch-plan', label: phase === 'planning' ? 'Plán přenosu' : phase === 'copy-nas-hdd' ? 'Kopírování NAS → HDD' : 'Kopírování HDD → NAS', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] },
-    { path: '/logs', label: 'Logs', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] }
+    { path: '/batch-plan', label: phase === 'planning' ? 'Plán přenosu' : phase === 'copy-nas-hdd' ? 'Kopírování NAS → HDD' : 'Kopírování HDD → NAS', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] }
   ]
   
   // Filtrovat záložky podle aktuální fáze
@@ -80,8 +78,7 @@ function PhaseRouter({ phase, children }) {
       { path: '/datasets', phases: ['planning'] },
       { path: '/scan', phases: ['planning'] },
       { path: '/compare', phases: ['planning'] },
-      { path: '/batch-plan', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] },
-      { path: '/logs', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] }
+      { path: '/batch-plan', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] }
     ]
     const allowedPaths = navItems.filter(item => item.phases.includes(phase)).map(item => item.path)
     
