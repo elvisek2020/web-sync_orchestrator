@@ -97,7 +97,8 @@ class Batch(Base):
     usb_limit_pct = Column(Float, default=80.0)
     include_conflicts = Column(Boolean, default=False)
     exclude_patterns = Column(JSON, default=list)  # Seznam patternů pro výjimky (např. [".DS_Store", "Thumbs.db"])
-    status = Column(String, default="pending")  # pending/ready/completed
+    status = Column(String, default="pending")  # pending/running/ready/failed/completed
+    error_message = Column(Text)  # Chybová zpráva při selhání
     
     diff = relationship("Diff", backref="batches")
 

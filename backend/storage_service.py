@@ -190,6 +190,28 @@ class StorageService:
             import traceback
             traceback.print_exc()
     
+    async def _migrate_batches_error_message(self):
+        """Migrace: přidá error_message sloupec do batches tabulky pokud neexistuje"""
+        try:
+            from sqlalchemy import text
+            with self.engine.begin() as conn:
+                # Zkontrolovat, zda sloupec existuje
+                result = conn.execute(text("""
+                    SELECT COUNT(*) FROM pragma_table_info('batches') WHERE name='error_message'
+                """))
+                count = result.scalar()
+                
+                if count == 0:
+                    # Sloupec neexistuje, přidat ho
+                    conn.execute(text("ALTER TABLE batches ADD COLUMN error_message TEXT"))
+                    print("Migration: Added error_message column to batches table")
+                else:
+                    print("Migration: error_message column already exists")
+        except Exception as e:
+            print(f"Migration error: {e}")
+            import traceback
+            traceback.print_exc()
+    
     async def _migrate_job_runs_log(self):
         """Migrace: přidá job_log sloupec do job_runs tabulky pokud neexistuje"""
         try:
