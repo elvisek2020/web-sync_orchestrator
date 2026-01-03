@@ -153,16 +153,16 @@ function App() {
               <button
                 className={`phase-button-header ${phase === 'copy-nas-hdd' ? 'active' : ''}`}
                 onClick={() => handlePhaseChange('copy-nas-hdd')}
-                title="Fáze 2a: Kopírování NAS → HDD - potřebuje NAS1 + HDD"
+                title="Fáze 2: Kopírování NAS → HDD - potřebuje NAS1 + HDD"
               >
-                Fáze 2a: NAS → HDD
+                Fáze 2: NAS → HDD
               </button>
               <button
                 className={`phase-button-header ${phase === 'copy-hdd-nas' ? 'active' : ''}`}
                 onClick={() => handlePhaseChange('copy-hdd-nas')}
-                title="Fáze 2b: Kopírování HDD → NAS - potřebuje HDD + NAS2"
+                title="Fáze 3: Kopírování HDD → NAS - potřebuje HDD + NAS2"
               >
-                Fáze 2b: HDD → NAS
+                Fáze 3: HDD → NAS
               </button>
             </div>
             <div className="status-indicators">

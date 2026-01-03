@@ -69,9 +69,9 @@ function PlanTransfer() {
   
   const handleCreateBatch = async () => {
     try {
-      // Převést exclude_patterns z stringu na seznam řádků
+      // Převést exclude_patterns z stringu na seznam (podporuje čárky i nové řádky)
       const excludePatternsList = batchFormData.exclude_patterns
-        ? batchFormData.exclude_patterns.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+        ? batchFormData.exclude_patterns.split(/[,\n]/).map(line => line.trim()).filter(line => line.length > 0)
         : null
       
       const payload = {
@@ -83,7 +83,6 @@ function PlanTransfer() {
       await axios.post('/api/batches/', payload)
       setBatchFormData({ diff_id: '', include_conflicts: false, exclude_patterns: '' })
       loadBatches()
-      alert('Batch byl úspěšně vytvořen')
     } catch (error) {
       console.error('Failed to create batch:', error)
       let errorMessage = 'Neznámá chyba'
@@ -212,7 +211,7 @@ function PlanTransfer() {
       </div>
       
       <div className="box box-compact">
-        <h2>Vytvořit batch</h2>
+        <h2>Vytvořit plán</h2>
         <p>Plán přenosu založený na diffu.</p>
         
         <div style={{ marginTop: '1rem' }}>
@@ -255,12 +254,12 @@ function PlanTransfer() {
           </div>
           <div className="form-group">
             <label className="label">Výjimky (exclude patterns)</label>
-            <textarea
+            <input
+              type="text"
               className="input"
               value={batchFormData.exclude_patterns}
               onChange={(e) => setBatchFormData({ ...batchFormData, exclude_patterns: e.target.value })}
-              placeholder=".DS_Store&#10;Thumbs.db&#10;*.tmp"
-              rows={4}
+              placeholder=".DS_Store, Thumbs.db, *.tmp (oddělené čárkou)"
               style={{ fontFamily: 'monospace', fontSize: '0.875rem' }}
             />
             <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem' }}>
@@ -283,16 +282,15 @@ function PlanTransfer() {
       </div>
       
       <div className="box box-compact">
-        <h2>Batchy</h2>
+        <h2>Plány</h2>
         {batches.length === 0 ? (
-          <p>Žádné batchy</p>
+          <p>Žádné plány</p>
         ) : (
           <table className="batches-table">
             <thead>
               <tr>
                 <th>ID</th>
                 <th>Diff ID</th>
-                <th>USB Limit %</th>
                 <th>Status</th>
                 <th>Akce</th>
               </tr>
@@ -306,7 +304,6 @@ function PlanTransfer() {
                     <tr>
                       <td>{batch.id}</td>
                       <td>{batch.diff_id}</td>
-                      <td>{batch.usb_limit_pct || 80}%</td>
                       <td>
                         <span className={`status-badge ${batch.status || 'unknown'}`}>
                           {batch.status || 'unknown'}
@@ -360,7 +357,7 @@ function PlanTransfer() {
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan="5" style={{ padding: '1rem', background: '#f8f9fa' }}>
+                        <td colSpan="4" style={{ padding: '1rem', background: '#f8f9fa' }}>
                           <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                               <h4 style={{ margin: 0, fontSize: '0.9375rem' }}>
