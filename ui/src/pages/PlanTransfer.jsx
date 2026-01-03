@@ -329,6 +329,8 @@ function PlanTransfer() {
               {Array.isArray(batches) && batches.map(batch => {
                 const isExpanded = expandedBatches.has(batch.id)
                 const items = batchItems[batch.id] || []
+                const progress = batchProgress[batch.id]
+                const isRunning = batch.status === 'running' || batch.status === 'pending'
                 return (
                   <React.Fragment key={batch.id}>
                     <tr>
@@ -347,9 +349,16 @@ function PlanTransfer() {
                         })()}
                       </td>
                       <td>
-                        <span className={`status-badge ${batch.status || 'unknown'}`}>
-                          {batch.status || 'unknown'}
-                        </span>
+                        <div>
+                          <span className={`status-badge ${batch.status || 'unknown'}`}>
+                            {batch.status || 'unknown'}
+                          </span>
+                          {progress && isRunning && (
+                            <span style={{ marginLeft: '0.5rem', fontSize: '0.875rem', color: '#666' }}>
+                              ({progress.count || 0} / {progress.total || 0} položek)
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', gap: '0.5rem', whiteSpace: 'nowrap' }}>
