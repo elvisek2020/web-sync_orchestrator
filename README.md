@@ -26,7 +26,7 @@ Sync Orchestrator je specializovaná aplikace navržená pro bezpečnou synchron
 - ✅ **SSH podpora**: NAS1 a NAS2 mohou být dostupné přes SSH (užitečné pro macOS s Docker Desktop)
 
 ### Pokročilé funkce
-- ✅ **Exclude Patterns**: Automatické filtrování nežádoucích souborů (`.DS_Store`, `Thumbs.db`, `*.tmp`, atd.)
+- ✅ **Exclude Patterns**: Automatické filtrování nežádoucích souborů (`.DS_Store`, `Thumbs.db`, `*.tmp`, Synology `@eaDir`, atd.)
 - ✅ **Výběr souborů**: Možnost povolit/zakázat konkrétní soubory v batchi pomocí checkboxů
 - ✅ **Export do CSV**: Export seznamu souborů v batchi do CSV formátu (cesta, velikost)
 - ✅ **Rozdělené záložky**: Porovnání a Plán přenosu jako samostatné záložky

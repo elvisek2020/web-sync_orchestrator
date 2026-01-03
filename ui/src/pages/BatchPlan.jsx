@@ -315,7 +315,7 @@ function BatchPlan() {
               Seznam patternů pro soubory, které se nebudou kopírovat (jeden pattern na řádek). 
               Podporuje glob patterns: <code>.DS_Store</code>, <code>*.tmp</code>, <code>Thumbs.db</code>, atd.
               <br />
-              <strong>Výchozí výjimky:</strong> .DS_Store, ._*, .AppleDouble, Thumbs.db, desktop.ini, .Trash*, *.tmp, *.swp, *.bak, .git, .svn, .hg
+              <strong>Výchozí výjimky:</strong> .DS_Store, ._*, .AppleDouble, Thumbs.db, desktop.ini, .Trash*, *.tmp, *.swp, *.bak, .git, .svn, .hg, @eaDir, *@SynoEAStream, *@SynoResource, *@SynoStream
             </small>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>

@@ -15,6 +15,10 @@ DEFAULT_EXCLUDE_PATTERNS = [
     ".git",  # Git repository
     ".svn",  # SVN repository
     ".hg",  # Mercurial repository
+    "@eaDir",  # Synology Extended Attributes directory
+    "*@SynoEAStream",  # Synology Extended Attributes stream files
+    "*@SynoResource",  # Synology resource files
+    "*@SynoStream",  # Synology stream files
 ]
 
 def match_exclude_pattern(path: str, patterns: list) -> bool:

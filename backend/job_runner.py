@@ -76,9 +76,18 @@ class JobRunner:
                     log_cb(f"Starting scan for dataset {dataset_id}, roots: {dataset.roots}")
                 
                 try:
+                    # Načtení exclude patterns (výchozí + uživatelské)
+                    from backend.config import DEFAULT_EXCLUDE_PATTERNS, match_exclude_pattern
+                    exclude_patterns = DEFAULT_EXCLUDE_PATTERNS.copy()
+                    
                     file_iterator = adapter.list_files(dataset.roots, progress_cb, log_cb)
                     
                     for file_entry in file_iterator:
+                        # Filtrování podle exclude patterns
+                        if match_exclude_pattern(file_entry.full_rel_path, exclude_patterns):
+                            # Přeskočit soubory, které odpovídají exclude patterns
+                            continue
+                        
                         db_entry = DBFileEntry(
                             scan_id=scan_id,
                             full_rel_path=file_entry.full_rel_path,
