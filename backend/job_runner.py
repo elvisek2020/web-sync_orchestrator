@@ -757,9 +757,9 @@ class JobRunner:
                 if direction == "nas1-usb":
                     # Source: NAS1 (může být lokální nebo SSH)
                     # Target: USB (vždy lokální) - vytvořit adresář s názvem jobu
-                    # Použít job.id z databáze pro jistotu správného ID
-                    job_dir = f"job-{job.id}"
-                    log_cb(f"Creating job directory: {job_dir} (job_id parameter: {job_id}, job.id from DB: {job.id})")
+                    # Použít job_id parametr - to je ID jobu, který spustil kopírování
+                    job_dir = f"job-{job_id}"
+                    log_cb(f"Creating job directory: {job_dir} (job_id: {job_id})")
                     if source_dataset.transfer_adapter_type == "ssh":
                         # NAS1 je přes SSH - kopírujeme z VZDÁLENÉHO na LOKÁLNÍ
                         base_path = source_dataset.transfer_adapter_config.get("base_path", "/") if source_dataset.transfer_adapter_config else "/"
@@ -799,12 +799,13 @@ class JobRunner:
                     ).params(batch_id=str(batch_id)).order_by(JobRun.started_at.desc()).first()
                     
                     if previous_job:
+                        # Použít ID předchozího jobu, který vytvořil adresář
                         job_dir = f"job-{previous_job.id}"
                         log_cb(f"Using previous job directory: {job_dir} (previous_job.id: {previous_job.id})")
                     else:
-                        # Fallback - použít aktuální job.id z databáze
-                        job_dir = f"job-{job.id}"
-                        log_cb(f"Using current job directory (fallback): {job_dir} (job.id from DB: {job.id}, job_id parameter: {job_id})")
+                        # Fallback - použít job_id parametr (ID jobu, který spustil kopírování)
+                        job_dir = f"job-{job_id}"
+                        log_cb(f"Using current job directory (fallback): {job_dir} (job_id: {job_id})")
                     
                     source_base = f"/mnt/usb/{job_dir}"
                     if target_dataset.transfer_adapter_type == "ssh":
