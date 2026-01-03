@@ -53,8 +53,9 @@ function BatchPlan() {
     messages.forEach(msg => {
       if (msg.type === 'job.started') {
         setRunningJobs(prev => ({ ...prev, [msg.data.job_id]: { type: msg.data.type, status: 'running' } }))
-        // Reset progress pro nový job
+        // Reset progress pro nový job a uložit batch_id do runningJobs pro snadné vyhledávání
         if (msg.data.type === 'copy' && msg.data.batch_id) {
+          setRunningJobs(prev => ({ ...prev, [msg.data.batch_id]: { type: msg.data.type, status: 'running', job_id: msg.data.job_id } }))
           setCopyProgress(prev => ({
             ...prev,
             [msg.data.batch_id]: {
@@ -86,6 +87,10 @@ function BatchPlan() {
         setRunningJobs(prev => {
           const newState = { ...prev }
           delete newState[msg.data.job_id]
+          // Smazat i podle batch_id, pokud existuje
+          if (msg.data.batch_id) {
+            delete newState[msg.data.batch_id]
+          }
           return newState
         })
         // Smazat progress po dokončení
