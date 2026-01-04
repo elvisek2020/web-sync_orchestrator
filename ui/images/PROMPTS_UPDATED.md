@@ -60,6 +60,7 @@ Create a technical diagram showing data copying from NAS to external HDD. The di
    - Real-time file status display (Zkopírováno, Chyba, Čeká)
 
 5. Visual elements:
+   - Large title at the top: "Fáze 2: Kopírování NAS → HDD"
    - NAS1 on the left (source, blue/green)
    - Computer in the middle (processing, yellow/orange)
    - USB HDD on the right (target, gray/silver, with database icon)
@@ -100,6 +101,7 @@ Create a technical diagram showing data copying from external HDD to NAS. The di
    - Job directory structure on HDD: /job-{job_id}/...
 
 5. Visual elements:
+   - Large title at the top: "Fáze 3: Kopírování HDD → NAS"
    - USB HDD on the left (source, gray/silver, with database icon and data already on it)
    - Computer in the middle (processing, yellow/orange)
    - NAS2 on the right (target, blue/green, can show SSH connection icon)
@@ -129,11 +131,13 @@ The diagram should clearly show that this phase requires USB HDD and NAS2 to be 
 ```
 Create a comprehensive technical diagram showing the complete 3-phase data synchronization workflow:
 
+Main title at the top: "Sync Orchestrator - Kompletní workflow"
+
 Phase 1 (Planning) - Top section:
 - NAS1 and NAS2 both connected to Computer 1
 - Steps: Dataset NAS1 → Dataset NAS2 → Scan NAS1 → Scan NAS2 → Porovnání → Plán přenosu
 - Database on USB HDD storing the plan
-- Label: "Fáze 1: Plánování (na zdrojovém systému)"
+- Section title: "Fáze 1: Plánování (na zdrojovém systému)"
 - Color: Blue/Green
 
 Phase 2 (Copy NAS to HDD) - Middle left:
@@ -141,7 +145,7 @@ Phase 2 (Copy NAS to HDD) - Middle left:
 - Arrow: NAS1 → USB HDD
 - Progress indicator: "Kopírováno: X / Y souborů"
 - Job directory: /job-{job_id}/...
-- Label: "Fáze 2: Kopírování NAS → HDD (na zdrojovém systému)"
+- Section title: "Fáze 2: Kopírování NAS → HDD (na zdrojovém systému)"
 - Color: Orange/Yellow
 
 Physical Transfer - Middle:
@@ -154,7 +158,7 @@ Phase 3 (Copy HDD to NAS) - Middle right:
 - NAS2 can show SSH connection icon
 - Arrow: USB HDD → NAS2
 - Progress indicator: "Kopírováno: X / Y souborů"
-- Label: "Fáze 3: Kopírování HDD → NAS (na cílovém systému)"
+- Section title: "Fáze 3: Kopírování HDD → NAS (na cílovém systému)"
 - Color: Orange/Yellow
 
 Visual flow:
