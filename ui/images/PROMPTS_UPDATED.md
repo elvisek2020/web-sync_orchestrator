@@ -23,6 +23,7 @@ Create a technical diagram showing a data synchronization planning workflow. The
    - Computer processing comparison and plan
 
 5. Visual elements:
+   - Large title at the top: "Fáze 1: Plánování"
    - NAS1 on the left (blue/green)
    - NAS2 on the right (blue/green)
    - Computer in the middle (processing, yellow/orange)
