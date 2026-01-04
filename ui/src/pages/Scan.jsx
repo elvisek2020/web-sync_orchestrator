@@ -100,6 +100,27 @@ function Scan() {
     }
   }
   
+  const handleExportScan = async (scanId) => {
+    try {
+      const response = await axios.get(`/api/scans/${scanId}/export`, {
+        responseType: 'blob'
+      })
+      
+      // Vytvořit URL pro blob a stáhnout soubor
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `scan_${scanId}_export.csv`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to export scan:', error)
+      setErrorMessage('Chyba při exportu scanu: ' + (error.response?.data?.detail || error.message))
+    }
+  }
+  
   const [phase, setPhase] = useState(localStorage.getItem('sync_phase') || 'planning')
 
   useEffect(() => {
@@ -240,6 +261,17 @@ function Scan() {
                         >
                           {selectedScan === scan.id ? 'Skrýt' : 'Detail'}
                         </button>
+                        {scan.status === 'completed' && (
+                          <button
+                            className="button"
+                            onClick={() => handleExportScan(scan.id)}
+                            disabled={mountStatus.safe_mode}
+                            style={{ background: '#28a745', fontSize: '0.875rem', padding: '0.25rem 0.5rem', flexShrink: 0 }}
+                            title="Exportovat scan do CSV"
+                          >
+                            Export CSV
+                          </button>
+                        )}
                         <button
                           className="button"
                           onClick={() => handleDeleteScan(scan.id)}

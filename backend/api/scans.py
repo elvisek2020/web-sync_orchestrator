@@ -1,10 +1,12 @@
 """
 Scan API endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
+import csv
+import io
 
 from backend.storage_service import storage_service
 from backend.database import Scan, FileEntry, Dataset
@@ -116,6 +118,55 @@ async def get_scan_files(scan_id: int, skip: int = 0, limit: int = 100):
             FileEntry.scan_id == scan_id
         ).offset(skip).limit(limit).all()
         return [FileEntryResponse.model_validate(f) for f in files]
+    finally:
+        session.close()
+
+@router.get("/{scan_id}/export")
+async def export_scan_csv(scan_id: int):
+    """Export scanu do CSV"""
+    session = storage_service.get_session()
+    if not session:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    
+    try:
+        scan = session.query(Scan).filter(Scan.id == scan_id).first()
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        # Načíst všechny soubory ve scanu
+        files = session.query(FileEntry).filter(
+            FileEntry.scan_id == scan_id
+        ).order_by(FileEntry.full_rel_path).all()
+        
+        # Vytvořit CSV v paměti
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Hlavička
+        writer.writerow(['Cesta', 'Velikost (B)', 'Velikost (GB)', 'Datum změny'])
+        
+        # Data
+        for file in files:
+            size_gb = (file.size / 1024 / 1024 / 1024) if file.size else 0
+            mtime_str = datetime.fromtimestamp(file.mtime_epoch).strftime('%Y-%m-%d %H:%M:%S') if file.mtime_epoch else ''
+            writer.writerow([
+                file.full_rel_path,
+                file.size,
+                f"{size_gb:.6f}",
+                mtime_str
+            ])
+        
+        # Vrátit CSV jako response
+        csv_content = output.getvalue()
+        output.close()
+        
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename=scan_{scan_id}_export.csv"
+            }
+        )
     finally:
         session.close()
 
