@@ -125,6 +125,13 @@ Aplikace je připravena pro spuštění pomocí Docker Compose. Soubor `docker-c
 
 #### Spuštění
 
+**Pro produkci (výchozí - používá image z GHCR):**
+```bash
+docker compose pull
+docker compose up -d
+```
+
+**Pro lokální vývoj (odkomentujte build v docker-compose.yml):**
 ```bash
 docker compose up -d --build
 ```
@@ -138,12 +145,12 @@ Aplikace je konfigurována pomocí `docker-compose.yml`:
 ```yaml
 services:
   app:
-    # Pro lokální vývoj použijte build:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    # Pro produkci použijte image z GHCR (odkomentujte a zakomentujte build):
-    # image: ghcr.io/elvisek2020/web-sync_orchestrator:latest
+    # Pro produkci použijte image z GHCR:
+    image: ghcr.io/elvisek2020/web-sync_orchestrator:latest
+    # Pro lokální vývoj použijte build (odkomentujte a zakomentujte image):
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     container_name: nas-sync-orchestrator
     hostname: nas-sync-orchestrator
     restart: unless-stopped
