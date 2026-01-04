@@ -14,7 +14,6 @@ router = APIRouter()
 
 class BatchCreate(BaseModel):
     diff_id: int
-    usb_limit_pct: float = 80.0
     include_conflicts: bool = False
     exclude_patterns: Optional[List[str]] = None  # Seznam patternů pro výjimky
 
@@ -43,7 +42,7 @@ class BatchSummary(BaseModel):
     total_files: int
     total_size: int
     usb_available: int
-    usb_limit: int
+    usb_limit: int  # Pro kompatibilitu, ale vždy = usb_available (100%)
 
 async def check_safe_mode():
     """Dependency - kontroluje SAFE MODE"""
@@ -78,7 +77,7 @@ async def create_batch(batch_data: BatchCreate, _: None = Depends(check_safe_mod
         # Vytvoření batch záznamu
         batch = Batch(
             diff_id=batch_data.diff_id,
-            usb_limit_pct=batch_data.usb_limit_pct,
+            usb_limit_pct=100.0,  # Vždy použít 100% - USB limit % byl odstraněn
             include_conflicts=batch_data.include_conflicts,
             exclude_patterns=exclude_patterns,
             status="pending"
@@ -159,22 +158,20 @@ async def get_batch_summary(batch_id: int):
         
         total_size = sum(item.size for item in items)
         
-        # TODO: Získat skutečnou dostupnou kapacitu USB
+        # Získat skutečnou dostupnou kapacitu USB
         import shutil
         usb_path = "/mnt/usb"
         try:
             total, used, free = shutil.disk_usage(usb_path)
             usb_available = free
-            usb_limit = int(free * (batch.usb_limit_pct / 100))
         except:
             usb_available = 0
-            usb_limit = 0
         
         return BatchSummary(
             total_files=len(items),
             total_size=total_size,
             usb_available=usb_available,
-            usb_limit=usb_limit
+            usb_limit=usb_available  # USB limit je nyní stejný jako dostupná kapacita (100%)
         )
     finally:
         session.close()

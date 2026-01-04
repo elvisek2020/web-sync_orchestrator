@@ -313,11 +313,22 @@ function Compare() {
 
 function DiffDetail({ diffId }) {
   const [items, setItems] = useState([])
+  const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
   
   useEffect(() => {
     loadItems()
+    loadSummary()
   }, [diffId])
+  
+  const loadSummary = async () => {
+    try {
+      const response = await axios.get(`/api/diffs/${diffId}/summary`)
+      setSummary(response.data)
+    } catch (error) {
+      console.error('Failed to load summary:', error)
+    }
+  }
   
   const loadItems = async () => {
     setLoading(true)
@@ -366,7 +377,26 @@ function DiffDetail({ diffId }) {
   
   return (
     <div>
-      <p>Zobrazeno {items.length} souborů (max 1000)</p>
+      {summary && (
+        <div style={{ marginBottom: '1rem', padding: '1rem', background: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '4px' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '0.5rem' }}>Shrnutí porovnání</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+            <div>
+              <strong>Celkem souborů:</strong> {summary.total_files}
+            </div>
+            <div>
+              <strong>Chybí:</strong> {summary.missing_count} souborů ({((summary.missing_size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB)
+            </div>
+            <div>
+              <strong>Stejné:</strong> {summary.same_count} souborů ({((summary.same_size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB)
+            </div>
+            <div>
+              <strong>Konflikty:</strong> {summary.conflict_count} souborů ({((summary.conflict_size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB)
+            </div>
+          </div>
+        </div>
+      )}
+      <p>Zobrazeno {items.length} souborů z celkem {summary?.total_files || '?'} (max 1000 v detailu)</p>
       <table className="scans-table" style={{ fontSize: '0.875rem' }}>
         <thead>
           <tr>

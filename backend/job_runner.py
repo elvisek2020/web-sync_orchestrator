@@ -687,42 +687,23 @@ class JobRunner:
                 # Řazení od nejmenších
                 items_to_include.sort(key=lambda x: x.source_size or x.target_size or 0)
                 
-                # Výpočet limitu USB
+                # Výpočet dostupné kapacity USB (pro informaci, ale neomezujeme)
                 import shutil
                 try:
                     total, used, free = shutil.disk_usage("/mnt/usb")
-                    usb_limit = int(free * (batch.usb_limit_pct / 100))
+                    usb_available = free
                 except Exception as e:
-                    usb_limit = 0
-                    batch.status = "failed"
-                    batch.error_message = f"Failed to get USB disk usage: {str(e)}"
-                    session.commit()
+                    usb_available = 0
+                    # Neoznačujeme jako failed, jen logujeme
                     asyncio.run(websocket_manager.broadcast({
-                        "type": "job.finished",
-                        "data": {"job_id": batch_id, "type": "batch", "status": "failed", "error": str(e)}
+                        "type": "job.log",
+                        "data": {"job_id": batch_id, "type": "batch", "message": f"Warning: Failed to get USB disk usage: {str(e)}"}
                     }))
-                    return
                 
-                # Výběr souborů do limitu
-                selected_items = []
-                total_size = 0
-                processed_count = 0
-                
-                for item in items_to_include:
-                    size = item.source_size or item.target_size or 0
-                    if total_size + size <= usb_limit:
-                        selected_items.append(item)
-                        total_size += size
-                    else:
-                        break
-                    processed_count += 1
-                    
-                    # Progress feedback každých 100 položek
-                    if processed_count % 100 == 0:
-                        asyncio.run(websocket_manager.broadcast({
-                            "type": "job.progress",
-                            "data": {"job_id": batch_id, "type": "batch", "count": processed_count, "total": len(items_to_include), "message": f"Zpracováno {processed_count} / {len(items_to_include)} položek, vybráno {len(selected_items)} souborů..."}
-                        }))
+                # Vzít všechny soubory (bez limitu)
+                selected_items = items_to_include
+                total_size = sum(item.source_size or item.target_size or 0 for item in selected_items)
+                processed_count = len(selected_items)
                 
                 # Progress feedback - před vytvářením batch items
                 asyncio.run(websocket_manager.broadcast({

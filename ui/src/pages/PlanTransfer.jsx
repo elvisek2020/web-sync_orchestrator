@@ -370,7 +370,17 @@ function PlanTransfer() {
                               try {
                                 const response = await axios.get(`/api/batches/${batch.id}/summary`)
                                 const data = response.data
-                                alert(`Batch #${batch.id}:\nSoubory: ${data.total_files || 0}\nVelikost: ${((data.total_size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB`)
+                                const diff = diffs.find(d => d.id === batch.diff_id)
+                                let diffSummary = ''
+                                if (diff) {
+                                  try {
+                                    const diffSummaryResp = await axios.get(`/api/diffs/${diff.id}/summary`)
+                                    diffSummary = `\n\nZ porovnání:\n- Celkem: ${diffSummaryResp.data.total_files} souborů\n- Chybí: ${diffSummaryResp.data.missing_count} (${((diffSummaryResp.data.missing_size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB)\n- Stejné: ${diffSummaryResp.data.same_count} (${((diffSummaryResp.data.same_size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB)\n- Konflikty: ${diffSummaryResp.data.conflict_count} (${((diffSummaryResp.data.conflict_size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB)`
+                                  } catch (e) {
+                                    // Ignorovat chybu při načítání diff summary
+                                  }
+                                }
+                                alert(`Batch #${batch.id}:\nSoubory: ${data.total_files || 0}\nVelikost: ${((data.total_size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB\nUSB dostupné: ${((data.usb_available || 0) / 1024 / 1024 / 1024).toFixed(1)} GB\n\nNastavení:\n- Include conflicts: ${batch.include_conflicts ? 'Ano' : 'Ne'}\n- Exclude patterns: ${batch.exclude_patterns && batch.exclude_patterns.length > 0 ? batch.exclude_patterns.join(', ') : 'Žádné'}${diffSummary}`)
                               } catch (error) {
                                 console.error('Failed to load batch summary:', error)
                                 alert('Chyba při načítání shrnutí batchu')
