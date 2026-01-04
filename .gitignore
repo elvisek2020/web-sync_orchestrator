@@ -33,8 +33,3 @@ ui/.vite/
 _backup/
 _docs/
 
-# Obrázky workflow - velké soubory, necommitovat nové obrázky
-ui/images/faze_*.png
-
-# Prompty pro generování obrázků - lokální soubory
-ui/images/PROMPTS*.md

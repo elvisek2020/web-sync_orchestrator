@@ -157,7 +157,7 @@ function Dashboard() {
         <div className="box box-compact" style={{ marginBottom: '1.25rem' }}>
           <h2>Fáze 1: Plánování</h2>
           <div style={{ marginTop: '0.75rem', textAlign: 'center' }}>
-            <img src="/images/faze1-planovani.png" alt="Fáze 1: Plánování" style={{ maxWidth: '75%', height: 'auto', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
+            <img src="/images/faze_1.png" alt="Fáze 1: Plánování" style={{ maxWidth: '75%', height: 'auto', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
           </div>
         </div>
       )}
@@ -165,7 +165,7 @@ function Dashboard() {
         <div className="box box-compact" style={{ marginBottom: '1.25rem' }}>
           <h2>Fáze 2: Kopírování NAS → HDD</h2>
           <div style={{ marginTop: '0.75rem', textAlign: 'center' }}>
-            <img src="/images/faze2a-nas-to-hdd.png" alt="Fáze 2: NAS → HDD" style={{ maxWidth: '56.25%', height: 'auto', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
+            <img src="/images/faze_2.png" alt="Fáze 2: NAS → HDD" style={{ maxWidth: '56.25%', height: 'auto', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
           </div>
         </div>
       )}
@@ -173,7 +173,7 @@ function Dashboard() {
         <div className="box box-compact" style={{ marginBottom: '1.25rem' }}>
           <h2>Fáze 3: Kopírování HDD → NAS</h2>
           <div style={{ marginTop: '0.75rem', textAlign: 'center' }}>
-            <img src="/images/faze2b-hdd-to-nas.png" alt="Fáze 3: HDD → NAS" style={{ maxWidth: '56.25%', height: 'auto', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
+            <img src="/images/faze_3.png" alt="Fáze 3: HDD → NAS" style={{ maxWidth: '56.25%', height: 'auto', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
           </div>
         </div>
       )}

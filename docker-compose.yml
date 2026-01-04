@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     # Pro produkci použijte image z GHCR:
@@ -15,8 +13,9 @@ services:
       - "8080:8000"
     volumes:
       # NAS1: Použijte SSH adapter místo lokálního mountu (Docker Desktop na macOS nemá přístup k SMB mountům)
-      # - /Volumes/NAS-FILMY:/mnt/nas1:ro  # Neaktivní - použijte SSH adapter v datasetu
+      # - /Volumes/nas1:/mnt/nas1:ro  # Neaktivní - použijte SSH adapter v datasetu
       - usb:/mnt/usb:rw
+      - nas1:/mnt/nas1:ro
       - nas2:/mnt/nas2:rw
     environment:
       - LOG_LEVEL=INFO
@@ -36,6 +35,12 @@ volumes:
       type: none
       o: bind
       device: /tmp/test-usb  # Test mount point - upravte podle vašeho systému
+  nas1:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /Volumes/nas1  # NAS1 mount point - upravte podle vašeho systému
   nas2:
     driver: local
     driver_opts:

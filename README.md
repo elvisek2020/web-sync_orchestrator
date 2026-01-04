@@ -71,7 +71,7 @@ Aplikace je rozdělena na **tři hlavní fáze**, které odpovídají skutečné
 
 **Výsledek:** Plán, který se použije ve fázi 2 pro kopírování.
 
-![Fáze 1: Plánování](ui/images/faze1-planovani.png)
+![Fáze 1: Plánování](ui/images/faze_1.png)
 
 ### Fáze 2: Kopírování NAS → HDD (na zdrojovém systému)
 
@@ -90,7 +90,7 @@ Aplikace je rozdělena na **tři hlavní fáze**, které odpovídají skutečné
 
 **Výsledek:** Data zkopírovaná na USB HDD.
 
-![Fáze 2: NAS → HDD](ui/images/faze2a-nas-to-hdd.png)
+![Fáze 2: NAS → HDD](ui/images/faze_2.png)
 
 ### Fáze 3: Kopírování HDD → NAS (na cílovém systému)
 
@@ -109,7 +109,7 @@ Aplikace je rozdělena na **tři hlavní fáze**, které odpovídají skutečné
 
 **Výsledek:** Data zkopírovaná na cílový NAS2.
 
-![Fáze 3: HDD → NAS](ui/images/faze2b-hdd-to-nas.png)
+![Fáze 3: HDD → NAS](ui/images/faze_3.png)
 
 ## 🚀 Deployment
 
@@ -475,6 +475,12 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 7. **Kopírování HDD → NAS** - Kopírování podle plánu s real-time progress (dostupné ve fázi 3)
 
 ### 📝 Historie změn
+
+#### v.20250104.1044
+
+- ✅ **Nové obrázky fází**: Nahrazeny staré obrázky novými (`faze_1.png`, `faze_2.png`, `faze_3.png`)
+- ✅ **Docker Compose**: NAS1 přesunut do sekce volumes jako named volume
+- ✅ **Aktualizace odkazů**: Všechny odkazy na obrázky aktualizovány v README a Dashboard
 
 #### v.20250104.1010
 
