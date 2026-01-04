@@ -115,6 +115,12 @@ class StorageService:
             except Exception as e:
                 logger.warning(f"Migration _migrate_job_file_statuses failed: {e}", exc_info=True)
             
+            # Migrace - přidání error_message do diffs pokud neexistuje
+            try:
+                await self._migrate_diffs_error_message()
+            except Exception as e:
+                logger.warning(f"Migration _migrate_diffs_error_message failed: {e}", exc_info=True)
+            
             logger.info("Migrations completed")
             
             self.available = True
@@ -266,6 +272,28 @@ class StorageService:
                     print("Migration: Created job_file_statuses table")
             else:
                 print("Migration: job_file_statuses table already exists")
+        except Exception as e:
+            print(f"Migration error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    async def _migrate_diffs_error_message(self):
+        """Migrace: přidá error_message sloupec do diffs tabulky pokud neexistuje"""
+        try:
+            from sqlalchemy import text
+            with self.engine.begin() as conn:
+                # Zkontrolovat, zda sloupec existuje
+                result = conn.execute(text("""
+                    SELECT COUNT(*) FROM pragma_table_info('diffs') WHERE name='error_message'
+                """))
+                count = result.scalar()
+                
+                if count == 0:
+                    # Sloupec neexistuje, přidat ho
+                    conn.execute(text("ALTER TABLE diffs ADD COLUMN error_message TEXT"))
+                    print("Migration: Added error_message column to diffs table")
+                else:
+                    print("Migration: error_message column already exists in diffs table")
         except Exception as e:
             print(f"Migration error: {e}")
             import traceback

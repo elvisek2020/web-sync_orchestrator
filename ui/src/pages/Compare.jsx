@@ -251,6 +251,11 @@ function Compare() {
                             ({progress.count || 0} / {progress.total || 0} souborů)
                           </span>
                         )}
+                        {diff.status === 'failed' && diff.error_message && (
+                          <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '4px', fontSize: '0.875rem', color: '#721c24' }}>
+                            <strong>Chyba:</strong> {diff.error_message}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>{new Date(diff.created_at).toLocaleString('cs-CZ')}</td>

@@ -503,9 +503,31 @@ class JobRunner:
                 }))
                 
             except Exception as e:
-                session.rollback()
+                try:
+                    session.rollback()
+                except:
+                    pass
                 diff.status = "failed"
-                session.commit()
+                diff.error_message = str(e)
+                try:
+                    session.commit()
+                except Exception as commit_error:
+                    try:
+                        session.rollback()
+                        session.commit()
+                    except Exception:
+                        # Pokud ani to nefunguje, zkusit novou session
+                        try:
+                            new_session = storage_service.get_session()
+                            if new_session:
+                                diff = new_session.query(Diff).filter(Diff.id == diff_id).first()
+                                if diff:
+                                    diff.status = "failed"
+                                    diff.error_message = str(e)
+                                    new_session.commit()
+                                    new_session.close()
+                        except:
+                            pass
                 asyncio.run(websocket_manager.broadcast({
                     "type": "job.finished",
                     "data": {"job_id": diff_id, "type": "diff", "status": "failed", "error": str(e)}

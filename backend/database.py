@@ -68,6 +68,7 @@ class Diff(Base):
     target_scan_id = Column(Integer, ForeignKey("scans.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String, default="pending")  # pending/running/completed/failed
+    error_message = Column(Text)  # Chybová zpráva při selhání
     
     source_scan = relationship("Scan", foreign_keys=[source_scan_id], backref="source_diffs")
     target_scan = relationship("Scan", foreign_keys=[target_scan_id], backref="target_diffs")
