@@ -11,7 +11,7 @@ Sync Orchestrator je specializovaná aplikace navržená pro bezpečnou synchron
 - **Třífázový workflow**: Plánování → Kopírování NAS→HDD (Fáze 2) → Kopírování HDD→NAS (Fáze 3)
 - **Bezpečnost**: NAS1 je vždy read-only, konflikty vyžadují explicitní volbu
 - **Flexibilita**: Podpora lokálních mountů i SSH připojení
-- **Inteligentní plánování**: Respektuje limit USB kapacity, exclude patterns, výběr souborů
+- **Inteligentní plánování**: Exclude patterns, výběr souborů
 - **Real-time monitoring**: WebSocket aktualizace stavu operací
 
 ## ✨ Funkce
@@ -180,17 +180,18 @@ volumes:
       device: /path/to/nas2  # Volitelné, lze použít SSH adapter
 ```
 
-**Poznámka:** Pro produkční nasazení použijte `docker-compose.prod.yml`, který používá image z GHCR místo lokálního buildu.
-
+**Poznámka:** Výchozí konfigurace používá image z GHCR. Pro lokální vývoj odkomentujte `build` sekci a zakomentujte `image`.
 
 #### Update aplikace
 
 **Pro lokální vývoj:**
+
 ```bash
 docker compose up -d --build
 ```
 
 **Pro produkci:**
+
 ```bash
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
