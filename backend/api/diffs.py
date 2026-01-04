@@ -22,6 +22,7 @@ class DiffResponse(BaseModel):
     target_scan_id: int
     created_at: datetime
     status: str
+    error_message: Optional[str] = None
     
     model_config = {"from_attributes": True}
 

@@ -503,18 +503,37 @@ class JobRunner:
                 }))
                 
             except Exception as e:
+                import traceback
+                error_traceback = traceback.format_exc()
+                error_msg = f"{str(e)}\n\nTraceback:\n{error_traceback}"
+                
                 try:
                     session.rollback()
                 except:
                     pass
-                diff.status = "failed"
-                diff.error_message = str(e)
+                
+                # Zkusit aktualizovat diff v aktuální session
                 try:
+                    # Refresh diff objektu
+                    try:
+                        session.refresh(diff)
+                    except:
+                        diff = session.query(Diff).filter(Diff.id == diff_id).first()
+                        if not diff:
+                            raise Exception(f"Diff {diff_id} not found for error update")
+                    
+                    diff.status = "failed"
+                    diff.error_message = error_msg
                     session.commit()
                 except Exception as commit_error:
                     try:
                         session.rollback()
-                        session.commit()
+                        # Zkusit znovu
+                        diff = session.query(Diff).filter(Diff.id == diff_id).first()
+                        if diff:
+                            diff.status = "failed"
+                            diff.error_message = error_msg
+                            session.commit()
                     except Exception:
                         # Pokud ani to nefunguje, zkusit novou session
                         try:
@@ -523,15 +542,22 @@ class JobRunner:
                                 diff = new_session.query(Diff).filter(Diff.id == diff_id).first()
                                 if diff:
                                     diff.status = "failed"
-                                    diff.error_message = str(e)
+                                    diff.error_message = error_msg
                                     new_session.commit()
                                     new_session.close()
-                        except:
-                            pass
-                asyncio.run(websocket_manager.broadcast({
-                    "type": "job.finished",
-                    "data": {"job_id": diff_id, "type": "diff", "status": "failed", "error": str(e)}
-                }))
+                        except Exception as final_error:
+                            print(f"Failed to update diff error message: {final_error}")
+                            import traceback
+                            traceback.print_exc()
+                
+                # Broadcast s chybou
+                try:
+                    asyncio.run(websocket_manager.broadcast({
+                        "type": "job.finished",
+                        "data": {"job_id": diff_id, "type": "diff", "status": "failed", "error": str(e)}
+                    }))
+                except Exception as broadcast_error:
+                    print(f"Failed to broadcast diff error: {broadcast_error}")
             finally:
                 session.close()
                 if diff_id in self.running_jobs:
