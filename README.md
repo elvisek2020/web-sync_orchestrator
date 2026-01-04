@@ -185,9 +185,15 @@ volumes:
 
 #### Update aplikace
 
+**Pro lokální vývoj:**
 ```bash
-docker compose pull
-docker compose up -d
+docker compose up -d --build
+```
+
+**Pro produkci:**
+```bash
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 #### Rollback na konkrétní verzi
@@ -416,9 +422,9 @@ WebSocket poskytuje real-time aktualizace:
 
 #### Testování
 
-- **Backend**: API endpointy lze testovat pomocí FastAPI auto-dokumentace na `http://localhost:8000/docs`
-- **Frontend**: React dev server běží na `http://localhost:5173` (nebo jiném portu podle Vite)
-- **Integrace**: Spusťte Docker Compose pro testování celé aplikace
+- **Backend**: API endpointy lze testovat pomocí FastAPI auto-dokumentace na `http://localhost:8080/docs`
+- **Frontend**: React dev server běží na `http://localhost:5173` (nebo jiném portu podle Vite) - pouze pro lokální vývoj
+- **Integrace**: Spusťte Docker Compose pro testování celé aplikace na `http://localhost:8080`
 
 #### Debugging
 
