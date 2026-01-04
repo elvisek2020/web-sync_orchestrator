@@ -523,9 +523,18 @@ class JobRunner:
                 
                 # Detekce poškozené databáze
                 is_database_corrupted = False
-                if isinstance(e, DatabaseError) and "malformed" in str(e).lower():
+                error_str = str(e).lower()
+                
+                # Zkontrolovat, zda je to DatabaseError s malformed
+                if isinstance(e, DatabaseError) and "malformed" in error_str:
                     is_database_corrupted = True
-                elif "database disk image is malformed" in str(e).lower():
+                # Zkontrolovat, zda chybová zpráva obsahuje indikátory poškozené databáze
+                elif "database disk image is malformed" in error_str:
+                    is_database_corrupted = True
+                elif "malformed" in error_str and "database" in error_str:
+                    is_database_corrupted = True
+                # Zkontrolovat, zda je to naše vlastní výjimka o poškozené databázi
+                elif "databáze je poškozená" in error_str or "database is corrupted" in error_str:
                     is_database_corrupted = True
                 
                 error_traceback = traceback.format_exc()

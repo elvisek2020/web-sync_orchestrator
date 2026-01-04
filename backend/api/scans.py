@@ -134,39 +134,69 @@ async def export_scan_csv(scan_id: int):
             raise HTTPException(status_code=404, detail="Scan not found")
         
         # Načíst všechny soubory ve scanu
-        files = session.query(FileEntry).filter(
-            FileEntry.scan_id == scan_id
-        ).order_by(FileEntry.full_rel_path).all()
+        try:
+            files = session.query(FileEntry).filter(
+                FileEntry.scan_id == scan_id
+            ).order_by(FileEntry.full_rel_path).all()
+        except Exception as query_error:
+            raise HTTPException(status_code=500, detail=f"Failed to load files: {str(query_error)}")
         
-        # Vytvořit CSV v paměti
+        # Vytvořit CSV v paměti s UTF-8 encoding
         output = io.StringIO()
-        writer = csv.writer(output)
+        writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
         
         # Hlavička
         writer.writerow(['Cesta', 'Velikost (B)', 'Velikost (GB)', 'Datum změny'])
         
         # Data
-        for file in files:
-            size_gb = (file.size / 1024 / 1024 / 1024) if file.size else 0
-            mtime_str = datetime.fromtimestamp(file.mtime_epoch).strftime('%Y-%m-%d %H:%M:%S') if file.mtime_epoch else ''
-            writer.writerow([
-                file.full_rel_path,
-                file.size,
-                f"{size_gb:.6f}",
-                mtime_str
-            ])
+        try:
+            for file in files:
+                try:
+                    size_gb = (file.size / 1024 / 1024 / 1024) if file.size else 0
+                    mtime_str = ''
+                    if file.mtime_epoch:
+                        try:
+                            mtime_str = datetime.fromtimestamp(file.mtime_epoch).strftime('%Y-%m-%d %H:%M:%S')
+                        except (ValueError, OSError):
+                            mtime_str = str(file.mtime_epoch)
+                    
+                    writer.writerow([
+                        file.full_rel_path or '',
+                        file.size or 0,
+                        f"{size_gb:.6f}",
+                        mtime_str
+                    ])
+                except Exception as row_error:
+                    # Přeskočit problematické řádky a pokračovat
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Failed to write row for file {file.id}: {row_error}")
+                    continue
+        except Exception as write_error:
+            output.close()
+            raise HTTPException(status_code=500, detail=f"Failed to generate CSV: {str(write_error)}")
         
-        # Vrátit CSV jako response
+        # Vrátit CSV jako response s UTF-8 encoding
         csv_content = output.getvalue()
         output.close()
         
+        # Převést na bytes s UTF-8 encoding
+        csv_bytes = csv_content.encode('utf-8-sig')  # UTF-8 s BOM pro Excel
+        
         return Response(
-            content=csv_content,
-            media_type="text/csv",
+            content=csv_bytes,
+            media_type="text/csv; charset=utf-8",
             headers={
                 "Content-Disposition": f"attachment; filename=scan_{scan_id}_export.csv"
             }
         )
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Export scan CSV error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
     finally:
         session.close()
 
