@@ -338,7 +338,7 @@ function CopyHddToNas() {
                           onClick={() => handleCopy(batch.id)}
                           disabled={!canCopy || batch.status !== 'ready_to_phase_3' || running}
                           title={
-                            !canCopy ? 'USB nebo NAS2 není dostupné' :
+                            !canCopy ? (!mountStatus.usb?.available ? 'USB není dostupné' : !nas2Available ? 'NAS2 není dostupné (zkontrolujte mount nebo dataset s SSH adapterem)' : 'SAFE MODE je aktivní') :
                             batch.status !== 'ready_to_phase_3' ? `Plán není připraven (status: ${batch.status})` :
                             running ? 'Kopírování již probíhá' :
                             'Spustit kopírování USB → NAS'
