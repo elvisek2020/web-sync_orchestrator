@@ -406,13 +406,28 @@ class JobRunner:
                         return path_clean
                 
                 # Načtení souborů s normalizovanými cestami
-                source_files_raw = session.query(DBFileEntry).filter(
-                    DBFileEntry.scan_id == diff.source_scan_id
-                ).all()
+                # Zkusit načíst soubory s ošetřením poškozené databáze
+                try:
+                    source_files_raw = session.query(DBFileEntry).filter(
+                        DBFileEntry.scan_id == diff.source_scan_id
+                    ).all()
+                except Exception as query_error:
+                    # Pokud selže query, může to být poškozená databáze
+                    if "malformed" in str(query_error).lower() or "database disk image" in str(query_error).lower():
+                        raise Exception(f"Databáze je poškozená - nelze načíst soubory ze scanu {diff.source_scan_id}. "
+                                      f"Zkontrolujte integritu databáze nebo obnovte ze zálohy.")
+                    raise
                 
-                target_files_raw = session.query(DBFileEntry).filter(
-                    DBFileEntry.scan_id == diff.target_scan_id
-                ).all()
+                try:
+                    target_files_raw = session.query(DBFileEntry).filter(
+                        DBFileEntry.scan_id == diff.target_scan_id
+                    ).all()
+                except Exception as query_error:
+                    # Pokud selže query, může to být poškozená databáze
+                    if "malformed" in str(query_error).lower() or "database disk image" in str(query_error).lower():
+                        raise Exception(f"Databáze je poškozená - nelze načíst soubory ze scanu {diff.target_scan_id}. "
+                                      f"Zkontrolujte integritu databáze nebo obnovte ze zálohy.")
+                    raise
                 
                 # Vytvoření mapy normalizovaných cest -> soubory
                 source_files = {}
@@ -504,8 +519,29 @@ class JobRunner:
                 
             except Exception as e:
                 import traceback
+                from sqlalchemy.exc import DatabaseError
+                
+                # Detekce poškozené databáze
+                is_database_corrupted = False
+                if isinstance(e, DatabaseError) and "malformed" in str(e).lower():
+                    is_database_corrupted = True
+                elif "database disk image is malformed" in str(e).lower():
+                    is_database_corrupted = True
+                
                 error_traceback = traceback.format_exc()
-                error_msg = f"{str(e)}\n\nTraceback:\n{error_traceback}"
+                if is_database_corrupted:
+                    error_msg = f"POŠKOZENÁ DATABÁZE: Databáze je poškozená a nelze z ní číst data.\n\n"
+                    error_msg += f"Možné příčiny:\n"
+                    error_msg += f"- Nečisté ukončení aplikace\n"
+                    error_msg += f"- Problémy s USB diskem (odpojení během zápisu)\n"
+                    error_msg += f"- Chyby filesystemu\n\n"
+                    error_msg += f"Doporučené řešení:\n"
+                    error_msg += f"1. Zkontrolujte USB disk (fsck, kontrola chyb)\n"
+                    error_msg += f"2. Obnovte databázi ze zálohy (pokud máte)\n"
+                    error_msg += f"3. Vytvořte novou databázi (data budou ztracena)\n\n"
+                    error_msg += f"Původní chyba: {str(e)}"
+                else:
+                    error_msg = f"{str(e)}\n\nTraceback:\n{error_traceback}"
                 
                 try:
                     session.rollback()
