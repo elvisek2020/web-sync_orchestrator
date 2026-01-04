@@ -478,9 +478,10 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 
 #### v.20250104.1010
 
-- ✅ **Sjednocení docker-compose souborů**: `docker-compose.yml` a `docker-compose.prod.yml` jsou nyní sjednocené s komentáři pro přepínání mezi lokálním buildem a image z GHCR
-- ✅ **Úklid projektu**: Ověřeno, že `node_modules` je v `.gitignore` a není commitnut do repozitáře
-- ✅ **Aktualizace README**: README aktualizován podle aktuálního stavu projektu a šablony
+- ✅ **Zjednodušení docker-compose**: Smazán `docker-compose.prod.yml`, `docker-compose.yml` nyní používá image z GHCR jako výchozí, lokální build je v komentáři
+- ✅ **Odstranění generate-version.js**: Skript pro generování verzí není potřeba, verze se nespravuje automaticky
+- ✅ **Úklid node_modules**: Odstraněn lokální `node_modules` adresář (build probíhá v Dockeru)
+- ✅ **Aktualizace README**: README aktualizován podle aktuálního stavu projektu
 
 #### v.20250104.0940
 
