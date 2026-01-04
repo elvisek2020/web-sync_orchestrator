@@ -4,7 +4,7 @@ services:
   app:
     # Pro produkci použijte image z GHCR:
     image: ghcr.io/elvisek2020/web-sync_orchestrator:latest
-    # Pro vývoj použijte build:
+    # Pro lokální vývoj použijte build (odkomentujte a zakomentujte image):
     # build:
     #   context: .
     #   dockerfile: Dockerfile
@@ -41,5 +41,5 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: /path/to/nas2  # Volitelné, lze použít SSH
+      device: /path/to/nas2  # Volitelné, lze použít SSH adapter
 

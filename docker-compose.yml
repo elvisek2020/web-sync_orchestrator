@@ -2,10 +2,15 @@ version: '3.8'
 
 services:
   app:
+    # Pro lokální vývoj použijte build:
     build:
       context: .
       dockerfile: Dockerfile
+    # Pro produkci použijte image z GHCR (odkomentujte a zakomentujte build):
+    # image: ghcr.io/elvisek2020/web-sync_orchestrator:latest
     container_name: nas-sync-orchestrator
+    hostname: nas-sync-orchestrator
+    restart: unless-stopped
     ports:
       - "8080:8000"
     volumes:
@@ -23,7 +28,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    restart: unless-stopped
 
 volumes:
   usb:
@@ -31,11 +35,11 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: /tmp/test-usb  # Test mount point
+      device: /tmp/test-usb  # Test mount point - upravte podle vašeho systému
   nas2:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /tmp/test-nas2  # Test mount point
+      device: /tmp/test-nas2  # Test mount point - volitelné, lze použít SSH adapter
 

@@ -129,7 +129,7 @@ Aplikace je připravena pro spuštění pomocí Docker Compose. Soubor `docker-c
 docker compose up -d --build
 ```
 
-Aplikace bude dostupná na `http://localhost:8000`
+Aplikace bude dostupná na `http://localhost:8080`
 
 #### Konfigurace
 
@@ -138,19 +138,32 @@ Aplikace je konfigurována pomocí `docker-compose.yml`:
 ```yaml
 services:
   app:
+    # Pro lokální vývoj použijte build:
     build:
       context: .
       dockerfile: Dockerfile
+    # Pro produkci použijte image z GHCR (odkomentujte a zakomentujte build):
+    # image: ghcr.io/elvisek2020/web-sync_orchestrator:latest
     container_name: nas-sync-orchestrator
+    hostname: nas-sync-orchestrator
+    restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8080:8000"
     volumes:
+      # NAS1: Použijte SSH adapter místo lokálního mountu (Docker Desktop na macOS nemá přístup k SMB mountům)
+      # - /Volumes/NAS-FILMY:/mnt/nas1:ro  # Neaktivní - použijte SSH adapter v datasetu
       - usb:/mnt/usb:rw
       - nas2:/mnt/nas2:rw
     environment:
       - LOG_LEVEL=INFO
       - DATABASE_PATH=/mnt/usb/sync_orchestrator.db
-    restart: unless-stopped
+      - TZ=Europe/Prague
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
   usb:
@@ -164,8 +177,10 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: /path/to/nas2  # Volitelné, lze použít SSH
+      device: /path/to/nas2  # Volitelné, lze použít SSH adapter
 ```
+
+**Poznámka:** Pro produkční nasazení použijte `docker-compose.prod.yml`, který používá image z GHCR místo lokálního buildu.
 
 
 #### Update aplikace
@@ -447,7 +462,17 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 
 ### 📝 Historie změn
 
-#### v.20250103.1627 (aktuální)
+#### v.20250104.1010
+
+- ✅ **Sjednocení docker-compose souborů**: `docker-compose.yml` a `docker-compose.prod.yml` jsou nyní sjednocené s komentáři pro přepínání mezi lokálním buildem a image z GHCR
+- ✅ **Úklid projektu**: Ověřeno, že `node_modules` je v `.gitignore` a není commitnut do repozitáře
+- ✅ **Aktualizace README**: README aktualizován podle aktuálního stavu projektu a šablony
+
+#### v.20250104.0940
+
+- ✅ **Oprava kontroly NAS2 datasetu**: Opravena kontrola dostupnosti NAS2 ve fázi 3 - nyní správně kontroluje `location === 'NAS2'` místo neexistujícího `type === 'NAS2'`
+
+#### v.20250103.1627
 
 - ✅ **Detail u Poslední joby**: Detail jobu ve fázi 2 a 3 má nyní stejnou formu jako detail u "Seznam porovnání" - zobrazuje se jako samostatný box pod tabulkou s tabulkou souborů a logem místo alertu
 
