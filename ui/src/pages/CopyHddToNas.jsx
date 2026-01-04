@@ -271,8 +271,8 @@ function CopyHddToNas() {
   // Pro fázi 3 potřebujeme USB (vždy lokální) a NAS2 (může být lokální mount nebo SSH)
   // NAS2 je dostupná, pokud:
   // 1. Lokální mount je dostupný, NEBO
-  // 2. Existuje dataset typu NAS2 s SSH adapterem
-  const hasNas2Dataset = datasets.some(d => d.type === 'NAS2')
+  // 2. Existuje dataset s location='NAS2' (může mít SSH adapter pro transfer)
+  const hasNas2Dataset = datasets.some(d => d.location === 'NAS2')
   const hasNas2Mount = mountStatus.nas2?.available
   const nas2Available = hasNas2Mount || hasNas2Dataset
   const canCopy = mountStatus.usb?.available && nas2Available && !mountStatus.safe_mode
