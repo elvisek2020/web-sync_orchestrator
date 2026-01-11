@@ -383,12 +383,27 @@ class JobRunner:
                 
                 # Normalizační funkce - odstraní root složku z cesty
                 def normalize_path(path, root):
-                    """Odstraní root složku z cesty a vrátí normalizovanou cestu"""
-                    if not root:
+                    """Odstraní root složku z cesty a vrátí normalizovanou cestu
+                    
+                    Zpracovává různé případy:
+                    - Cesta začíná root složkou: "NAS-FILMY/Movie/file.mkv" -> "Movie/file.mkv"
+                    - Cesta už je normalizovaná: "Movie/file.mkv" -> "Movie/file.mkv"
+                    - Root není v cestě: vrátí cestu tak jak je
+                    """
+                    if not path:
                         return path
+                    
+                    if not root:
+                        # Pokud není root, vrátit cestu normalizovanou (bez úvodních lomítek)
+                        return path.strip("/")
+                    
                     # Normalizace - odstranit úvodní lomítka
                     root_clean = root.strip("/")
                     path_clean = path.strip("/")
+                    
+                    if not root_clean:
+                        # Pokud root je prázdný nebo jen lomítka, vrátit cestu
+                        return path_clean
                     
                     # Pokud cesta začíná root složkou, odstranit ji
                     if path_clean.startswith(root_clean + "/"):
@@ -396,13 +411,17 @@ class JobRunner:
                     elif path_clean == root_clean:
                         return ""  # Cesta je přímo root složka
                     elif path_clean.startswith(root_clean):
+                        # Root je na začátku, ale bez lomítka (např. "NAS-FILMY" a "NAS-FILMYMovie")
+                        # Toto by nemělo nastat, ale pro jistotu
                         return path_clean[len(root_clean):].lstrip("/")
                     else:
-                        # Pokud cesta nezačíná root, zkusit najít root v cestě
+                        # Pokud cesta nezačíná root, zkusit najít root v cestě jako první část
                         # Např. pokud root je "NAS-FILMY" a cesta je "NAS-FILMY/Movie/file.mkv"
                         parts = path_clean.split("/")
-                        if parts[0] == root_clean:
-                            return "/".join(parts[1:])
+                        if parts and parts[0] == root_clean:
+                            return "/".join(parts[1:]) if len(parts) > 1 else ""
+                        # Pokud root není v cestě, vrátit cestu tak jak je
+                        # (možná cesta už byla normalizována při scanu - to je OK)
                         return path_clean
                 
                 # Načtení souborů s normalizovanými cestami
@@ -429,24 +448,66 @@ class JobRunner:
                                       f"Zkontrolujte integritu databáze nebo obnovte ze zálohy.")
                     raise
                 
+                # Debug: Logování root složek pro diagnostiku
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"Diff {diff_id}: Source root: '{source_root}', Target root: '{target_root}'")
+                logger.info(f"Diff {diff_id}: Source files count: {len(source_files_raw)}, Target files count: {len(target_files_raw)}")
+                
                 # Vytvoření mapy normalizovaných cest -> soubory
-                source_files = {}
+                # Použijeme dvojí mapování: normalizované cesty i původní cesty pro fallback
+                source_files = {}  # normalizovaná cesta -> soubor
+                source_files_by_original = {}  # původní cesta -> soubor (pro fallback)
+                normalization_issues = []  # Pro debug - ukládání problémů s normalizací
+                
                 for f in source_files_raw:
+                    if not f.full_rel_path:
+                        continue
                     normalized = normalize_path(f.full_rel_path, source_root)
+                    # Uložit do mapy normalizovaných cest
                     if normalized not in source_files:
                         source_files[normalized] = f
-                    # Pokud už existuje, použít první (může být duplicita)
+                    # Uložit také do mapy původních cest pro fallback
+                    source_files_by_original[f.full_rel_path] = f
+                    # Debug: Zkontrolovat, zda normalizace funguje správně
+                    if len(normalization_issues) < 5 and f.full_rel_path and source_root:
+                        # Uložit několik příkladů pro debug
+                        if not normalized or (normalized == f.full_rel_path and source_root):
+                            normalization_issues.append(f"Source: path='{f.full_rel_path}', root='{source_root}', normalized='{normalized}'")
                 
-                target_files = {}
+                target_files = {}  # normalizovaná cesta -> soubor
+                target_files_by_original = {}  # původní cesta -> soubor (pro fallback)
                 for f in target_files_raw:
+                    if not f.full_rel_path:
+                        continue
                     normalized = normalize_path(f.full_rel_path, target_root)
+                    # Uložit do mapy normalizovaných cest
                     if normalized not in target_files:
                         target_files[normalized] = f
-                    # Pokud už existuje, použít první (může být duplicita)
+                    # Uložit také do mapy původních cest pro fallback
+                    target_files_by_original[f.full_rel_path] = f
+                    # Debug: Zkontrolovat, zda normalizace funguje správně
+                    if len(normalization_issues) < 10 and f.full_rel_path and target_root:
+                        # Uložit několik příkladů pro debug
+                        if not normalized or (normalized == f.full_rel_path and target_root):
+                            normalization_issues.append(f"Target: path='{f.full_rel_path}', root='{target_root}', normalized='{normalized}'")
+                
+                # Debug: Logovat problémy s normalizací
+                if normalization_issues:
+                    logger.warning(f"Diff {diff_id}: Potential normalization issues (showing first 10):")
+                    for issue in normalization_issues[:10]:
+                        logger.warning(f"  {issue}")
+                
+                logger.info(f"Diff {diff_id}: Normalized source files: {len(source_files)}, Normalized target files: {len(target_files)}")
                 
                 # Deterministické porovnání podle normalizovaných cest
                 all_paths = set(source_files.keys()) | set(target_files.keys())
                 total_paths = len(all_paths)
+                
+                # Debug: Zkontrolovat několik příkladů normalizovaných cest
+                if total_paths > 0:
+                    sample_paths = list(all_paths)[:5]
+                    logger.info(f"Diff {diff_id}: Sample normalized paths: {sample_paths}")
                 
                 # Progress feedback - start
                 asyncio.run(websocket_manager.broadcast({
@@ -455,17 +516,47 @@ class JobRunner:
                 }))
                 
                 processed_count = 0
+                matched_by_fallback = 0  # Počítadlo pro debug
                 for normalized_path in all_paths:
                     source_file = source_files.get(normalized_path)
                     target_file = target_files.get(normalized_path)
                     
+                    # Fallback: Pokud normalizace selhala, zkusit najít soubor pomocí alternativního porovnání
                     if source_file and not target_file:
-                        category = "missing"
+                        # Zkusit najít soubor v target pomocí původní cesty nebo jiné normalizace
+                        # Toto může pomoci, pokud normalizace selhala kvůli rozdílným root složkám
+                        found_by_fallback = False
+                        if source_file.full_rel_path in target_files_by_original:
+                            target_file = target_files_by_original[source_file.full_rel_path]
+                            found_by_fallback = True
+                            matched_by_fallback += 1
+                            logger.debug(f"Diff {diff_id}: Found match by fallback for '{normalized_path}' (original: '{source_file.full_rel_path}')")
+                        elif normalized_path in target_files_by_original:
+                            # Zkusit najít pomocí normalizované cesty jako klíče v původních cestách
+                            target_file = target_files_by_original.get(normalized_path)
+                            if target_file:
+                                found_by_fallback = True
+                                matched_by_fallback += 1
+                        
+                        if not target_file:
+                            category = "missing"
+                        else:
+                            # Soubor byl nalezen pomocí fallback, pokračovat s porovnáním
+                            pass
                     elif source_file and target_file:
+                        # Soubor byl nalezen normálně
+                        pass
+                    else:
+                        continue  # Soubor existuje jen v target, ignorujeme
+                    
+                    # Porovnání souborů (buď normálně nalezené nebo pomocí fallback)
+                    if source_file and target_file:
                         if source_file.size == target_file.size:
                             category = "same"
                         else:
                             category = "conflict"
+                    elif source_file and not target_file:
+                        category = "missing"
                     else:
                         continue  # Soubor existuje jen v target, ignorujeme
                     
@@ -500,6 +591,10 @@ class JobRunner:
                                 "data": {"job_id": diff_id, "type": "diff", "message": f"Commit error: {commit_error}, retrying..."}
                             }))
                             session.commit()
+                
+                # Debug: Logovat výsledky fallback logiky
+                if matched_by_fallback > 0:
+                    logger.info(f"Diff {diff_id}: Matched {matched_by_fallback} files using fallback logic")
                 
                 diff.status = "completed"
                 try:

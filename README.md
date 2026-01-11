@@ -476,6 +476,10 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 
 ### 📝 Historie změn
 
+#### v.20260111.0900
+
+- ✅ **Aktualizace verze**: Verze aktualizována na v.20260111.0900
+
 #### v.20250104.1044
 
 - ✅ **Nové obrázky fází**: Nahrazeny staré obrázky novými (`faze_1.png`, `faze_2.png`, `faze_3.png`)
