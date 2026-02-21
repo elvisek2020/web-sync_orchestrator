@@ -1,375 +1,144 @@
 import React, { useState, useEffect } from 'react'
 import { useMountStatus } from '../hooks/useMountStatus'
 import axios from 'axios'
-import './Dashboard.css'
+import PageHeader from '../components/PageHeader'
+import Card from '../components/Card'
+import { formatBytes, formatPercent } from '../utils'
 
-function Dashboard() {
+export default function Dashboard() {
   const mountStatus = useMountStatus()
   const [datasets, setDatasets] = useState([])
-  const [connectionStatus, setConnectionStatus] = useState({}) // { datasetId: { connected, error, message } }
+  const [connectionStatus, setConnectionStatus] = useState({})
   const [testingConnections, setTestingConnections] = useState(new Set())
   const [phase, setPhase] = useState(localStorage.getItem('sync_phase') || 'planning')
-  
+
   useEffect(() => {
     loadDatasets()
-    // Poslouchat změny fáze
-    const handlePhaseChange = (e) => {
-      setPhase(e.detail)
-      loadDatasets() // Znovu načíst datasety při změně fáze
-    }
-    window.addEventListener('syncPhaseChanged', handlePhaseChange)
-    return () => window.removeEventListener('syncPhaseChanged', handlePhaseChange)
+    const handler = (e) => { setPhase(e.detail); loadDatasets() }
+    window.addEventListener('syncPhaseChanged', handler)
+    return () => window.removeEventListener('syncPhaseChanged', handler)
   }, [])
-  
+
   const loadDatasets = async () => {
     try {
-      const response = await axios.get('/api/datasets/')
-      const loadedDatasets = Array.isArray(response.data) ? response.data : []
-      setDatasets(loadedDatasets)
-      
-      // Otestovat připojení pro SSH datasety
-      loadedDatasets.forEach(ds => {
-        if (ds.scan_adapter_type === 'ssh' && !connectionStatus[ds.id] && !testingConnections.has(ds.id)) {
-          setTimeout(() => testConnection(ds.id), 500)
-        }
+      const { data } = await axios.get('/api/datasets/')
+      const ds = Array.isArray(data) ? data : []
+      setDatasets(ds)
+      ds.forEach(d => {
+        if (d.scan_adapter_type === 'ssh') setTimeout(() => testConnection(d.id), 500)
       })
-    } catch (error) {
-      console.error('Failed to load datasets:', error)
-      setDatasets([])
-    }
+    } catch { setDatasets([]) }
   }
-  
-  const testConnection = async (datasetId) => {
-    if (testingConnections.has(datasetId)) {
-      return
-    }
-    
-    setTestingConnections(prev => new Set(prev).add(datasetId))
-    
+
+  const testConnection = async (id) => {
+    if (testingConnections.has(id)) return
+    setTestingConnections(prev => new Set(prev).add(id))
     try {
-      const response = await axios.get(`/api/datasets/${datasetId}/test-connection`)
-      setConnectionStatus(prev => ({
-        ...prev,
-        [datasetId]: {
-          connected: response.data.connected,
-          error: response.data.error,
-          message: response.data.message
-        }
-      }))
-    } catch (error) {
-      setConnectionStatus(prev => ({
-        ...prev,
-        [datasetId]: {
-          connected: false,
-          error: error.response?.data?.detail || error.message || "Connection test failed"
-        }
-      }))
+      const { data } = await axios.get(`/api/datasets/${id}/test-connection`)
+      setConnectionStatus(prev => ({ ...prev, [id]: { connected: data.connected, error: data.error, message: data.message } }))
+    } catch (err) {
+      setConnectionStatus(prev => ({ ...prev, [id]: { connected: false, error: err.response?.data?.detail || err.message } }))
     } finally {
-      setTestingConnections(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(datasetId)
-        return newSet
-      })
+      setTestingConnections(prev => { const s = new Set(prev); s.delete(id); return s })
     }
   }
-  
-  const formatBytes = (bytes) => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+
+  const requiredMounts = phase === 'planning'
+    ? { nas1: true, nas2: true, usb: false }
+    : phase === 'copy-nas-hdd'
+    ? { nas1: true, nas2: false, usb: true }
+    : { nas1: false, nas2: true, usb: true }
+
+  const byLocation = { NAS1: { has: false, local: false, ssh: false }, USB: { has: false, local: false }, NAS2: { has: false, local: false, ssh: false } }
+  datasets.forEach(ds => {
+    const loc = byLocation[ds.location]
+    if (!loc) return
+    loc.has = true
+    if (ds.scan_adapter_type === 'local') loc.local = true
+    if (ds.scan_adapter_type === 'ssh') loc.ssh = true
+  })
+
+  const phaseLabels = {
+    planning: { title: 'Fáze 1: Plánování', img: '/images/faze_1.png', desc: 'NAS1 + NAS2', imgWidth: '75%' },
+    'copy-nas-hdd': { title: 'Fáze 2: Kopírování NAS → HDD', img: '/images/faze_2.png', desc: 'NAS1 + HDD', imgWidth: '56.25%' },
+    'copy-hdd-nas': { title: 'Fáze 3: Kopírování HDD → NAS', img: '/images/faze_3.png', desc: 'HDD + NAS2', imgWidth: '56.25%' },
   }
-  
-  const formatPercent = (used, total) => {
-    if (total === 0) return '0%'
-    return Math.round((used / total) * 100) + '%'
-  }
-  
-  // Určení, které mounty jsou potřeba pro aktuální fázi
-  const getRequiredMounts = () => {
-    if (phase === 'planning') {
-      return { nas1: true, nas2: true, usb: false }
-    } else if (phase === 'copy-nas-hdd') {
-      return { nas1: true, nas2: false, usb: true }
-    } else if (phase === 'copy-hdd-nas') {
-      return { nas1: false, nas2: true, usb: true }
-    }
-    return { nas1: false, nas2: false, usb: false }
-  }
-  
-  // Kontrola, které lokace mají definované datasety a jaký typ adapteru používají
-  const getDatasetsByLocation = () => {
-    const byLocation = {
-      NAS1: { hasDataset: false, usesLocal: false, usesSSH: false },
-      USB: { hasDataset: false, usesLocal: false, usesSSH: false },
-      NAS2: { hasDataset: false, usesLocal: false, usesSSH: false }
-    }
-    datasets.forEach(ds => {
-      if (ds.location === 'NAS1') {
-        byLocation.NAS1.hasDataset = true
-        if (ds.scan_adapter_type === 'local') byLocation.NAS1.usesLocal = true
-        if (ds.scan_adapter_type === 'ssh') byLocation.NAS1.usesSSH = true
-      }
-      if (ds.location === 'USB') {
-        byLocation.USB.hasDataset = true
-        if (ds.scan_adapter_type === 'local') byLocation.USB.usesLocal = true
-        if (ds.scan_adapter_type === 'ssh') byLocation.USB.usesSSH = true
-      }
-      if (ds.location === 'NAS2') {
-        byLocation.NAS2.hasDataset = true
-        if (ds.scan_adapter_type === 'local') byLocation.NAS2.usesLocal = true
-        if (ds.scan_adapter_type === 'ssh') byLocation.NAS2.usesSSH = true
-      }
-    })
-    return byLocation
-  }
-  
-  const requiredMounts = getRequiredMounts()
-  const datasetsByLocation = getDatasetsByLocation()
-  
-  // Zobrazit mount pouze pokud je potřeba pro fázi A má definovaný dataset
-  // A pokud používá lokální adapter, zobrazit stav lokálního mountu
-  // Pokud používá SSH adapter, nezobrazovat lokální mount (SSH nepotřebuje lokální mount)
-  const shouldShowMount = (mountName) => {
-    if (mountName === 'nas1') {
-      const dsInfo = datasetsByLocation.NAS1
-      if (!requiredMounts.nas1 || !dsInfo.hasDataset) return false
-      // Zobrazit pouze pokud používá lokální adapter (SSH nepotřebuje lokální mount)
-      return dsInfo.usesLocal
-    } else if (mountName === 'usb') {
-      const dsInfo = datasetsByLocation.USB
-      if (!requiredMounts.usb || !dsInfo.hasDataset) return false
-      // USB vždy používá lokální mount
-      return dsInfo.usesLocal
-    } else if (mountName === 'nas2') {
-      const dsInfo = datasetsByLocation.NAS2
-      if (!requiredMounts.nas2 || !dsInfo.hasDataset) return false
-      // Zobrazit pouze pokud používá lokální adapter (SSH nepotřebuje lokální mount)
-      return dsInfo.usesLocal
-    }
-    return false
-  }
-  
-  return (
-    <div className="dashboard">
-      {phase === 'planning' && (
-        <div className="box box-compact" style={{ marginBottom: '1.25rem' }}>
-          <h2>Fáze 1: Plánování</h2>
-          <div style={{ marginTop: '0.75rem', textAlign: 'center' }}>
-            <img src="/images/faze_1.png" alt="Fáze 1: Plánování" style={{ maxWidth: '75%', height: 'auto', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
-          </div>
-        </div>
-      )}
-      {phase === 'copy-nas-hdd' && (
-        <div className="box box-compact" style={{ marginBottom: '1.25rem' }}>
-          <h2>Fáze 2: Kopírování NAS → HDD</h2>
-          <div style={{ marginTop: '0.75rem', textAlign: 'center' }}>
-            <img src="/images/faze_2.png" alt="Fáze 2: NAS → HDD" style={{ maxWidth: '56.25%', height: 'auto', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
-          </div>
-        </div>
-      )}
-      {phase === 'copy-hdd-nas' && (
-        <div className="box box-compact" style={{ marginBottom: '1.25rem' }}>
-          <h2>Fáze 3: Kopírování HDD → NAS</h2>
-          <div style={{ marginTop: '0.75rem', textAlign: 'center' }}>
-            <img src="/images/faze_3.png" alt="Fáze 3: HDD → NAS" style={{ maxWidth: '56.25%', height: 'auto', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
-          </div>
-        </div>
-      )}
-      <div className="box box-compact">
-        <h2>Stav mountů</h2>
-        <div style={{ marginBottom: '1rem', padding: '0.75rem', background: '#e7f3ff', borderRadius: '4px', fontSize: '0.875rem' }}>
-          <strong>Aktuální fáze:</strong> {
-            phase === 'planning' ? 'Fáze 1: Plánování (potřebuje NAS1 + NAS2)' :
-            phase === 'copy-nas-hdd' ? 'Fáze 2: Kopírování NAS → HDD (potřebuje NAS1 + HDD)' :
-            phase === 'copy-hdd-nas' ? 'Fáze 3: Kopírování HDD → NAS (potřebuje HDD + NAS2)' :
-            'Neznámá fáze'
-          }
-        </div>
-        <div className="mount-status-grid">
-          {requiredMounts.nas1 && datasetsByLocation.NAS1.hasDataset && (
-            datasetsByLocation.NAS1.usesSSH ? (
-              // SSH adapter - zobrazit stav připojení
-              (() => {
-                const sshDataset = datasets.find(ds => ds.location === 'NAS1' && ds.scan_adapter_type === 'ssh')
-                const status = sshDataset ? connectionStatus[sshDataset.id] : null
-                const isTesting = sshDataset ? testingConnections.has(sshDataset.id) : false
-                
-                return (
-                  <div className={`mount-status ${status?.connected ? 'available' : 'unavailable'}`}>
-                    <h3>NAS1 (SSH) {status?.connected ? '✓ Připojeno' : status ? '✗ Nepřipojeno' : '⏳ Testuji...'}</h3>
-                    {sshDataset && (
-                      <p className="mount-path">
-                        {sshDataset.scan_adapter_config?.host || 'N/A'}:{sshDataset.scan_adapter_config?.port || 22}
-                        {sshDataset.scan_adapter_config?.base_path && ` (${sshDataset.scan_adapter_config.base_path})`}
-                      </p>
-                    )}
-                    {status?.connected && status?.message && (
-                      <p style={{ fontSize: '0.875rem', color: '#28a745', marginTop: '0.5rem' }}>{status.message}</p>
-                    )}
-                    {status?.error && (
-                      <p className="mount-error" style={{ fontSize: '0.875rem' }}>{status.error}</p>
-                    )}
-                    {sshDataset && (
-                      <button
-                        className="button"
-                        onClick={() => testConnection(sshDataset.id)}
-                        disabled={isTesting}
-                        style={{ 
-                          marginTop: '0.5rem',
-                          fontSize: '0.75rem', 
-                          padding: '0.2rem 0.4rem',
-                          background: '#6c757d'
-                        }}
-                        title="Otestovat připojení"
-                      >
-                        🔄 Otestovat
-                      </button>
-                    )}
-                  </div>
-                )
-              })()
-            ) : (
-              // Lokální mount
-              shouldShowMount('nas1') && (
-                <div className={`mount-status ${mountStatus.nas1.available ? 'available' : 'unavailable'}`}>
-                  <h3>NAS1 {mountStatus.nas1.available ? '✓ Dostupné' : '✗ Nedostupné'}</h3>
-                  <p className="mount-path">{mountStatus.nas1.path}</p>
-                  {mountStatus.nas1.available && mountStatus.nas1.total_size > 0 && (
-                    <div className="mount-stats">
-                      <p><strong>Velikost:</strong> {formatBytes(mountStatus.nas1.total_size)}</p>
-                      <p><strong>Využito:</strong> {formatBytes(mountStatus.nas1.used_size)} ({formatPercent(mountStatus.nas1.used_size, mountStatus.nas1.total_size)})</p>
-                      <p><strong>Volné:</strong> {formatBytes(mountStatus.nas1.free_size)}</p>
-                    </div>
-                  )}
-                  {mountStatus.nas1.error && <p className="mount-error">{mountStatus.nas1.error}</p>}
-                </div>
-              )
-            )
-          )}
-          
-          {shouldShowMount('usb') && (
-            <div className={`mount-status ${mountStatus.usb.available ? 'available' : 'unavailable'}`}>
-              <h3>USB {mountStatus.usb.available ? '✓ Dostupné' : '✗ Nedostupné'}{mountStatus.usb.writable && ' (Zapisovatelné)'}</h3>
-              <p className="mount-path">{mountStatus.usb.path}</p>
-              {mountStatus.usb.available && mountStatus.usb.total_size > 0 && (
-                <div className="mount-stats">
-                  <p><strong>Velikost:</strong> {formatBytes(mountStatus.usb.total_size)}</p>
-                  <p><strong>Využito:</strong> {formatBytes(mountStatus.usb.used_size)} ({formatPercent(mountStatus.usb.used_size, mountStatus.usb.total_size)})</p>
-                  <p><strong>Volné:</strong> {formatBytes(mountStatus.usb.free_size)}</p>
-                </div>
-              )}
-              {mountStatus.usb.error && <p className="mount-error">{mountStatus.usb.error}</p>}
-            </div>
-          )}
-          
-          {requiredMounts.nas2 && datasetsByLocation.NAS2.hasDataset && (
-            datasetsByLocation.NAS2.usesSSH ? (
-              // SSH adapter - zobrazit stav připojení
-              (() => {
-                const sshDataset = datasets.find(ds => ds.location === 'NAS2' && ds.scan_adapter_type === 'ssh')
-                const status = sshDataset ? connectionStatus[sshDataset.id] : null
-                const isTesting = sshDataset ? testingConnections.has(sshDataset.id) : false
-                
-                return (
-                  <div className={`mount-status ${status?.connected ? 'available' : 'unavailable'}`}>
-                    <h3>NAS2 (SSH) {status?.connected ? '✓ Připojeno' : status ? '✗ Nepřipojeno' : '⏳ Testuji...'}</h3>
-                    {sshDataset && (
-                      <p className="mount-path">
-                        {sshDataset.scan_adapter_config?.host || 'N/A'}:{sshDataset.scan_adapter_config?.port || 22}
-                        {sshDataset.scan_adapter_config?.base_path && ` (${sshDataset.scan_adapter_config.base_path})`}
-                      </p>
-                    )}
-                    {status?.connected && status?.message && (
-                      <p style={{ fontSize: '0.875rem', color: '#28a745', marginTop: '0.5rem' }}>{status.message}</p>
-                    )}
-                    {status?.error && (
-                      <p className="mount-error" style={{ fontSize: '0.875rem' }}>{status.error}</p>
-                    )}
-                    {sshDataset && (
-                      <button
-                        className="button"
-                        onClick={() => testConnection(sshDataset.id)}
-                        disabled={isTesting}
-                        style={{ 
-                          marginTop: '0.5rem',
-                          fontSize: '0.75rem', 
-                          padding: '0.2rem 0.4rem',
-                          background: '#6c757d'
-                        }}
-                        title="Otestovat připojení"
-                      >
-                        🔄 Otestovat
-                      </button>
-                    )}
-                  </div>
-                )
-              })()
-            ) : (
-              // Lokální mount
-              shouldShowMount('nas2') && (
-                <div className={`mount-status ${mountStatus.nas2.available ? 'available' : 'unavailable'}`}>
-                  <h3>NAS2 {mountStatus.nas2.available ? '✓ Dostupné' : '✗ Nedostupné'}{mountStatus.nas2.writable && ' (Zapisovatelné)'}</h3>
-                  <p className="mount-path">{mountStatus.nas2.path}</p>
-                  {mountStatus.nas2.available && mountStatus.nas2.total_size > 0 && (
-                    <div className="mount-stats">
-                      <p><strong>Velikost:</strong> {formatBytes(mountStatus.nas2.total_size)}</p>
-                      <p><strong>Využito:</strong> {formatBytes(mountStatus.nas2.used_size)} ({formatPercent(mountStatus.nas2.used_size, mountStatus.nas2.total_size)})</p>
-                      <p><strong>Volné:</strong> {formatBytes(mountStatus.nas2.free_size)}</p>
-                    </div>
-                  )}
-                  {mountStatus.nas2.error && <p className="mount-error">{mountStatus.nas2.error}</p>}
-                </div>
-              )
-            )
-          )}
-        </div>
-        
-        {(!shouldShowMount('nas1') || !shouldShowMount('usb') || !shouldShowMount('nas2')) && (
-          <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#fff3cd', borderRadius: '4px', fontSize: '0.875rem' }}>
-            <strong>ℹ️ Informace:</strong> Zobrazují se pouze mounty, pro které jsou definované datasety. Vytvořte datasety na záložce "Datasety" pro zobrazení stavu mountů.
-          </div>
-        )}
-        
-        {/* Stav databáze */}
-        <div style={{ marginTop: '1rem', padding: '0.75rem', background: mountStatus.database?.available ? '#d4edda' : '#f8d7da', borderRadius: '4px', border: `1px solid ${mountStatus.database?.available ? '#c3e6cb' : '#f5c6cb'}` }}>
-          <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', color: mountStatus.database?.available ? '#155724' : '#721c24' }}>
-            Databáze {mountStatus.database?.available ? '✓ Připojena' : '✗ Není připojena'}
-          </h3>
-          {mountStatus.database?.db_path && (
-            <p style={{ margin: '0.25rem 0', fontSize: '0.875rem', color: mountStatus.database?.available ? '#155724' : '#721c24' }}>
-              <strong>Cesta:</strong> <code>{mountStatus.database.db_path}</code>
-            </p>
-          )}
-          {mountStatus.database?.error && (
-            <div style={{ margin: '0.5rem 0', padding: '0.5rem', background: 'rgba(255,255,255,0.5)', borderRadius: '4px' }}>
-              <p style={{ margin: '0.25rem 0', fontSize: '0.875rem', color: '#721c24', fontWeight: 'bold' }}>
-                <strong>Důvod nedostupnosti:</strong>
-              </p>
-              <p style={{ margin: '0.25rem 0', fontSize: '0.875rem', color: '#721c24', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-                {mountStatus.database.error}
-              </p>
-            </div>
-          )}
-          {!mountStatus.database?.available && (
-            <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem', color: '#721c24' }}>
-              Databáze musí být dostupná pro vytváření a úpravu datasetů, plánů a dalších operací.
-            </p>
-          )}
-        </div>
-        
-        {mountStatus.safe_mode && (
-          <div className="safe-mode-banner">
-            <strong>⚠ SAFE MODE</strong>
-            <p>USB nebo databáze není dostupná. Operace vyžadující zápis jsou zakázány.</p>
-          </div>
-        )}
+  const pl = phaseLabels[phase] || phaseLabels.planning
+
+  const renderSshMount = (location) => {
+    const ds = datasets.find(d => d.location === location && d.scan_adapter_type === 'ssh')
+    if (!ds) return null
+    const st = connectionStatus[ds.id]
+    const testing = testingConnections.has(ds.id)
+    return (
+      <div className={`mount-card ${st?.connected ? 'available' : 'unavailable'}`}>
+        <h3>{location} (SSH) {st?.connected ? '\u2713 Připojeno' : st ? '\u2717 Nepřipojeno' : '\u23F3'}</h3>
+        <div className="mount-path">{ds.scan_adapter_config?.host || 'N/A'}:{ds.scan_adapter_config?.port || 22}</div>
+        {st?.connected && st.message && <div className="text-sm" style={{ color: 'var(--color-success)' }}>{st.message}</div>}
+        {st?.error && <div className="mount-error">{st.error}</div>}
+        <button className="btn btn-outline btn-sm mt-sm" onClick={() => testConnection(ds.id)} disabled={testing}>Otestovat</button>
       </div>
-      
-    </div>
+    )
+  }
+
+  const renderLocalMount = (key, label, data) => {
+    if (!data) return null
+    return (
+      <div className={`mount-card ${data.available ? 'available' : 'unavailable'}`}>
+        <h3>{label} {data.available ? '\u2713 Dostupné' : '\u2717 Nedostupné'}{data.writable ? ' (RW)' : ''}</h3>
+        <div className="mount-path">{data.path}</div>
+        {data.available && data.total_size > 0 && (
+          <div className="mount-stats">
+            <span>Velikost: {formatBytes(data.total_size)}</span>
+            <span>Využito: {formatBytes(data.used_size)} ({formatPercent(data.used_size, data.total_size)})</span>
+            <span>Volné: {formatBytes(data.free_size)}</span>
+          </div>
+        )}
+        {data.error && <div className="mount-error">{data.error}</div>}
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <PageHeader title={pl.title} subtitle={`Potřebné zdroje: ${pl.desc}`} />
+
+      <Card>
+        <div className="phase-diagram">
+          <img src={pl.img} alt={pl.title} style={{ maxWidth: pl.imgWidth }} />
+        </div>
+      </Card>
+
+      <Card title="Stav připojení">
+        <div className="banner banner-info mb-md">
+          <strong>Aktuální fáze:</strong>&nbsp;{pl.title} (potřebuje {pl.desc})
+        </div>
+
+        <div className="card-grid">
+          {requiredMounts.nas1 && byLocation.NAS1.has && (
+            byLocation.NAS1.ssh ? renderSshMount('NAS1') : byLocation.NAS1.local && renderLocalMount('nas1', 'NAS1', mountStatus.nas1)
+          )}
+          {requiredMounts.usb && byLocation.USB.has && byLocation.USB.local && renderLocalMount('usb', 'USB', mountStatus.usb)}
+          {requiredMounts.nas2 && byLocation.NAS2.has && (
+            byLocation.NAS2.ssh ? renderSshMount('NAS2') : byLocation.NAS2.local && renderLocalMount('nas2', 'NAS2', mountStatus.nas2)
+          )}
+        </div>
+
+        {/* Database status */}
+        <div className={`banner ${mountStatus.database?.available ? 'banner-success' : 'banner-error'}`}>
+          <div>
+            <strong>Databáze {mountStatus.database?.available ? '\u2713 Připojena' : '\u2717 Nepřipojena'}</strong>
+            {mountStatus.database?.db_path && <span> &mdash; <code>{mountStatus.database.db_path}</code></span>}
+            {mountStatus.database?.error && <div className="mt-sm">{mountStatus.database.error}</div>}
+          </div>
+        </div>
+
+        {mountStatus.safe_mode && (
+          <div className="banner banner-warning mt-sm">
+            <strong>SAFE MODE</strong>&nbsp;&mdash; USB nebo databáze není dostupná. Operace zápisu jsou zakázány.
+          </div>
+        )}
+      </Card>
+    </>
   )
 }
-
-export default Dashboard
-

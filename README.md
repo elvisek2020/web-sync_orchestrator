@@ -476,6 +476,11 @@ Aplikace používá **box-style komponenty** pro konzistentní vzhled:
 
 ### 📝 Historie změn
 
+#### v.20260111.0930
+
+- ✅ **Oprava logiky porovnávání**: Opravena normalizace cest při porovnávání scanů - nyní používá `root_rel_path` z každého souboru místo root z datasetu pro přesnější porovnávání
+- ✅ **Vylepšená diagnostika**: Přidáno debug logování pro lepší diagnostiku problémů s normalizací cest
+
 #### v.20260111.0920
 
 - ✅ **Aktualizace verze**: Verze aktualizována na v.20260111.0920

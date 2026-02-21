@@ -22,7 +22,7 @@ export function useMountStatus() {
     const mountMessages = messages.filter(m => m.type === 'mounts.status')
     if (mountMessages.length > 0) {
       const lastMessage = mountMessages[mountMessages.length - 1]
-      setStatus(lastMessage.data)
+      setStatus(prev => ({ ...prev, ...lastMessage.data }))
     }
   }, [messages])
   

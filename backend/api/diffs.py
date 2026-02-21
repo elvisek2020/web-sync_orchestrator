@@ -46,6 +46,8 @@ class DiffSummary(BaseModel):
     same_size: int
     conflict_count: int
     conflict_size: int
+    extra_count: int = 0
+    extra_size: int = 0
 
 async def check_safe_mode():
     """Dependency - kontroluje SAFE MODE"""
@@ -119,16 +121,17 @@ async def get_diff(diff_id: int):
         session.close()
 
 @router.get("/{diff_id}/items", response_model=List[DiffItemResponse])
-async def get_diff_items(diff_id: int, skip: int = 0, limit: int = 100):
-    """Položky diffu"""
+async def get_diff_items(diff_id: int, skip: int = 0, limit: int = 100, category: Optional[str] = None):
+    """Položky diffu s volitelným filtrováním podle kategorie"""
     session = storage_service.get_session()
     if not session:
         raise HTTPException(status_code=503, detail="Database unavailable")
     
     try:
-        items = session.query(DiffItem).filter(
-            DiffItem.diff_id == diff_id
-        ).offset(skip).limit(limit).all()
+        query = session.query(DiffItem).filter(DiffItem.diff_id == diff_id)
+        if category:
+            query = query.filter(DiffItem.category == category)
+        items = query.offset(skip).limit(limit).all()
         return [DiffItemResponse.model_validate(i) for i in items]
     finally:
         session.close()
@@ -150,7 +153,9 @@ async def get_diff_summary(diff_id: int):
             same_count=0,
             same_size=0,
             conflict_count=0,
-            conflict_size=0
+            conflict_size=0,
+            extra_count=0,
+            extra_size=0
         )
         
         for item in items:
@@ -164,6 +169,9 @@ async def get_diff_summary(diff_id: int):
             elif item.category == "conflict":
                 summary.conflict_count += 1
                 summary.conflict_size += size
+            elif item.category == "extra":
+                summary.extra_count += 1
+                summary.extra_size += size
         
         return summary
     finally:

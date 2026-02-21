@@ -5,224 +5,142 @@ import Datasets from './pages/Datasets'
 import Scan from './pages/Scan'
 import Compare from './pages/Compare'
 import PlanTransfer from './pages/PlanTransfer'
-import CopyNasToHdd from './pages/CopyNasToHdd'
-import CopyHddToNas from './pages/CopyHddToNas'
+import CopyPage from './pages/CopyPage'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useMountStatus } from './hooks/useMountStatus'
-import './App.css'
 
-function Navigation() {
+const NAV_ITEMS = [
+  { path: '/', label: 'Dashboard', icon: '\u2302', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] },
+  { path: '/datasets', label: 'Datasety', icon: '\u{1F4BE}', phases: ['planning'] },
+  { path: '/scan', label: 'Scan', icon: '\u{1F50D}', phases: ['planning'] },
+  { path: '/compare', label: 'Porovnání', icon: '\u2194', phases: ['planning'] },
+  { path: '/plan-transfer', label: 'Plán', icon: '\u{1F4CB}', phases: ['planning'] },
+  { path: '/copy', label: 'Kopírování', icon: '\u{1F4E6}', phases: ['copy-nas-hdd', 'copy-hdd-nas'] },
+]
+
+function AppContent() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { connected } = useWebSocket()
+  const mountStatus = useMountStatus()
   const [phase, setPhase] = useState(localStorage.getItem('sync_phase') || 'planning')
-  
-  useEffect(() => {
-    const handlePhaseChange = (e) => {
-      setPhase(e.detail)
-      // Pokud je aktuální stránka nedostupná v nové fázi, přesměruj na příslušnou záložku
-      const allowedPaths = getAllowedPaths(e.detail)
-      if (!allowedPaths.includes(location.pathname)) {
-        // Při přepínání mezi fází 2 a 3 přesměrovat na příslušnou záložku kopírování
-        if (e.detail === 'copy-nas-hdd') {
-          navigate('/copy-nas-hdd')
-        } else if (e.detail === 'copy-hdd-nas') {
-          navigate('/copy-hdd-nas')
-        } else {
-          navigate('/')
-        }
-      }
-    }
-    window.addEventListener('syncPhaseChanged', handlePhaseChange)
-    return () => window.removeEventListener('syncPhaseChanged', handlePhaseChange)
-  }, [location.pathname, navigate])
-  
-  // Definice povolených cest podle fáze
-  const getAllowedPaths = (currentPhase) => {
-    const navItems = [
-      { path: '/', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] },
-      { path: '/datasets', phases: ['planning'] },
-      { path: '/scan', phases: ['planning'] },
-      { path: '/compare', phases: ['planning'] },
-      { path: '/plan-transfer', phases: ['planning'] },
-      { path: '/copy-nas-hdd', phases: ['copy-nas-hdd'] },
-      { path: '/copy-hdd-nas', phases: ['copy-hdd-nas'] },
-    ]
-    return navItems.filter(item => item.phases.includes(currentPhase)).map(item => item.path)
-  }
-  
-  // Vždy stejné záložky, ale některé mohou být skryté nebo neaktivní podle fáze
-  const navItems = [
-    { path: '/', label: 'Dashboard', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] },
-    { path: '/datasets', label: 'Datasety', phases: ['planning'] },
-    { path: '/scan', label: 'Scan', phases: ['planning'] },
-    { path: '/compare', label: 'Porovnání', phases: ['planning'] },
-    { path: '/plan-transfer', label: 'Plán přenosu', phases: ['planning'] },
-    { path: '/copy-nas-hdd', label: 'Kopírování NAS → HDD', phases: ['copy-nas-hdd'] },
-    { path: '/copy-hdd-nas', label: 'Kopírování HDD → NAS', phases: ['copy-hdd-nas'] }
-  ]
-  
-  // Filtrovat záložky podle aktuální fáze
-  const visibleNavItems = navItems.filter(item => item.phases.includes(phase))
-  
-  return (
-    <nav className="navigation">
-      {visibleNavItems.map(item => (
-        <Link
-          key={item.path}
-          to={item.path}
-          className={`nav-button ${location.pathname === item.path ? 'active' : ''}`}
-        >
-          {item.label}
-        </Link>
-      ))}
-    </nav>
-  )
-}
+  const [version, setVersion] = useState('')
 
-function PhaseRouter({ phase, children }) {
-  const location = useLocation()
-  const navigate = useNavigate()
-  
   useEffect(() => {
-    // Kontrola, zda je aktuální stránka dostupná v aktuální fázi
-    const navItems = [
-      { path: '/', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] },
-      { path: '/datasets', phases: ['planning'] },
-      { path: '/scan', phases: ['planning'] },
-      { path: '/compare', phases: ['planning'] },
-      { path: '/plan-transfer', phases: ['planning'] },
-      { path: '/copy-nas-hdd', phases: ['copy-nas-hdd'] },
-      { path: '/copy-hdd-nas', phases: ['copy-hdd-nas'] }
-    ]
-    const allowedPaths = navItems.filter(item => item.phases.includes(phase)).map(item => item.path)
-    
-    if (!allowedPaths.includes(location.pathname)) {
-      // Při přepínání mezi fází 2 a 3 přesměrovat na příslušnou záložku kopírování
-      if (phase === 'copy-nas-hdd') {
-        navigate('/copy-nas-hdd')
-      } else if (phase === 'copy-hdd-nas') {
-        navigate('/copy-hdd-nas')
+    fetch('/static/version.json')
+      .then(res => res.json())
+      .then(data => setVersion(data.version || ''))
+      .catch(() => setVersion(''))
+  }, [])
+
+  useEffect(() => {
+    const handler = (e) => setPhase(e.detail)
+    window.addEventListener('syncPhaseChanged', handler)
+    return () => window.removeEventListener('syncPhaseChanged', handler)
+  }, [])
+
+  useEffect(() => {
+    const allowed = NAV_ITEMS.filter(i => i.phases.includes(phase)).map(i => i.path)
+    if (!allowed.includes(location.pathname)) {
+      if (phase === 'copy-nas-hdd' || phase === 'copy-hdd-nas') {
+        navigate('/copy')
       } else {
         navigate('/')
       }
     }
   }, [phase, location.pathname, navigate])
-  
-  return <>{children}</>
-}
 
-function App() {
-  const { connected } = useWebSocket()
-  const { safeMode, refresh } = useMountStatus()
-  const [phase, setPhase] = useState(localStorage.getItem('sync_phase') || 'planning')
-  const [version, setVersion] = useState('')
-  
-  useEffect(() => {
-    // Poslouchat změny fáze z jiných komponent
-    const handlePhaseChange = (e) => {
-      setPhase(e.detail)
-    }
-    window.addEventListener('syncPhaseChanged', handlePhaseChange)
-    return () => window.removeEventListener('syncPhaseChanged', handlePhaseChange)
-  }, [])
-  
-  useEffect(() => {
-    // Načtení verze z version.json
-    fetch('/static/version.json')
-      .then(res => res.json())
-      .then(data => setVersion(data.version || ''))
-      .catch(err => {
-        console.error('Failed to load version:', err)
-        setVersion('')
-      })
-  }, [])
-  
-  const handleRefresh = async () => {
-    await refresh()
-  }
-  
   const handlePhaseChange = (newPhase) => {
     setPhase(newPhase)
     localStorage.setItem('sync_phase', newPhase)
-    // Broadcast změny fáze pro aktualizaci ostatních komponent
     window.dispatchEvent(new CustomEvent('syncPhaseChanged', { detail: newPhase }))
-    // Při přepínání mezi fází 2 a 3 přesměrovat na příslušnou záložku kopírování
-    if (newPhase === 'copy-nas-hdd') {
-      window.location.href = '/copy-nas-hdd'
-    } else if (newPhase === 'copy-hdd-nas') {
-      window.location.href = '/copy-hdd-nas'
+    if (newPhase === 'copy-nas-hdd' || newPhase === 'copy-hdd-nas') {
+      navigate('/copy')
+    } else {
+      navigate('/')
     }
   }
-  
+
+  const visibleNav = NAV_ITEMS.filter(i => i.phases.includes(phase))
+
   return (
-    <BrowserRouter>
-      <div className="app">
-        <header className="app-header">
-          <h1 className="clickable-header" onClick={handleRefresh} title="Klikněte pro obnovení stavu mountů">
-            Sync Orchestrator
-          </h1>
-          <div className="header-controls">
-            <div className="phase-selector-header">
-              <button
-                className={`phase-button-header ${phase === 'planning' ? 'active' : ''}`}
-                onClick={() => handlePhaseChange('planning')}
-                title="Fáze 1: Plánování - potřebuje NAS1 + NAS2 (mohou být přes SSH)"
-              >
-                Fáze 1: Plánování
-              </button>
-              <button
-                className={`phase-button-header ${phase === 'copy-nas-hdd' ? 'active' : ''}`}
-                onClick={() => handlePhaseChange('copy-nas-hdd')}
-                title="Fáze 2: Kopírování NAS → HDD - potřebuje NAS1 + HDD"
-              >
-                Fáze 2: NAS → HDD
-              </button>
-              <button
-                className={`phase-button-header ${phase === 'copy-hdd-nas' ? 'active' : ''}`}
-                onClick={() => handlePhaseChange('copy-hdd-nas')}
-                title="Fáze 3: Kopírování HDD → NAS - potřebuje HDD + NAS2"
-              >
-                Fáze 3: HDD → NAS
-              </button>
-            </div>
-            <div className="status-indicators">
-              <span className={`status-badge ${connected ? 'connected' : 'disconnected'}`}>
-                {connected ? '●' : '○'} WebSocket
-              </span>
-              {safeMode && (
-                <span className="status-badge safe-mode">
-                  ⚠ SAFE MODE
-                </span>
-              )}
-            </div>
+    <div className="app">
+      <header className="header">
+        <div className="header-inner">
+          <div className="header-left">
+            <Link to="/" className="logo">
+              <div className="logo-icon">S</div>
+              Sync Orchestrator
+            </Link>
+            <nav className="nav">
+              {visibleNav.map(item => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}
+                >
+                  <span>{item.icon}</span>
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
           </div>
-        </header>
-        
-        <Navigation />
-        
-        <main className="app-main">
-          <PhaseRouter phase={phase}>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/datasets" element={<Datasets />} />
-              <Route path="/scan" element={<Scan />} />
-              <Route path="/compare" element={<Compare />} />
-              <Route path="/plan-transfer" element={<PlanTransfer />} />
-              <Route path="/copy-nas-hdd" element={<CopyNasToHdd />} />
-              <Route path="/copy-hdd-nas" element={<CopyHddToNas />} />
-            </Routes>
-          </PhaseRouter>
-        </main>
-        
-        {version && (
-          <footer className="app-footer">
-            <span>Verze: {version}</span>
-          </footer>
-        )}
-      </div>
-    </BrowserRouter>
+          <div className="header-right">
+            <div className="phase-selector">
+              <button
+                className={`phase-btn ${phase === 'planning' ? 'active' : ''}`}
+                onClick={() => handlePhaseChange('planning')}
+                title="Fáze 1: Plánování"
+              >
+                1: Plánování
+              </button>
+              <button
+                className={`phase-btn ${phase === 'copy-nas-hdd' ? 'active' : ''}`}
+                onClick={() => handlePhaseChange('copy-nas-hdd')}
+                title="Fáze 2: NAS → HDD"
+              >
+                2: NAS→HDD
+              </button>
+              <button
+                className={`phase-btn ${phase === 'copy-hdd-nas' ? 'active' : ''}`}
+                onClick={() => handlePhaseChange('copy-hdd-nas')}
+                title="Fáze 3: HDD → NAS"
+              >
+                3: HDD→NAS
+              </button>
+            </div>
+            <span className={`status-dot ${connected ? 'connected' : 'disconnected'}`}>
+              {connected ? '\u25CF' : '\u25CB'} WS
+            </span>
+            {mountStatus.safe_mode && (
+              <span className="status-dot safe-mode">SAFE</span>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <main className="container">
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/datasets" element={<Datasets />} />
+          <Route path="/scan" element={<Scan />} />
+          <Route path="/compare" element={<Compare />} />
+          <Route path="/plan-transfer" element={<PlanTransfer />} />
+          <Route path="/copy" element={<CopyPage />} />
+        </Routes>
+      </main>
+
+      <footer className="footer">
+        {version && <span>Verze {version}</span>}
+      </footer>
+    </div>
   )
 }
 
-export default App
-
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
+  )
+}

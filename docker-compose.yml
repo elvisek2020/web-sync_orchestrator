@@ -1,11 +1,11 @@
 services:
   app:
     # Pro produkci použijte image z GHCR:
-    image: ghcr.io/elvisek2020/web-sync_orchestrator:latest
+    # image: ghcr.io/elvisek2020/web-sync_orchestrator:latest
     # Pro lokální vývoj použijte build (odkomentujte a zakomentujte image):
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: nas-sync-orchestrator
     hostname: nas-sync-orchestrator
     restart: unless-stopped
@@ -40,7 +40,7 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: /Volumes/nas1  # NAS1 mount point - upravte podle vašeho systému
+      device: /Volumes/NAS-FILMY  # NAS1 mount point - upravte podle vašeho systému
   nas2:
     driver: local
     driver_opts:

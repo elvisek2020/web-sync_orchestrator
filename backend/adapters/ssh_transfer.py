@@ -94,49 +94,33 @@ class SshRsyncTransferAdapter(TransferAdapter):
                 bufsize=1
             )
             
-            # Čtení výstupu
+            # Build lookup dict for O(1) file matching
+            files_by_path = {f.full_rel_path: f for f in files}
+            
             copied = 0
-            current_file = ""
-            copied_files = set()  # Sledovat už zkopírované soubory, aby se nepočítaly dvakrát
+            copied_files = set()
+            rsync_info_prefixes = ("building", "sending", "total size is", "speedup is", "sent ", "received ")
             
             for line in process.stdout:
                 if log_cb:
                     log_cb(line.strip())
-                # Rsync výstup: "filename" nebo "filename\n"
                 line_stripped = line.strip()
                 
-                # Ignorovat informační řádky rsync
-                if (not line_stripped or 
-                    line_stripped.startswith("building") or 
-                    line_stripped.startswith("sending") or
-                    line_stripped.startswith("total size is") or
-                    line_stripped.startswith("speedup is") or
-                    line_stripped.startswith("sent ") or
-                    line_stripped.startswith("received ") or
-                    "/" not in line_stripped):  # Skutečné soubory obsahují "/"
+                if not line_stripped or line_stripped.startswith(rsync_info_prefixes) or line_stripped.endswith("/"):
                     continue
                 
-                # Najít odpovídající soubor pro získání velikosti
-                current_file = line_stripped
-                file_size = 0
                 matched_file = None
+                file_size = 0
                 
-                for file_entry in files:
-                    # Přesnější porovnání - zkontrolovat, zda řádek odpovídá souboru
-                    if (file_entry.full_rel_path == current_file or 
-                        file_entry.full_rel_path.endswith("/" + current_file) or
-                        current_file.endswith(file_entry.full_rel_path)):
-                        file_size = file_entry.size
-                        matched_file = file_entry.full_rel_path
-                        break
+                if line_stripped in files_by_path:
+                    matched_file = line_stripped
+                    file_size = files_by_path[line_stripped].size
                 
-                # Počítat jen pokud jsme našli odpovídající soubor a ještě nebyl počítán
                 if matched_file and matched_file not in copied_files:
                     copied_files.add(matched_file)
                     copied += 1
                     if progress_cb:
-                        # Předpokládáme úspěch, pokud rsync nevrátí chybu
-                        progress_cb(copied, current_file, file_size, success=True, error=None)
+                        progress_cb(copied, matched_file, file_size, success=True, error=None)
             
             returncode = process.wait()
             

@@ -1,696 +1,333 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useMountStatus } from '../hooks/useMountStatus'
-import './Datasets.css'
+import { useNotification } from '../components/Notification'
+import ConfirmDialog from '../components/ConfirmDialog'
+import BrowseModal from '../components/BrowseModal'
+import PageHeader from '../components/PageHeader'
+import Card from '../components/Card'
+import StatusBadge from '../components/StatusBadge'
 
-function Datasets() {
+const EMPTY_FORM = {
+  name: '', location: 'NAS1', roots: [''],
+  scan_adapter_type: 'local', transfer_adapter_type: 'local',
+  scan_adapter_config: {}, transfer_adapter_config: {}
+}
+
+export default function Datasets() {
   const mountStatus = useMountStatus()
+  const notify = useNotification()
   const [datasets, setDatasets] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [editingDataset, setEditingDataset] = useState(null)
-  const [connectionStatus, setConnectionStatus] = useState({}) // { datasetId: { connected, error, message } }
+  const [connectionStatus, setConnectionStatus] = useState({})
   const [testingConnections, setTestingConnections] = useState(new Set())
-  const [browsingDataset, setBrowsingDataset] = useState(null) // { datasetId, path, items, loading }
-  const [browsePath, setBrowsePath] = useState('/')
-  const [formData, setFormData] = useState({
-    name: '',
-    location: 'NAS1',
-    roots: [''],
-    scan_adapter_type: 'local',
-    transfer_adapter_type: 'local',
-    scan_adapter_config: {},
-    transfer_adapter_config: {}
-  })
-  
+  const [browsingDataset, setBrowsingDataset] = useState(null)
+  const [formData, setFormData] = useState({ ...EMPTY_FORM })
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [phase, setPhase] = useState(localStorage.getItem('sync_phase') || 'planning')
+
+  useEffect(() => { loadDatasets() }, [])
   useEffect(() => {
-    loadDatasets()
+    const h = (e) => setPhase(e.detail)
+    window.addEventListener('syncPhaseChanged', h)
+    return () => window.removeEventListener('syncPhaseChanged', h)
   }, [])
-  
+
   useEffect(() => {
-    // Když se načtou datasety, otestovat připojení pro všechny
-    if (datasets.length > 0) {
-      datasets.forEach(ds => {
-        if (!connectionStatus[ds.id] && !testingConnections.has(ds.id)) {
-          // Malé zpoždění, aby se UI stihlo vykreslit
-          setTimeout(() => testConnection(ds.id), 500)
-        }
-      })
-    }
+    datasets.forEach(ds => {
+      if (!connectionStatus[ds.id] && !testingConnections.has(ds.id))
+        setTimeout(() => testConnection(ds.id), 500)
+    })
   }, [datasets])
-  
+
   const loadDatasets = async () => {
+    try { setDatasets((await axios.get('/api/datasets/')).data) } catch { setDatasets([]) }
+  }
+
+  const testConnection = async (id) => {
+    if (testingConnections.has(id)) return
+    setTestingConnections(prev => new Set(prev).add(id))
     try {
-      const response = await axios.get('/api/datasets/')
-      setDatasets(response.data)
-    } catch (error) {
-      console.error('Failed to load datasets:', error)
+      const { data } = await axios.get(`/api/datasets/${id}/test-connection`)
+      setConnectionStatus(prev => ({ ...prev, [id]: { connected: data.connected, error: data.error, message: data.message } }))
+    } catch (err) {
+      setConnectionStatus(prev => ({ ...prev, [id]: { connected: false, error: err.response?.data?.detail || err.message } }))
+    } finally {
+      setTestingConnections(prev => { const s = new Set(prev); s.delete(id); return s })
     }
   }
-  
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      const data = {
-        ...formData,
-        roots: formData.roots.filter(r => r.trim() !== '')
-      }
-      
-      if (editingDataset) {
-        await axios.put(`/api/datasets/${editingDataset.id}`, data)
-      } else {
-        await axios.post('/api/datasets/', data)
-      }
-      
-      setShowForm(false)
-      setEditingDataset(null)
-      setFormData({
-        name: '',
-        location: 'NAS1',
-        roots: [''],
-        scan_adapter_type: 'local',
-        transfer_adapter_type: 'local',
-        scan_adapter_config: {},
-        transfer_adapter_config: {}
-      })
+      const data = { ...formData, roots: formData.roots.filter(r => r.trim()) }
+      if (editingDataset) await axios.put(`/api/datasets/${editingDataset.id}`, data)
+      else await axios.post('/api/datasets/', data)
+      setShowForm(false); setEditingDataset(null); setFormData({ ...EMPTY_FORM })
+      notify(editingDataset ? 'Dataset uložen' : 'Dataset vytvořen', 'success')
       loadDatasets()
-    } catch (error) {
-      console.error('Failed to save dataset:', error)
-      alert('Chyba při ukládání datasetu: ' + (error.response?.data?.detail || error.message))
+    } catch (err) {
+      notify('Chyba: ' + (err.response?.data?.detail || err.message), 'error')
     }
   }
-  
-  const handleEdit = (dataset) => {
-    setEditingDataset(dataset)
+
+  const handleEdit = (ds) => {
+    setEditingDataset(ds)
     setFormData({
-      name: dataset.name,
-      location: dataset.location,
-      roots: dataset.roots.length > 0 ? dataset.roots : [''],
-      scan_adapter_type: dataset.scan_adapter_type,
-      transfer_adapter_type: dataset.transfer_adapter_type,
-      scan_adapter_config: dataset.scan_adapter_config || {},
-      transfer_adapter_config: dataset.transfer_adapter_config || {}
+      name: ds.name, location: ds.location, roots: ds.roots.length ? ds.roots : [''],
+      scan_adapter_type: ds.scan_adapter_type, transfer_adapter_type: ds.transfer_adapter_type,
+      scan_adapter_config: ds.scan_adapter_config || {}, transfer_adapter_config: ds.transfer_adapter_config || {}
     })
     setShowForm(true)
   }
-  
-  const handleDelete = async (id) => {
-    if (!confirm('Opravdu chcete smazat tento dataset?')) return
-    
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
     try {
-      await axios.delete(`/api/datasets/${id}`)
+      await axios.delete(`/api/datasets/${deleteTarget}`)
+      notify('Dataset smazán', 'success')
       loadDatasets()
-    } catch (error) {
-      console.error('Failed to delete dataset:', error)
-      alert('Chyba při mazání datasetu')
-    }
+    } catch (err) {
+      notify('Chyba při mazání: ' + (err.response?.data?.detail || err.message), 'error')
+    } finally { setDeleteTarget(null) }
   }
-  
-  const handleDuplicate = async (dataset) => {
-    if (mountStatus.safe_mode) {
-      alert('Duplikování datasetu není možné v SAFE MODE. Databáze není dostupná.')
-      return
-    }
-    
+
+  const handleDuplicate = async (ds) => {
+    if (mountStatus.safe_mode) return notify('SAFE MODE - nelze duplikovat', 'warning')
     try {
-      console.log('Duplikování datasetu:', dataset)
-      
-      // Vytvoříme nový název - přidáme " (kopie)" nebo číslo, pokud už existuje
-      let newName = `${dataset.name} (kopie)`
-      let counter = 1
-      while (datasets.some(ds => ds.name === newName)) {
-        counter++
-        newName = `${dataset.name} (kopie ${counter})`
-      }
-      
-      // Vytvoříme nový dataset se všemi stejnými parametry
-      const data = {
-        name: newName,
-        location: dataset.location,
-        roots: Array.isArray(dataset.roots) && dataset.roots.length > 0 ? dataset.roots : ['/'],
-        scan_adapter_type: dataset.scan_adapter_type || 'local',
-        transfer_adapter_type: dataset.transfer_adapter_type || 'local',
-        scan_adapter_config: dataset.scan_adapter_config || {},
-        transfer_adapter_config: dataset.transfer_adapter_config || {}
-      }
-      
-      console.log('Vytváření duplikátu s daty:', data)
-      const response = await axios.post('/api/datasets/', data)
-      console.log('Duplikát vytvořen:', response.data)
-      
-      await loadDatasets()
-    } catch (error) {
-      console.error('Failed to duplicate dataset:', error)
-      console.error('Error details:', error.response?.data)
-      alert('Chyba při duplikování datasetu: ' + (error.response?.data?.detail || error.message))
-    }
-  }
-  
-  const addRoot = () => {
-    setFormData({ ...formData, roots: [...formData.roots, ''] })
-  }
-  
-  const removeRoot = (index) => {
-    setFormData({ ...formData, roots: formData.roots.filter((_, i) => i !== index) })
-  }
-  
-  const updateRoot = (index, value) => {
-    const newRoots = [...formData.roots]
-    newRoots[index] = value
-    setFormData({ ...formData, roots: newRoots })
-  }
-  
-  const testConnection = async (datasetId) => {
-    if (testingConnections.has(datasetId)) {
-      return // Už se testuje
-    }
-    
-    setTestingConnections(prev => new Set(prev).add(datasetId))
-    
-    try {
-      const response = await axios.get(`/api/datasets/${datasetId}/test-connection`)
-      setConnectionStatus(prev => ({
-        ...prev,
-        [datasetId]: {
-          connected: response.data.connected,
-          error: response.data.error,
-          message: response.data.message
-        }
-      }))
-    } catch (error) {
-      setConnectionStatus(prev => ({
-        ...prev,
-        [datasetId]: {
-          connected: false,
-          error: error.response?.data?.detail || error.message || "Connection test failed"
-        }
-      }))
-    } finally {
-      setTestingConnections(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(datasetId)
-        return newSet
+      let newName = `${ds.name} (kopie)`
+      let c = 1
+      while (datasets.some(d => d.name === newName)) { c++; newName = `${ds.name} (kopie ${c})` }
+      await axios.post('/api/datasets/', {
+        name: newName, location: ds.location,
+        roots: ds.roots?.length ? ds.roots : ['/'],
+        scan_adapter_type: ds.scan_adapter_type || 'local',
+        transfer_adapter_type: ds.transfer_adapter_type || 'local',
+        scan_adapter_config: ds.scan_adapter_config || {},
+        transfer_adapter_config: ds.transfer_adapter_config || {}
       })
-    }
+      notify('Dataset duplikován', 'success')
+      loadDatasets()
+    } catch (err) { notify('Chyba: ' + (err.response?.data?.detail || err.message), 'error') }
   }
-  
+
   const browseSSH = async (datasetId, path = '/') => {
     setBrowsingDataset({ datasetId, path, items: null, loading: true, type: 'ssh' })
-    setBrowsePath(path)
-    
     try {
-      const response = await axios.get(`/api/datasets/${datasetId}/browse`, {
-        params: { path }
-      })
-      setBrowsingDataset({ datasetId, path: response.data.path, items: response.data.items, loading: false, type: 'ssh' })
-    } catch (error) {
-      setBrowsingDataset({ datasetId, path, items: null, loading: false, error: error.response?.data?.detail || error.message, type: 'ssh' })
+      const { data } = await axios.get(`/api/datasets/${datasetId}/browse`, { params: { path } })
+      setBrowsingDataset({ datasetId, path: data.path, items: data.items, loading: false, type: 'ssh' })
+    } catch (err) {
+      setBrowsingDataset({ datasetId, path, items: null, loading: false, error: err.response?.data?.detail || err.message, type: 'ssh' })
     }
   }
-  
+
   const browseLocal = async (datasetId, path = '/', location = null) => {
-    // Pro nový dataset (datasetId === -1) použijeme location z formData
-    const actualLocation = location || (editingDataset ? editingDataset.location : formData.location)
-    setBrowsingDataset({ datasetId, path, items: null, loading: true, type: 'local', location: actualLocation })
-    setBrowsePath(path)
-    
+    const loc = location || editingDataset?.location || formData.location
+    setBrowsingDataset({ datasetId, path, items: null, loading: true, type: 'local', location: loc })
     try {
       let response
-      // Pro nový dataset použijeme endpoint bez datasetu
       if (datasetId === -1) {
-        if (!actualLocation) {
-          alert('Nejdříve vyberte Lokaci pro dataset')
-          setBrowsingDataset(null)
-          return
-        }
-        response = await axios.get(`/api/datasets/browse-local`, {
-          params: { location: actualLocation, path }
-        })
+        if (!loc) { notify('Vyberte lokaci', 'warning'); setBrowsingDataset(null); return }
+        response = await axios.get('/api/datasets/browse-local', { params: { location: loc, path } })
       } else {
-        response = await axios.get(`/api/datasets/${datasetId}/browse`, {
-          params: { path }
-        })
+        response = await axios.get(`/api/datasets/${datasetId}/browse`, { params: { path } })
       }
-      
-      setBrowsingDataset({ 
-        datasetId, 
-        path: response.data.path, 
-        relative_path: response.data.relative_path,
-        mount_path: response.data.mount_path,
-        items: response.data.items, 
-        loading: false, 
-        type: 'local',
-        location: actualLocation
-      })
-    } catch (error) {
-      setBrowsingDataset({ datasetId, path, items: null, loading: false, error: error.response?.data?.detail || error.message, type: 'local', location: actualLocation })
+      setBrowsingDataset({ datasetId, path: response.data.path, relative_path: response.data.relative_path, mount_path: response.data.mount_path, items: response.data.items, loading: false, type: 'local', location: loc })
+    } catch (err) {
+      setBrowsingDataset({ datasetId, path, items: null, loading: false, error: err.response?.data?.detail || err.message, type: 'local', location: loc })
     }
   }
-  
-  const selectPath = (path, isLocal = false) => {
-    if (isLocal) {
-      // Pro lokální cesty potřebujeme relativní cestu k mount pointu
-      // path je absolutní cesta, potřebujeme relativní část
-      const mountPath = browsingDataset?.mount_path
-      if (mountPath && path.startsWith(mountPath)) {
-        let relativePath = path.substring(mountPath.length)
-        // Odstranit úvodní lomítko
-        if (relativePath.startsWith('/')) {
-          relativePath = relativePath.substring(1)
-        }
-        // Pokud je prázdné, použijeme '/'
-        setFormData({ ...formData, roots: [relativePath || '/'] })
-      } else {
-        // Pokud nemáme mount_path, použijeme celou cestu
-        setFormData({ ...formData, roots: [path] })
-      }
+
+  const selectPath = (path) => {
+    const mp = browsingDataset?.mount_path
+    if (browsingDataset?.type === 'local' && mp && path.startsWith(mp)) {
+      let rel = path.substring(mp.length).replace(/^\//, '')
+      setFormData({ ...formData, roots: [rel || '/'] })
     } else {
       setFormData({ ...formData, roots: [path] })
     }
     setBrowsingDataset(null)
   }
-  
-  const [phase, setPhase] = useState(localStorage.getItem('sync_phase') || 'planning')
-  
-  useEffect(() => {
-    const handlePhaseChange = (e) => {
-      setPhase(e.detail)
-    }
-    window.addEventListener('syncPhaseChanged', handlePhaseChange)
-    return () => window.removeEventListener('syncPhaseChanged', handlePhaseChange)
-  }, [])
-  
-  // Test připojení po načtení datasetů
-  useEffect(() => {
-    if (datasets.length > 0) {
-      datasets.forEach(ds => {
-        if (!connectionStatus[ds.id] && !testingConnections.has(ds.id)) {
-          // Malé zpoždění, aby se UI stihlo vykreslit
-          setTimeout(() => testConnection(ds.id), 500)
-        }
-      })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datasets])
-  
+
+  const updateConfig = (section, field, value) => {
+    setFormData({ ...formData, [section]: { ...formData[section], [field]: value } })
+  }
+
   return (
-    <div className="datasets-page">
-      <div className="box box-compact">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2>Datasety</h2>
-          <button
-            className="button"
-            onClick={() => {
-              setShowForm(!showForm)
-              setEditingDataset(null)
-              setFormData({
-                name: '',
-                location: 'NAS1',
-                roots: ['/'],
-                scan_adapter_type: 'local',
-                transfer_adapter_type: 'local',
-                scan_adapter_config: {},
-                transfer_adapter_config: {}
-              })
-            }}
-            disabled={mountStatus.safe_mode}
-          >
-            {showForm ? 'Zrušit' : '+ Nový dataset'}
+    <>
+      <PageHeader title="Datasety" subtitle="Konfigurace datových zdrojů a cílů"
+        actions={!showForm && (
+          <button className="btn btn-primary" onClick={() => { setShowForm(true); setEditingDataset(null); setFormData({ ...EMPTY_FORM }) }} disabled={mountStatus.safe_mode}>
+            + Nový dataset
           </button>
-        </div>
-        
-        {mountStatus.safe_mode && (
-          <div className="warning-box">
-            <strong>⚠ SAFE MODE</strong>
-            <p>Vytváření datasetů není dostupné v SAFE MODE.</p>
-          </div>
         )}
-        
-        {showForm && (
-          <form onSubmit={handleSubmit} className="dataset-form">
+      />
+
+      {mountStatus.safe_mode && <div className="banner banner-warning mb-md"><strong>SAFE MODE</strong> &mdash; operace zápisu nejsou dostupné.</div>}
+
+      {showForm && (
+        <Card title={editingDataset ? 'Upravit dataset' : 'Nový dataset'}
+          actions={<button className="btn btn-outline btn-sm" onClick={() => { setShowForm(false); setEditingDataset(null) }}>Zrušit</button>}
+        >
+          <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="label">Název</label>
-              <input
-                type="text"
-                className="input"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-              />
+              <label className="form-label">Název</label>
+              <input className="input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
             </div>
-            
+
             <div className="form-group">
-              <label className="label">Lokace (asociace k úložišti)</label>
-              <select
-                className="input"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                required
-              >
+              <label className="form-label">Lokace</label>
+              <select className="input select" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })}>
                 <option value="NAS1">NAS1 (zdrojový NAS)</option>
                 <option value="USB">USB (přechodné úložiště)</option>
                 <option value="NAS2">NAS2 (cílový NAS)</option>
               </select>
-              <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem' }}>
-                Určuje, které fyzické úložiště tento dataset reprezentuje. Pro lokální mount se použije /mnt/nas1, /mnt/usb nebo /mnt/nas2.
-              </small>
+              <span className="form-hint">Určuje fyzické úložiště. Pro lokální mount se použije /mnt/nas1, /mnt/usb nebo /mnt/nas2.</span>
             </div>
-            
+
             <div className="form-group">
-              <label className="label">Způsob skenování</label>
-              <select
-                className="input"
-                value={formData.scan_adapter_type}
-                onChange={(e) => {
-                  const newType = e.target.value
-                  setFormData({ 
-                    ...formData, 
-                    scan_adapter_type: newType,
-                    scan_adapter_config: newType === 'ssh' ? (formData.scan_adapter_config || {}) : {}
-                  })
-                }}
-              >
+              <label className="form-label">Způsob skenování</label>
+              <select className="input select" value={formData.scan_adapter_type}
+                onChange={e => setFormData({ ...formData, scan_adapter_type: e.target.value, scan_adapter_config: e.target.value === 'ssh' ? formData.scan_adapter_config : {} })}>
                 <option value="local">Lokální souborový systém</option>
-                <option value="ssh">Vzdálený SSH/SFTP server</option>
+                <option value="ssh">Vzdálený SSH/SFTP</option>
               </select>
-              <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem' }}>
-                Určuje, jak se budou skenovat soubory - z lokálního mount pointu nebo přes SSH ze vzdáleného serveru.
-              </small>
             </div>
-            
+
             {formData.scan_adapter_type === 'ssh' && (
-              <div style={{ marginLeft: '1rem', padding: '1rem', background: '#f8f9fa', borderRadius: '6px', border: '1px solid #e0e0e0' }}>
-                <h3 style={{ fontSize: '0.9375rem', marginBottom: '0.75rem', color: '#555' }}>SSH Scan konfigurace</h3>
+              <div className="subform">
+                <div className="subform-title">SSH Scan konfigurace</div>
                 <div className="form-group">
-                  <label className="label">Host (IP nebo hostname)</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={formData.scan_adapter_config?.host || ''}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      scan_adapter_config: { ...formData.scan_adapter_config, host: e.target.value }
-                    })}
-                    placeholder="např. 192.168.1.100 nebo nas.example.com"
-                    required
-                  />
+                  <label className="form-label">Host</label>
+                  <input className="input" value={formData.scan_adapter_config?.host || ''} onChange={e => updateConfig('scan_adapter_config', 'host', e.target.value)} placeholder="192.168.1.100" required />
+                </div>
+                <div className="form-row">
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Port</label>
+                    <input className="input" type="number" value={formData.scan_adapter_config?.port || 22} onChange={e => updateConfig('scan_adapter_config', 'port', parseInt(e.target.value) || 22)} />
+                  </div>
+                  <div className="form-group" style={{ flex: 2 }}>
+                    <label className="form-label">Username</label>
+                    <input className="input" value={formData.scan_adapter_config?.username || ''} onChange={e => updateConfig('scan_adapter_config', 'username', e.target.value)} required />
+                  </div>
                 </div>
                 <div className="form-group">
-                  <label className="label">Port</label>
-                  <input
-                    type="number"
-                    className="input"
-                    value={formData.scan_adapter_config?.port || 22}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      scan_adapter_config: { ...formData.scan_adapter_config, port: parseInt(e.target.value) || 22 }
-                    })}
-                    min="1"
-                    max="65535"
-                  />
+                  <label className="form-label">Password</label>
+                  <input className="input" type="password" value={formData.scan_adapter_config?.password || ''} onChange={e => updateConfig('scan_adapter_config', 'password', e.target.value)} required />
                 </div>
                 <div className="form-group">
-                  <label className="label">Username</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={formData.scan_adapter_config?.username || ''}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      scan_adapter_config: { ...formData.scan_adapter_config, username: e.target.value }
-                    })}
-                    placeholder="např. admin"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="label">Password</label>
-                  <input
-                    type="password"
-                    className="input"
-                    value={formData.scan_adapter_config?.password || ''}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      scan_adapter_config: { ...formData.scan_adapter_config, password: e.target.value }
-                    })}
-                    placeholder="SSH heslo"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="label">Base path (výchozí cesta na SSH serveru)</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={formData.scan_adapter_config?.base_path || '/'}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      scan_adapter_config: { ...formData.scan_adapter_config, base_path: e.target.value }
-                    })}
-                    placeholder="/"
-                  />
-                  <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem' }}>
-                    Výchozí cesta na SSH serveru, ze které se pak relativně řeší root složky. Např. pokud base_path je <code>/data</code> a root složka je <code>photos</code>, pak se skenuje <code>/data/photos</code>. Pokud je base_path <code>/</code>, pak root složka musí být absolutní cesta.
-                  </small>
+                  <label className="form-label">Base path</label>
+                  <input className="input" value={formData.scan_adapter_config?.base_path || '/'} onChange={e => updateConfig('scan_adapter_config', 'base_path', e.target.value)} placeholder="/" />
+                  <span className="form-hint">Výchozí cesta na SSH serveru, ze které se relativně řeší root složky.</span>
                 </div>
               </div>
             )}
-            
+
             <div className="form-group">
-              <label className="label">Způsob kopírování</label>
-              <select
-                className="input"
-                value={formData.transfer_adapter_type}
-                onChange={(e) => {
-                  const newType = e.target.value
-                  setFormData({ 
-                    ...formData, 
-                    transfer_adapter_type: newType,
-                    transfer_adapter_config: newType === 'ssh' ? (formData.transfer_adapter_config || {}) : {}
-                  })
-                }}
-              >
+              <label className="form-label">Způsob kopírování</label>
+              <select className="input select" value={formData.transfer_adapter_type}
+                onChange={e => setFormData({ ...formData, transfer_adapter_type: e.target.value, transfer_adapter_config: e.target.value === 'ssh' ? formData.transfer_adapter_config : {} })}>
                 <option value="local">Lokální kopírování (rsync)</option>
                 <option value="ssh">Vzdálené SSH kopírování (rsync)</option>
               </select>
-              <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem' }}>
-                Určuje, jak se budou kopírovat soubory - lokálně pomocí rsync nebo přes SSH na vzdálený server.
-              </small>
             </div>
-            
+
             {formData.transfer_adapter_type === 'ssh' && (
-              <div style={{ marginLeft: '1rem', padding: '1rem', background: '#f8f9fa', borderRadius: '6px', border: '1px solid #e0e0e0' }}>
-                <h3 style={{ fontSize: '0.9375rem', marginBottom: '0.75rem', color: '#555' }}>SSH Transfer konfigurace</h3>
+              <div className="subform">
+                <div className="subform-title">SSH Transfer konfigurace</div>
                 <div className="form-group">
-                  <label className="label">Host (IP nebo hostname)</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={formData.transfer_adapter_config?.host || ''}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      transfer_adapter_config: { ...formData.transfer_adapter_config, host: e.target.value }
-                    })}
-                    placeholder="např. 192.168.1.100 nebo nas.example.com"
-                    required
-                  />
+                  <label className="form-label">Host</label>
+                  <input className="input" value={formData.transfer_adapter_config?.host || ''} onChange={e => updateConfig('transfer_adapter_config', 'host', e.target.value)} placeholder="192.168.1.100" required />
+                </div>
+                <div className="form-row">
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Port</label>
+                    <input className="input" type="number" value={formData.transfer_adapter_config?.port || 22} onChange={e => updateConfig('transfer_adapter_config', 'port', parseInt(e.target.value) || 22)} />
+                  </div>
+                  <div className="form-group" style={{ flex: 2 }}>
+                    <label className="form-label">Username</label>
+                    <input className="input" value={formData.transfer_adapter_config?.username || ''} onChange={e => updateConfig('transfer_adapter_config', 'username', e.target.value)} required />
+                  </div>
                 </div>
                 <div className="form-group">
-                  <label className="label">Port</label>
-                  <input
-                    type="number"
-                    className="input"
-                    value={formData.transfer_adapter_config?.port || 22}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      transfer_adapter_config: { ...formData.transfer_adapter_config, port: parseInt(e.target.value) || 22 }
-                    })}
-                    min="1"
-                    max="65535"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="label">Username</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={formData.transfer_adapter_config?.username || ''}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      transfer_adapter_config: { ...formData.transfer_adapter_config, username: e.target.value }
-                    })}
-                    placeholder="např. admin"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="label">Password</label>
-                  <input
-                    type="password"
-                    className="input"
-                    value={formData.transfer_adapter_config?.password || ''}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      transfer_adapter_config: { ...formData.transfer_adapter_config, password: e.target.value }
-                    })}
-                    placeholder="SSH heslo"
-                    required
-                  />
+                  <label className="form-label">Password</label>
+                  <input className="input" type="password" value={formData.transfer_adapter_config?.password || ''} onChange={e => updateConfig('transfer_adapter_config', 'password', e.target.value)} required />
                 </div>
               </div>
             )}
-            
+
             <div className="form-group">
-              <label className="label">Root složka</label>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <input
-                  type="text"
-                  className="input"
-                  value={formData.roots[0] || ''}
-                  onChange={(e) => updateRoot(0, e.target.value)}
-                  placeholder="např. /data/photos nebo data/photos"
-                  required
-                  style={{ flex: 1, minWidth: '200px' }}
-                />
-                {formData.scan_adapter_type === 'local' && (
-                  <button
-                    type="button"
-                    className="button"
-                    onClick={() => {
-                      // Pro existující dataset můžeme procházet přímo
-                      if (editingDataset) {
-                        browseLocal(editingDataset.id, '/')
-                      }
-                    }}
-                    disabled={!editingDataset}
-                    style={{ background: editingDataset ? '#17a2b8' : '#6c757d', whiteSpace: 'nowrap', cursor: editingDataset ? 'pointer' : 'not-allowed' }}
-                    title={!editingDataset ? 'Procházení je dostupné pouze při editaci existujícího datasetu' : 'Procházet'}
-                  >
-                    📁 Procházet
-                  </button>
-                )}
-                {formData.scan_adapter_type === 'ssh' && (
-                  <button
-                    type="button"
-                    className="button"
-                    onClick={() => {
-                      // Pro existující dataset můžeme procházet přímo
-                      if (editingDataset) {
-                        browseSSH(editingDataset.id, formData.scan_adapter_config?.base_path || '/')
-                      }
-                    }}
-                    disabled={!editingDataset}
-                    style={{ background: editingDataset ? '#17a2b8' : '#6c757d', whiteSpace: 'nowrap', cursor: editingDataset ? 'pointer' : 'not-allowed' }}
-                    title={!editingDataset ? 'Procházení je dostupné pouze při editaci existujícího datasetu' : 'Procházet SSH hosta'}
-                  >
-                    📁 Procházet SSH hosta
-                  </button>
+              <label className="form-label">Root složka</label>
+              <div className="form-row">
+                <input className="input" style={{ flex: 1 }} value={formData.roots[0] || ''} onChange={e => setFormData({ ...formData, roots: [e.target.value] })} placeholder="/data/photos" required />
+                {editingDataset && (
+                  <button type="button" className="btn btn-outline btn-sm" onClick={() => {
+                    if (formData.scan_adapter_type === 'ssh') browseSSH(editingDataset.id, formData.scan_adapter_config?.base_path || '/')
+                    else browseLocal(editingDataset.id, '/')
+                  }}>Procházet</button>
                 )}
               </div>
-              <small style={{ color: '#666', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem' }}>
-                <strong>Důležité:</strong> Každý dataset má pouze jednu root složku. Pokud chcete skenovat více složek na stejném serveru, vytvořte více datasetů (každý s jednou root složkou).
-              </small>
+              <span className="form-hint">Každý dataset má jednu root složku. Pro více složek vytvořte více datasetů.</span>
             </div>
-            
-            <button type="submit" className="button">
-              {editingDataset ? 'Uložit změny' : 'Vytvořit dataset'}
-            </button>
+
+            <div className="form-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => { setShowForm(false); setEditingDataset(null) }}>Zrušit</button>
+              <button type="submit" className="btn btn-primary">{editingDataset ? 'Uložit' : 'Vytvořit'}</button>
+            </div>
           </form>
-        )}
-      </div>
-      
-      <div className="box box-compact">
-        <h2>Seznam datasetů</h2>
+        </Card>
+      )}
+
+      <Card title="Seznam datasetů">
         {datasets.length === 0 ? (
-          <p>Žádné datasety</p>
+          <div className="empty-state">
+            <div className="empty-state-icon">{'\u{1F4BE}'}</div>
+            <div className="empty-state-title">Žádné datasety</div>
+            <div className="empty-state-text">Vytvořte první dataset pro zahájení synchronizace.</div>
+          </div>
         ) : (
-          <table className="datasets-table">
+          <table className="table">
             <thead>
               <tr>
                 <th>ID</th>
                 <th>Název</th>
                 <th>Lokace</th>
-                <th>Roots</th>
+                <th>Root</th>
                 <th>Scan</th>
                 <th>Transfer</th>
-                <th>Stav připojení</th>
-                <th>Akce</th>
+                <th>Stav</th>
+                <th style={{ textAlign: 'right' }}>Akce</th>
               </tr>
             </thead>
             <tbody>
-              {Array.isArray(datasets) && datasets.map(dataset => {
-                const status = connectionStatus[dataset.id]
-                const isTesting = testingConnections.has(dataset.id)
-                
+              {datasets.map(ds => {
+                const st = connectionStatus[ds.id]
+                const testing = testingConnections.has(ds.id)
                 return (
-                  <tr key={dataset.id}>
-                    <td>{dataset.id}</td>
-                    <td>{dataset.name || '-'}</td>
-                    <td>{dataset.location || '-'}</td>
-                    <td>{Array.isArray(dataset.roots) && dataset.roots.length > 0 ? dataset.roots[0] : '-'}</td>
-                    <td>{dataset.scan_adapter_type || '-'}</td>
-                    <td>{dataset.transfer_adapter_type || '-'}</td>
+                  <tr key={ds.id}>
+                    <td>{ds.id}</td>
+                    <td style={{ fontWeight: 500 }}>{ds.name || '-'}</td>
+                    <td><StatusBadge status={ds.location === 'NAS1' ? 'info' : ds.location === 'USB' ? 'warning' : 'success'} label={ds.location} /></td>
+                    <td className="text-mono text-sm">{ds.roots?.[0] || '-'}</td>
+                    <td>{ds.scan_adapter_type}</td>
+                    <td>{ds.transfer_adapter_type}</td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
-                        {isTesting ? (
-                          <span style={{ color: '#666', fontSize: '0.875rem' }}>Testuji...</span>
-                        ) : status ? (
-                          <>
-                            {status.connected ? (
-                              <span style={{ color: '#28a745', fontWeight: 'bold', fontSize: '0.875rem' }}>✓ Připojeno</span>
-                            ) : (
-                              <span style={{ color: '#dc3545', fontWeight: 'bold', fontSize: '0.875rem' }}>✗ Nepřipojeno</span>
-                            )}
-                            {status.error && (
-                              <span style={{ color: '#666', fontSize: '0.75rem' }} title={status.error}>
-                                ⚠
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <span style={{ color: '#999', fontSize: '0.875rem' }}>Neotestováno</span>
-                        )}
-                        <button
-                          className="button"
-                          onClick={() => testConnection(dataset.id)}
-                          disabled={isTesting}
-                          style={{ 
-                            fontSize: '0.75rem', 
-                            padding: '0.2rem 0.4rem',
-                            background: '#6c757d',
-                            flexShrink: 0
-                          }}
-                          title="Otestovat připojení"
-                        >
-                          🔄
-                        </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                        {testing ? <span className="text-muted text-sm">Testuji...</span>
+                          : st ? (st.connected
+                            ? <span style={{ color: 'var(--color-success)', fontWeight: 600, fontSize: '0.8125rem' }}>{'\u2713'} OK</span>
+                            : <span style={{ color: 'var(--color-error)', fontWeight: 600, fontSize: '0.8125rem' }}>{'\u2717'}</span>
+                          ) : <span className="text-muted text-sm">-</span>}
+                        <button className="btn btn-outline btn-xs" onClick={() => testConnection(ds.id)} disabled={testing}>Test</button>
                       </div>
                     </td>
                     <td>
-                      <button
-                        className="button"
-                        onClick={() => handleEdit(dataset)}
-                        disabled={mountStatus.safe_mode}
-                        style={{ marginRight: '0.5rem', fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
-                      >
-                        Upravit
-                      </button>
-                      <button
-                        className="button"
-                        onClick={() => handleDuplicate(dataset)}
-                        disabled={mountStatus.safe_mode}
-                        style={{ marginRight: '0.5rem', fontSize: '0.875rem', padding: '0.25rem 0.5rem', background: '#17a2b8' }}
-                        title="Vytvořit kopii datasetu se všemi parametry"
-                      >
-                        Duplikovat
-                      </button>
-                      <button
-                        className="button"
-                        onClick={() => handleDelete(dataset.id)}
-                        disabled={mountStatus.safe_mode}
-                        style={{ background: '#dc3545', fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
-                      >
-                        Smazat
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.375rem', justifyContent: 'flex-end' }}>
+                        <button className="btn btn-outline btn-sm" onClick={() => handleEdit(ds)} disabled={mountStatus.safe_mode}>Upravit</button>
+                        <button className="btn btn-outline btn-sm" onClick={() => handleDuplicate(ds)} disabled={mountStatus.safe_mode}>Duplikovat</button>
+                        <button className="btn btn-danger btn-sm" onClick={() => setDeleteTarget(ds.id)} disabled={mountStatus.safe_mode}>Smazat</button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -698,180 +335,30 @@ function Datasets() {
             </tbody>
           </table>
         )}
-      </div>
-      
-      {/* Browse Dialog (SSH nebo Local) */}
-      {browsingDataset && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 10000,
-          overflow: 'auto',
-          padding: '20px'
-        }}>
-          <div className="box" style={{ maxWidth: '800px', maxHeight: '80vh', overflow: 'auto', width: '90%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h2>{browsingDataset.type === 'local' ? 'Procházení lokálního adresáře' : 'Procházení SSH hosta'}</h2>
-              <button
-                className="button"
-                onClick={() => setBrowsingDataset(null)}
-                style={{ background: '#6c757d' }}
-              >
-                ✕ Zavřít
-              </button>
-            </div>
-            
-            <div style={{ marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <button
-                  className="button"
-                  onClick={() => {
-                    if (browsingDataset.type === 'local') {
-                      browseLocal(browsingDataset.datasetId, '/', browsingDataset.location)
-                    } else {
-                      browseSSH(browsingDataset.datasetId, '/')
-                    }
-                  }}
-                  disabled={browsingDataset.relative_path === '/' || (browsingDataset.path === '/' && !browsingDataset.mount_path)}
-                  style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
-                >
-                  🏠 Root
-                </button>
-                {(browsingDataset.path !== '/' && browsingDataset.path !== browsingDataset?.mount_path) && (
-                  <button
-                    className="button"
-                    onClick={() => {
-                      if (browsingDataset.type === 'local') {
-                        // Pro lokální cesty potřebujeme získat parent adresář
-                        const pathParts = browsingDataset.path.split('/')
-                        const parentPath = pathParts.slice(0, -1).join('/') || '/'
-                        browseLocal(browsingDataset.datasetId, parentPath, browsingDataset.location)
-                      } else {
-                        const parentPath = browsingDataset.path.split('/').slice(0, -1).join('/') || '/'
-                        browseSSH(browsingDataset.datasetId, parentPath)
-                      }
-                    }}
-                    style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
-                  >
-                    ⬆ Nahoru
-                  </button>
-                )}
-                <span style={{ color: '#666', fontSize: '0.875rem' }}>
-                  Cesta: <code>{browsingDataset.relative_path || browsingDataset.path}</code>
-                </span>
-                {browsingDataset.mount_path && (
-                  <span style={{ color: '#999', fontSize: '0.75rem' }}>
-                    (Mount: <code>{browsingDataset.mount_path}</code>)
-                  </span>
-                )}
-              </div>
-            </div>
-            
-            {browsingDataset.loading && (
-              <p>Načítání...</p>
-            )}
-            
-            {browsingDataset.error && (
-              <div className="warning-box">
-                <strong>Chyba:</strong> {browsingDataset.error}
-              </div>
-            )}
-            
-            {!browsingDataset.loading && !browsingDataset.error && browsingDataset.items && (
-              <div>
-                <table className="datasets-table" style={{ fontSize: '0.875rem' }}>
-                  <thead>
-                    <tr>
-                      <th>Typ</th>
-                      <th>Název</th>
-                      <th>Velikost</th>
-                      <th>Akce</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {browsingDataset.items.map((item, idx) => (
-                      <tr key={idx}>
-                        <td>
-                          {item.is_directory === true ? '📁 Adresář' : 
-                           item.is_directory === false ? '📄 Soubor' : '❓'}
-                        </td>
-                        <td style={{ fontFamily: 'monospace' }}>{item.name}</td>
-                        <td style={{ whiteSpace: 'nowrap' }}>
-                          {item.size !== null && item.size !== undefined 
-                            ? `${((item.size || 0) / 1024 / 1024 / 1024).toFixed(1)} GB` 
-                            : '-'}
-                        </td>
-                        <td>
-                          {item.is_directory === true ? (
-                            <button
-                              className="button"
-                              onClick={() => {
-                                if (browsingDataset.type === 'local') {
-                                  browseLocal(browsingDataset.datasetId, item.path, browsingDataset.location)
-                                } else {
-                                  browseSSH(browsingDataset.datasetId, item.path)
-                                }
-                              }}
-                              style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem' }}
-                            >
-                              Otevřít
-                            </button>
-                          ) : (
-                            <span style={{ color: '#999' }}>-</span>
-                          )}
-                          <button
-                            className="button"
-                            onClick={() => selectPath(item.path, browsingDataset.type === 'local')}
-                            style={{ 
-                              marginLeft: '0.5rem', 
-                              fontSize: '0.75rem', 
-                              padding: '0.2rem 0.4rem',
-                              background: '#28a745'
-                            }}
-                            title="Použít tuto cestu jako root složku"
-                          >
-                            ✓ Vybrat
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      
-      <div className="box box-compact help-box">
-        <h3>📖 Nápověda: Datasety</h3>
-        <p><strong>Dataset</strong> je logická jednotka, která definuje:</p>
-        <ul>
-          <li><strong>Lokace:</strong> Asociace k fyzickému úložišti - NAS1 (zdrojový NAS), USB (přechodné úložiště), nebo NAS2 (cílový NAS). Určuje, který mount point nebo SSH server se použije.</li>
-          <li><strong>Root složka:</strong> Každý dataset má pouze jednu root složku (např. `/data/photos`). Pokud chcete skenovat více složek na stejném serveru, vytvořte více datasetů - každý s jednou root složkou. To umožní spouštět scany a diffy pro každou složku samostatně.</li>
-          <li><strong>Způsob skenování:</strong> Jak se data skenují - z lokálního souborového systému nebo přes SSH ze vzdáleného serveru</li>
-          <li><strong>Způsob kopírování:</strong> Jak se data kopírují - lokálně pomocí rsync nebo přes SSH na vzdálený server</li>
-        </ul>
-        {phase === 'planning' && (
-          <p style={{ marginTop: '0.75rem' }}><strong>Pro fázi 1 (Plánování):</strong> Vytvořte dataset pro NAS1 (lokace: NAS1, může být SSH) a dataset pro NAS2 (lokace: NAS2, může být SSH).</p>
-        )}
-        {phase === 'copy-nas-hdd' && (
-          <p style={{ marginTop: '0.75rem' }}><strong>Pro fázi 2a (NAS → HDD):</strong> Dataset pro NAS1 by měl být již vytvořen ve fázi 1. USB dataset není potřeba - kopírování probíhá přímo.</p>
-        )}
-        {phase === 'copy-hdd-nas' && (
-          <p style={{ marginTop: '0.75rem' }}><strong>Pro fázi 2b (HDD → NAS):</strong> Dataset pro NAS2 by měl být již vytvořen ve fázi 1. USB dataset není potřeba - kopírování probíhá přímo.</p>
-        )}
-      </div>
-    </div>
+      </Card>
+
+      <Card variant="info" title="Nápověda: Datasety">
+        <p className="text-sm" style={{ color: 'var(--color-text-light)', lineHeight: 1.6 }}>
+          <strong>Dataset</strong> definuje logickou jednotku synchronizace: lokaci (NAS1/USB/NAS2), root složku,
+          způsob skenování (lokální/SSH) a kopírování (rsync/SSH). Každý dataset má jednu root složku &mdash;
+          pro více složek vytvořte více datasetů.
+          {phase === 'planning' && <><br /><strong>Fáze 1:</strong> Vytvořte datasety pro NAS1 a NAS2.</>}
+          {phase === 'copy-nas-hdd' && <><br /><strong>Fáze 2:</strong> Dataset pro NAS1 by měl být již vytvořen.</>}
+          {phase === 'copy-hdd-nas' && <><br /><strong>Fáze 3:</strong> Dataset pro NAS2 by měl být již vytvořen.</>}
+        </p>
+      </Card>
+
+      <ConfirmDialog open={!!deleteTarget} title="Smazat dataset" message="Opravdu chcete smazat tento dataset?" danger onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
+
+      <BrowseModal data={browsingDataset} onClose={() => setBrowsingDataset(null)}
+        onNavigate={(p) => browsingDataset?.type === 'local' ? browseLocal(browsingDataset.datasetId, p, browsingDataset.location) : browseSSH(browsingDataset.datasetId, p)}
+        onSelect={selectPath}
+        onGoRoot={() => browsingDataset?.type === 'local' ? browseLocal(browsingDataset.datasetId, '/', browsingDataset.location) : browseSSH(browsingDataset.datasetId, '/')}
+        onGoUp={() => {
+          const parent = browsingDataset?.path?.split('/').slice(0, -1).join('/') || '/'
+          browsingDataset?.type === 'local' ? browseLocal(browsingDataset.datasetId, parent, browsingDataset.location) : browseSSH(browsingDataset.datasetId, parent)
+        }}
+      />
+    </>
   )
 }
-
-export default Datasets
-

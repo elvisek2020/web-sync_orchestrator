@@ -17,6 +17,20 @@ class JobRunner:
     
     def __init__(self):
         self.running_jobs: Dict[int, threading.Thread] = {}
+        self._lock = threading.Lock()
+    
+    def _register_job(self, job_id: int, thread: threading.Thread):
+        with self._lock:
+            self.running_jobs[job_id] = thread
+    
+    def _unregister_job(self, job_id: int):
+        with self._lock:
+            self.running_jobs.pop(job_id, None)
+    
+    def _is_job_alive(self, job_id: int) -> bool:
+        with self._lock:
+            thread = self.running_jobs.get(job_id)
+            return thread is not None and thread.is_alive()
     
     async def run_scan(self, scan_id: int, dataset_id: int):
         """Spustí scan job"""
@@ -32,12 +46,8 @@ class JobRunner:
                 
                 # Zkontrolovat, zda scan už není dokončený nebo běžící (ochrana proti duplicitnímu spuštění)
                 if scan.status in ["completed", "running"]:
-                    # Pokud je už running, může to být duplicitní spuštění - zkontrolovat, zda thread skutečně běží
-                    if scan_id in self.running_jobs:
-                        thread = self.running_jobs[scan_id]
-                        if thread.is_alive():
-                            # Thread skutečně běží, nechat ho být
-                            return
+                    if self._is_job_alive(scan_id):
+                        return
                     # Pokud není v running_jobs, ale status je running, resetovat na pending
                     if scan.status == "running":
                         scan.status = "pending"
@@ -337,11 +347,10 @@ class JobRunner:
                     session.close()
                 except:
                     pass
-                if scan_id in self.running_jobs:
-                    del self.running_jobs[scan_id]
+                self._unregister_job(scan_id)
         
         thread = threading.Thread(target=scan_thread, daemon=True)
-        self.running_jobs[scan_id] = thread
+        self._register_job(scan_id, thread)
         thread.start()
     
     async def run_diff(self, diff_id: int):
@@ -377,52 +386,7 @@ class JobRunner:
                 if not source_dataset or not target_dataset:
                     raise Exception("Source or target dataset not found")
                 
-                # Získání root složek (měl by být jen jeden podle validace)
-                source_root = source_dataset.roots[0] if source_dataset.roots else ""
-                target_root = target_dataset.roots[0] if target_dataset.roots else ""
-                
-                # Normalizační funkce - odstraní root složku z cesty
-                def normalize_path(path, root):
-                    """Odstraní root složku z cesty a vrátí normalizovanou cestu
-                    
-                    Zpracovává různé případy:
-                    - Cesta začíná root složkou: "NAS-FILMY/Movie/file.mkv" -> "Movie/file.mkv"
-                    - Cesta už je normalizovaná: "Movie/file.mkv" -> "Movie/file.mkv"
-                    - Root není v cestě: vrátí cestu tak jak je
-                    """
-                    if not path:
-                        return path
-                    
-                    if not root:
-                        # Pokud není root, vrátit cestu normalizovanou (bez úvodních lomítek)
-                        return path.strip("/")
-                    
-                    # Normalizace - odstranit úvodní lomítka
-                    root_clean = root.strip("/")
-                    path_clean = path.strip("/")
-                    
-                    if not root_clean:
-                        # Pokud root je prázdný nebo jen lomítka, vrátit cestu
-                        return path_clean
-                    
-                    # Pokud cesta začíná root složkou, odstranit ji
-                    if path_clean.startswith(root_clean + "/"):
-                        return path_clean[len(root_clean) + 1:]
-                    elif path_clean == root_clean:
-                        return ""  # Cesta je přímo root složka
-                    elif path_clean.startswith(root_clean):
-                        # Root je na začátku, ale bez lomítka (např. "NAS-FILMY" a "NAS-FILMYMovie")
-                        # Toto by nemělo nastat, ale pro jistotu
-                        return path_clean[len(root_clean):].lstrip("/")
-                    else:
-                        # Pokud cesta nezačíná root, zkusit najít root v cestě jako první část
-                        # Např. pokud root je "NAS-FILMY" a cesta je "NAS-FILMY/Movie/file.mkv"
-                        parts = path_clean.split("/")
-                        if parts and parts[0] == root_clean:
-                            return "/".join(parts[1:]) if len(parts) > 1 else ""
-                        # Pokud root není v cestě, vrátit cestu tak jak je
-                        # (možná cesta už byla normalizována při scanu - to je OK)
-                        return path_clean
+                from backend.utils import normalize_path, normalize_root_rel_path, is_ignored_path
                 
                 # Načtení souborů s normalizovanými cestami
                 # Zkusit načíst soubory s ošetřením poškozené databáze
@@ -451,46 +415,58 @@ class JobRunner:
                 # Debug: Logování root složek pro diagnostiku
                 import logging
                 logger = logging.getLogger(__name__)
-                logger.info(f"Diff {diff_id}: Source root: '{source_root}', Target root: '{target_root}'")
+                source_root = source_dataset.roots[0] if source_dataset.roots else ""
+                target_root = target_dataset.roots[0] if target_dataset.roots else ""
+                logger.info(f"Diff {diff_id}: Source dataset root: '{source_root}', Target dataset root: '{target_root}'")
                 logger.info(f"Diff {diff_id}: Source files count: {len(source_files_raw)}, Target files count: {len(target_files_raw)}")
                 
                 # Vytvoření mapy normalizovaných cest -> soubory
-                # Použijeme dvojí mapování: normalizované cesty i původní cesty pro fallback
+                # Použijeme root_rel_path z každého souboru místo root z datasetu pro přesnější normalizaci
                 source_files = {}  # normalizovaná cesta -> soubor
                 source_files_by_original = {}  # původní cesta -> soubor (pro fallback)
                 normalization_issues = []  # Pro debug - ukládání problémů s normalizací
                 
                 for f in source_files_raw:
-                    if not f.full_rel_path:
+                    if not f.full_rel_path or is_ignored_path(f.full_rel_path):
                         continue
-                    normalized = normalize_path(f.full_rel_path, source_root)
-                    # Uložit do mapy normalizovaných cest
+                    file_root = normalize_root_rel_path(f.root_rel_path) if f.root_rel_path else ""
+                    if not file_root:
+                        file_root = normalize_root_rel_path(source_dataset.roots[0]) if source_dataset.roots else ""
+                    
+                    normalized = normalize_path(f.full_rel_path, file_root)
+                    if is_ignored_path(normalized):
+                        continue
                     if normalized not in source_files:
                         source_files[normalized] = f
                     # Uložit také do mapy původních cest pro fallback
                     source_files_by_original[f.full_rel_path] = f
                     # Debug: Zkontrolovat, zda normalizace funguje správně
-                    if len(normalization_issues) < 5 and f.full_rel_path and source_root:
+                    if len(normalization_issues) < 5 and f.full_rel_path and file_root:
                         # Uložit několik příkladů pro debug
-                        if not normalized or (normalized == f.full_rel_path and source_root):
-                            normalization_issues.append(f"Source: path='{f.full_rel_path}', root='{source_root}', normalized='{normalized}'")
+                        if not normalized or (normalized == f.full_rel_path and file_root):
+                            normalization_issues.append(f"Source: path='{f.full_rel_path}', root='{file_root}', normalized='{normalized}'")
                 
                 target_files = {}  # normalizovaná cesta -> soubor
                 target_files_by_original = {}  # původní cesta -> soubor (pro fallback)
                 for f in target_files_raw:
-                    if not f.full_rel_path:
+                    if not f.full_rel_path or is_ignored_path(f.full_rel_path):
                         continue
-                    normalized = normalize_path(f.full_rel_path, target_root)
-                    # Uložit do mapy normalizovaných cest
+                    file_root = normalize_root_rel_path(f.root_rel_path) if f.root_rel_path else ""
+                    if not file_root:
+                        file_root = normalize_root_rel_path(target_dataset.roots[0]) if target_dataset.roots else ""
+                    
+                    normalized = normalize_path(f.full_rel_path, file_root)
+                    if is_ignored_path(normalized):
+                        continue
                     if normalized not in target_files:
                         target_files[normalized] = f
                     # Uložit také do mapy původních cest pro fallback
                     target_files_by_original[f.full_rel_path] = f
                     # Debug: Zkontrolovat, zda normalizace funguje správně
-                    if len(normalization_issues) < 10 and f.full_rel_path and target_root:
+                    if len(normalization_issues) < 10 and f.full_rel_path and file_root:
                         # Uložit několik příkladů pro debug
-                        if not normalized or (normalized == f.full_rel_path and target_root):
-                            normalization_issues.append(f"Target: path='{f.full_rel_path}', root='{target_root}', normalized='{normalized}'")
+                        if not normalized or (normalized == f.full_rel_path and file_root):
+                            normalization_issues.append(f"Target: path='{f.full_rel_path}', root='{file_root}', normalized='{normalized}'")
                 
                 # Debug: Logovat problémy s normalizací
                 if normalization_issues:
@@ -547,23 +523,25 @@ class JobRunner:
                         # Soubor byl nalezen normálně
                         pass
                     else:
-                        continue  # Soubor existuje jen v target, ignorujeme
+                        # Soubor existuje jen v target - označit jako "extra"
+                        pass
                     
-                    # Porovnání souborů (buď normálně nalezené nebo pomocí fallback)
                     if source_file and target_file:
-                        if source_file.size == target_file.size:
-                            category = "same"
-                        else:
+                        if source_file.size != target_file.size:
                             category = "conflict"
+                        elif (source_file.mtime_epoch and target_file.mtime_epoch and
+                              abs(source_file.mtime_epoch - target_file.mtime_epoch) > 2):
+                            category = "conflict"
+                        else:
+                            category = "same"
                     elif source_file and not target_file:
                         category = "missing"
                     else:
-                        continue  # Soubor existuje jen v target, ignorujeme
+                        category = "extra"
                     
-                    # Uložit normalizovanou cestu a také původní cesty pro referenci
                     diff_item = DiffItem(
                         diff_id=diff_id,
-                        full_rel_path=normalized_path,  # Normalizovaná cesta pro porovnání
+                        full_rel_path=normalized_path,
                         source_size=source_file.size if source_file else None,
                         target_size=target_file.size if target_file else None,
                         source_mtime=source_file.mtime_epoch if source_file else None,
@@ -686,9 +664,8 @@ class JobRunner:
                                     new_session.commit()
                                     new_session.close()
                         except Exception as final_error:
-                            print(f"Failed to update diff error message: {final_error}")
-                            import traceback
-                            traceback.print_exc()
+                            import logging
+                            logging.getLogger(__name__).error(f"Failed to update diff error message: {final_error}")
                 
                 # Broadcast s chybou
                 try:
@@ -697,14 +674,14 @@ class JobRunner:
                         "data": {"job_id": diff_id, "type": "diff", "status": "failed", "error": str(e)}
                     }))
                 except Exception as broadcast_error:
-                    print(f"Failed to broadcast diff error: {broadcast_error}")
+                    import logging
+                    logging.getLogger(__name__).error(f"Failed to broadcast diff error: {broadcast_error}")
             finally:
                 session.close()
-                if diff_id in self.running_jobs:
-                    del self.running_jobs[diff_id]
+                self._unregister_job(diff_id)
         
         thread = threading.Thread(target=diff_thread, daemon=True)
-        self.running_jobs[diff_id] = thread
+        self._register_job(diff_id, thread)
         thread.start()
     
     async def run_batch_planning(self, batch_id: int):
@@ -847,11 +824,10 @@ class JobRunner:
                 }))
             finally:
                 session.close()
-                if batch_id in self.running_jobs:
-                    del self.running_jobs[batch_id]
+                self._unregister_job(batch_id)
         
         thread = threading.Thread(target=batch_thread, daemon=True)
-        self.running_jobs[batch_id] = thread
+        self._register_job(batch_id, thread)
         thread.start()
     
     def run_copy(self, job_id: int, batch_id: int, direction: str, dry_run: bool = False):
@@ -915,33 +891,10 @@ class JobRunner:
                     session.commit()
                     return
                 
-                # Získání root složky pro normalizaci cest (stejně jako v run_diff)
-                source_root = source_dataset.roots[0] if source_dataset.roots else ""
-                target_root = target_dataset.roots[0] if target_dataset.roots else ""
+                from backend.utils import normalize_path, normalize_root_rel_path
                 
-                # Normalizační funkce - stejná jako v run_diff
-                def normalize_path(path, root):
-                    """Odstraní root složku z cesty a vrátí normalizovanou cestu"""
-                    if not root:
-                        return path
-                    # Normalizace - odstranit úvodní lomítka
-                    root_clean = root.strip("/")
-                    path_clean = path.strip("/")
-                    
-                    # Pokud cesta začíná root složkou, odstranit ji
-                    if path_clean.startswith(root_clean + "/"):
-                        return path_clean[len(root_clean) + 1:]
-                    elif path_clean == root_clean:
-                        return ""  # Cesta je přímo root složka
-                    elif path_clean.startswith(root_clean):
-                        return path_clean[len(root_clean):].lstrip("/")
-                    else:
-                        # Pokud cesta nezačíná root, zkusit najít root v cestě
-                        # Např. pokud root je "NAS-FILMY" a cesta je "NAS-FILMY/Movie/file.mkv"
-                        parts = path_clean.split("/")
-                        if parts[0] == root_clean:
-                            return "/".join(parts[1:])
-                        return path_clean
+                source_root = normalize_root_rel_path(source_dataset.roots[0]) if source_dataset.roots else ""
+                target_root = normalize_root_rel_path(target_dataset.roots[0]) if target_dataset.roots else ""
                 
                 # Načtení batch items (pouze povolené)
                 batch_items = session.query(BatchItem).filter(
@@ -1262,11 +1215,116 @@ class JobRunner:
                 }))
             finally:
                 session.close()
-                if job_id in self.running_jobs:
-                    del self.running_jobs[job_id]
+                self._unregister_job(job_id)
 
         thread = threading.Thread(target=copy_thread, daemon=True)
-        self.running_jobs[job_id] = thread
+        self._register_job(job_id, thread)
         thread.start()
+
+    def verify_copy(self, job_id: int) -> dict:
+        """Verify that files from a completed copy job exist at the target with correct sizes.
+        
+        Returns a dict with verification results (synchronous, not threaded).
+        """
+        import os
+        session = storage_service.get_session()
+        if not session:
+            return {"success": False, "error": "Database unavailable"}
+
+        try:
+            job = session.query(JobRun).filter(JobRun.id == job_id).first()
+            if not job:
+                return {"success": False, "error": "Job not found"}
+            if job.type != "copy":
+                return {"success": False, "error": "Not a copy job"}
+
+            metadata = job.job_metadata or {}
+            batch_id = metadata.get("batch_id")
+            direction = metadata.get("direction")
+            if not batch_id or not direction:
+                return {"success": False, "error": "Missing job metadata"}
+
+            batch = session.query(Batch).filter(Batch.id == batch_id).first()
+            if not batch:
+                return {"success": False, "error": "Batch not found"}
+
+            diff = session.query(Diff).filter(Diff.id == batch.diff_id).first()
+            if not diff:
+                return {"success": False, "error": "Diff not found"}
+
+            source_scan = session.query(Scan).filter(Scan.id == diff.source_scan_id).first()
+            target_scan = session.query(Scan).filter(Scan.id == diff.target_scan_id).first()
+            source_dataset = session.query(Dataset).filter(Dataset.id == source_scan.dataset_id).first() if source_scan else None
+            target_dataset = session.query(Dataset).filter(Dataset.id == target_scan.dataset_id).first() if target_scan else None
+
+            if not source_dataset or not target_dataset:
+                return {"success": False, "error": "Dataset not found"}
+
+            # Determine the target base path
+            from backend.utils import normalize_root_rel_path
+            source_root = normalize_root_rel_path(source_dataset.roots[0]) if source_dataset.roots else ""
+            target_root = normalize_root_rel_path(target_dataset.roots[0]) if target_dataset.roots else ""
+
+            if direction == "nas1-usb":
+                target_base = f"/mnt/usb/job-{job_id}"
+            elif direction == "usb-nas2":
+                if target_root:
+                    target_base = f"/mnt/nas2/{target_root}"
+                else:
+                    target_base = "/mnt/nas2"
+            else:
+                return {"success": False, "error": f"Unknown direction: {direction}"}
+
+            # Load file statuses from the job
+            file_statuses = session.query(JobFileStatus).filter(
+                JobFileStatus.job_id == job_id
+            ).all()
+
+            if not file_statuses:
+                # Fallback: use batch items
+                batch_items = session.query(BatchItem).filter(
+                    BatchItem.batch_id == batch_id,
+                    BatchItem.enabled == True
+                ).all()
+                files_to_check = [(bi.full_rel_path, bi.size) for bi in batch_items]
+            else:
+                files_to_check = [(fs.file_path, fs.file_size) for fs in file_statuses if fs.status == "copied"]
+
+            verified = 0
+            missing = []
+            size_mismatch = []
+
+            for file_path, expected_size in files_to_check:
+                full_path = os.path.join(target_base, file_path)
+                if not os.path.exists(full_path):
+                    missing.append(file_path)
+                else:
+                    actual_size = os.path.getsize(full_path)
+                    if actual_size != expected_size:
+                        size_mismatch.append({
+                            "path": file_path,
+                            "expected": expected_size,
+                            "actual": actual_size
+                        })
+                    else:
+                        verified += 1
+
+            total = len(files_to_check)
+            return {
+                "success": True,
+                "total_files": total,
+                "verified_ok": verified,
+                "missing_count": len(missing),
+                "missing_files": missing[:50],
+                "size_mismatch_count": len(size_mismatch),
+                "size_mismatch_files": size_mismatch[:50],
+                "target_base": target_base,
+                "direction": direction
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+        finally:
+            session.close()
+
 
 job_runner = JobRunner()

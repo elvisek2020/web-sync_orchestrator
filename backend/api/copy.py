@@ -202,6 +202,57 @@ async def get_job_files(job_id: int):
     finally:
         session.close()
 
+@router.post("/jobs/{job_id}/retry")
+async def retry_job(job_id: int, _: None = Depends(check_safe_mode)):
+    """Retry a failed copy job with the same parameters"""
+    session = storage_service.get_session()
+    if not session:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    
+    try:
+        old_job = session.query(JobRun).filter(JobRun.id == job_id).first()
+        if not old_job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if old_job.status != "failed":
+            raise HTTPException(status_code=400, detail="Only failed jobs can be retried")
+        
+        metadata = old_job.job_metadata or {}
+        batch_id = metadata.get("batch_id")
+        direction = metadata.get("direction")
+        dry_run = metadata.get("dry_run", False)
+        
+        if not batch_id or not direction:
+            raise HTTPException(status_code=400, detail="Job metadata incomplete - cannot retry")
+        
+        batch = session.query(Batch).filter(Batch.id == batch_id).first()
+        if not batch:
+            raise HTTPException(status_code=404, detail="Batch not found")
+        
+        new_job = JobRun(
+            type="copy",
+            status="running",
+            job_metadata={"batch_id": batch_id, "direction": direction, "dry_run": dry_run, "retry_of": job_id}
+        )
+        session.add(new_job)
+        session.commit()
+        session.refresh(new_job)
+        
+        from backend.job_runner import job_runner
+        job_runner.run_copy(new_job.id, batch_id, direction, dry_run)
+        
+        return JobRunResponse.model_validate(new_job)
+    finally:
+        session.close()
+
+@router.get("/jobs/{job_id}/verify")
+async def verify_job(job_id: int):
+    """Verify that files from a completed copy job exist at the target with correct sizes"""
+    from backend.job_runner import job_runner
+    result = job_runner.verify_copy(job_id)
+    if not result.get("success") and "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
 @router.delete("/jobs")
 async def delete_all_jobs(_: None = Depends(check_safe_mode)):
     """Smazat všechny copy joby"""

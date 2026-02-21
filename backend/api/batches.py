@@ -2,6 +2,7 @@
 Batch API endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
@@ -175,6 +176,152 @@ async def get_batch_summary(batch_id: int):
         )
     finally:
         session.close()
+
+@router.get("/{batch_id}/script")
+async def generate_copy_script(batch_id: int, direction: str = "nas-to-usb"):
+    """Generate a bash script for manual file copying.
+    
+    direction: 'nas-to-usb' or 'usb-to-nas'
+    """
+    session = storage_service.get_session()
+    if not session:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    try:
+        batch = session.query(Batch).filter(Batch.id == batch_id).first()
+        if not batch:
+            raise HTTPException(status_code=404, detail="Batch not found")
+
+        items = session.query(BatchItem).filter(
+            BatchItem.batch_id == batch_id,
+            BatchItem.enabled == True
+        ).order_by(BatchItem.full_rel_path).all()
+
+        if not items:
+            raise HTTPException(status_code=404, detail="No enabled files in batch")
+
+        total_size = sum(i.size for i in items)
+        total_size_gb = total_size / (1024 ** 3)
+
+        if direction == "usb-to-nas":
+            default_src = "/mnt/usb"
+            default_dst = "/mnt/nas2"
+            dir_label = "USB → NAS"
+        else:
+            default_src = "/mnt/nas1"
+            default_dst = "/mnt/usb"
+            dir_label = "NAS → USB"
+
+        file_list = "\n".join(f'  "{item.full_rel_path}"' for item in items)
+
+        script = f'''#!/usr/bin/env bash
+# ============================================================
+# Copy script – Batch #{batch_id} ({dir_label})
+# Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+# Files: {len(items)}, Total size: {total_size_gb:.2f} GB
+# ============================================================
+#
+# Usage:
+#   bash copy_batch_{batch_id}.sh <source_root> <dest_root>
+#
+# Example:
+#   bash copy_batch_{batch_id}.sh {default_src} {default_dst}
+#
+# Parameters:
+#   $1 = source root directory (where files are read from)
+#   $2 = destination root directory (where files are copied to)
+#
+# Each file is copied with rsync preserving directory structure,
+# timestamps, and permissions. Failed files are logged and
+# summarized at the end.
+# ============================================================
+
+set -euo pipefail
+
+SRC="${{1:?"Usage: $0 <source_root> <dest_root>"}}"
+DST="${{2:?"Usage: $0 <source_root> <dest_root>"}}"
+
+# Remove trailing slashes
+SRC="${{SRC%/}}"
+DST="${{DST%/}}"
+
+if [ ! -d "$SRC" ]; then
+  echo "ERROR: Source directory does not exist: $SRC"
+  exit 1
+fi
+
+if [ ! -d "$DST" ]; then
+  echo "ERROR: Destination directory does not exist: $DST"
+  exit 1
+fi
+
+FILES=(
+{file_list}
+)
+
+TOTAL=${{#FILES[@]}}
+COPIED=0
+FAILED=0
+FAILED_LIST=()
+
+echo "========================================"
+echo "Batch #{batch_id} – {dir_label}"
+echo "Source: $SRC"
+echo "Dest:   $DST"
+echo "Files:  $TOTAL ({total_size_gb:.2f} GB)"
+echo "========================================"
+echo ""
+
+for FILE in "${{FILES[@]}}"; do
+  COPIED=$((COPIED + 1))
+  SRC_PATH="${{SRC}}/${{FILE}}"
+  DST_PATH="${{DST}}/${{FILE}}"
+  DST_DIR=$(dirname "$DST_PATH")
+
+  printf "[%d/%d] %s ... " "$COPIED" "$TOTAL" "$FILE"
+
+  if [ ! -f "$SRC_PATH" ]; then
+    echo "SKIP (source not found)"
+    FAILED=$((FAILED + 1))
+    FAILED_LIST+=("$FILE (source not found)")
+    continue
+  fi
+
+  mkdir -p "$DST_DIR"
+
+  if rsync -a --inplace "$SRC_PATH" "$DST_PATH" 2>/dev/null; then
+    echo "OK"
+  else
+    echo "FAILED"
+    FAILED=$((FAILED + 1))
+    FAILED_LIST+=("$FILE")
+  fi
+done
+
+echo ""
+echo "========================================"
+echo "Done: $((COPIED - FAILED))/$TOTAL copied, $FAILED failed"
+echo "========================================"
+
+if [ $FAILED -gt 0 ]; then
+  echo ""
+  echo "Failed files:"
+  for F in "${{FAILED_LIST[@]}}"; do
+    echo "  - $F"
+  done
+  exit 1
+fi
+'''
+
+        filename = f"copy_batch_{batch_id}.sh"
+        return PlainTextResponse(
+            content=script,
+            media_type="application/x-sh",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    finally:
+        session.close()
+
 
 @router.delete("/{batch_id}")
 async def delete_batch(batch_id: int, _: None = Depends(check_safe_mode)):
