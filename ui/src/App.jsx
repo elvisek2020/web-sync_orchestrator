@@ -6,6 +6,7 @@ import Scan from './pages/Scan'
 import Compare from './pages/Compare'
 import PlanTransfer from './pages/PlanTransfer'
 import CopyPage from './pages/CopyPage'
+import DebugPage from './pages/DebugPage'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useMountStatus } from './hooks/useMountStatus'
 
@@ -16,6 +17,7 @@ const NAV_ITEMS = [
   { path: '/compare', label: 'Porovnání', icon: '\u2194', phases: ['planning'] },
   { path: '/plan-transfer', label: 'Plán', icon: '\u{1F4CB}', phases: ['planning'] },
   { path: '/copy', label: 'Kopírování', icon: '\u{1F4E6}', phases: ['copy-nas-hdd', 'copy-hdd-nas'] },
+  { path: '/debug', label: 'Debug', icon: '\u{1F41B}', phases: ['planning', 'copy-nas-hdd', 'copy-hdd-nas'] },
 ]
 
 function AppContent() {
@@ -127,6 +129,7 @@ function AppContent() {
           <Route path="/compare" element={<Compare />} />
           <Route path="/plan-transfer" element={<PlanTransfer />} />
           <Route path="/copy" element={<CopyPage />} />
+          <Route path="/debug" element={<DebugPage />} />
         </Routes>
       </main>
 

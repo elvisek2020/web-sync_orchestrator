@@ -14,6 +14,8 @@ def normalize_path(path: str, root: str) -> str:
     
     Handles various cases:
     - Path starts with root folder: "NAS-FILMY/Movie/file.mkv" -> "Movie/file.mkv"
+    - Root appears deeper in path: "share/Filmy/Movie/file.mkv" with root "Filmy" -> "Movie/file.mkv"
+    - Multi-component root: "share/Filmy/Movie/file.mkv" with root "share/Filmy" -> "Movie/file.mkv"
     - Path is already normalized: "Movie/file.mkv" -> "Movie/file.mkv"
     - Root is not in path: returns path as-is (stripped of leading slashes)
     
@@ -34,20 +36,25 @@ def normalize_path(path: str, root: str) -> str:
 
     result = None
 
+    # Case 1: path starts with root/ (exact prefix match on path boundary)
     if path_clean.startswith(root_clean + "/"):
         result = path_clean[len(root_clean) + 1:]
     elif path_clean == root_clean:
         return ""
-    elif path_clean.startswith(root_clean):
-        rest = path_clean[len(root_clean):]
-        if rest.startswith("/"):
-            result = rest.lstrip("/")
-    
+
+    # Case 2: root appears as a path segment deeper in the path
+    # e.g. path="share/Filmy/Movie/file.mkv", root="Filmy" → "Movie/file.mkv"
     if result is None:
-        parts = path_clean.split("/")
-        if parts and parts[0] == root_clean:
-            result = "/".join(parts[1:]) if len(parts) > 1 else ""
-    
+        needle = "/" + root_clean + "/"
+        idx = path_clean.find(needle)
+        if idx >= 0:
+            result = path_clean[idx + len(needle):]
+        else:
+            # Check if path ends with /root (no trailing content)
+            needle_end = "/" + root_clean
+            if path_clean.endswith(needle_end):
+                return ""
+
     if result is None:
         result = path_clean
 

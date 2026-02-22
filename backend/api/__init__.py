@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from backend.api import health, mounts, datasets, scans, diffs, batches, copy
+from backend.api import health, mounts, datasets, scans, diffs, batches, copy, debug
 
 router = APIRouter()
 
@@ -10,4 +10,5 @@ router.include_router(scans.router, prefix="/scans", tags=["scans"])
 router.include_router(diffs.router, prefix="/diffs", tags=["diffs"])
 router.include_router(batches.router, prefix="/batches", tags=["batches"])
 router.include_router(copy.router, prefix="/copy", tags=["copy"])
+router.include_router(debug.router, prefix="/debug", tags=["debug"])
 
