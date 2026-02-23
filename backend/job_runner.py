@@ -82,7 +82,9 @@ class JobRunner:
                 # Vytvoření adapteru
                 adapter = AdapterFactory.create_scan_adapter(dataset, dataset.location)
                 
-                # Callbacky
+                # Callbacky – log_cb also accumulates messages for DB storage
+                scan_log_lines = []
+
                 def progress_cb(count: int, path: str):
                     asyncio.run(websocket_manager.broadcast({
                         "type": "job.progress",
@@ -90,6 +92,7 @@ class JobRunner:
                     }))
                 
                 def log_cb(message: str):
+                    scan_log_lines.append(message)
                     asyncio.run(websocket_manager.broadcast({
                         "type": "job.log",
                         "data": {"job_id": scan_id, "type": "scan", "message": message}
@@ -156,6 +159,7 @@ class JobRunner:
                     scan.total_files = total_files
                     scan.total_size = total_size
                     scan.status = "completed"
+                    scan.error_message = "\n".join(scan_log_lines[-500:]) if scan_log_lines else None
                     
                     commit_success = False
                     try:
@@ -318,7 +322,8 @@ class JobRunner:
                 except:
                     pass
                 scan.status = "failed"
-                scan.error_message = str(e)
+                log_with_error = scan_log_lines + [f"FATAL: {e}"]
+                scan.error_message = "\n".join(log_with_error[-500:])
                 try:
                     session.commit()
                 except Exception as commit_error:

@@ -71,6 +71,10 @@ async def get_diagnostics():
                     "size": f.size,
                 })
 
+            scan_log = scan.error_message or ""
+            log_errors = [l for l in scan_log.split("\n") if l.startswith("ERROR:") or l.startswith("WARNING:") or l.startswith("FATAL:")]
+            log_summary_lines = [l for l in scan_log.split("\n") if l.startswith("Scan summary:")]
+
             result["scans"].append({
                 "id": scan.id,
                 "dataset_id": scan.dataset_id,
@@ -85,6 +89,9 @@ async def get_diagnostics():
                     for r, c in root_rel_values
                 ],
                 "sample_files": samples,
+                "scan_log_summary": log_summary_lines[-1] if log_summary_lines else None,
+                "scan_log_errors": log_errors[:50],
+                "scan_log_full": scan_log if len(scan_log) < 50000 else scan_log[:50000] + "\n... (truncated)",
             })
 
         # --- Diffs with normalization comparison ---
