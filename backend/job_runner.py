@@ -101,25 +101,53 @@ class JobRunner:
                 # Spuštění scanu
                 total_files = 0
                 total_size = 0.0
+                batch_pending = 0
+                commit_failures = 0
+                BATCH_SIZE = 500
                 iteration_completed = False
                 
                 if log_cb:
                     log_cb(f"Starting scan for dataset {dataset_id}, roots: {dataset.roots}")
                 
+                def _safe_batch_commit(force_msg=None):
+                    """Commit pending records with retry. Returns number of records lost on failure."""
+                    nonlocal batch_pending, commit_failures
+                    if batch_pending == 0:
+                        return 0
+                    pending_count = batch_pending
+                    for attempt in range(3):
+                        try:
+                            session.commit()
+                            batch_pending = 0
+                            if force_msg and log_cb:
+                                log_cb(force_msg)
+                            return 0
+                        except Exception as e:
+                            session.rollback()
+                            if attempt < 2:
+                                if log_cb:
+                                    log_cb(f"WARNING: Commit attempt {attempt+1} failed ({e}), retrying...")
+                                import time
+                                time.sleep(0.5)
+                            else:
+                                commit_failures += 1
+                                if log_cb:
+                                    log_cb(f"ERROR: Commit failed after 3 attempts, {pending_count} records LOST: {e}")
+                                batch_pending = 0
+                                return pending_count
+                    return 0
+                
                 try:
-                    # Načtení exclude patterns (výchozí + uživatelské)
                     from backend.config import DEFAULT_EXCLUDE_PATTERNS, match_exclude_pattern
                     exclude_patterns = DEFAULT_EXCLUDE_PATTERNS.copy()
                     
                     file_iterator = adapter.list_files(dataset.roots, progress_cb, log_cb)
+                    records_lost = 0
                     
                     for file_entry in file_iterator:
-                        # Filtrování podle exclude patterns
                         if match_exclude_pattern(file_entry.full_rel_path, exclude_patterns):
-                            # Přeskočit soubory, které odpovídají exclude patterns
                             continue
                         
-                        # Použít merge místo add, aby se předešlo duplicitám v identity mapě
                         db_entry = DBFileEntry(
                             scan_id=scan_id,
                             full_rel_path=file_entry.full_rel_path,
@@ -127,180 +155,96 @@ class JobRunner:
                             mtime_epoch=file_entry.mtime_epoch,
                             root_rel_path=file_entry.root_rel_path
                         )
-                        # Merge zajistí, že pokud objekt už existuje v session, použije se existující
-                        session.merge(db_entry)
+                        session.add(db_entry)
                         total_files += 1
                         total_size += file_entry.size
+                        batch_pending += 1
                         
-                        # Bulk commit každých 1000 záznamů
-                        if total_files % 1000 == 0:
-                            try:
-                                session.commit()
-                            except Exception as commit_error:
-                                session.rollback()
-                                if log_cb:
-                                    log_cb(f"Commit error: {commit_error}, retrying...")
-                                session.commit()
-                            if log_cb:
-                                log_cb(f"Committed {total_files} files so far...")
+                        if batch_pending >= BATCH_SIZE:
+                            lost = _safe_batch_commit(f"Committed {total_files} files so far...")
+                            records_lost += lost
                     
-                    # Označit, že iterace dokončila
+                    # Final batch
+                    lost = _safe_batch_commit(f"Final batch committed, {total_files} files total")
+                    records_lost += lost
+                    
                     iteration_completed = True
                     
-                    # Finální commit - refresh scan objektu před aktualizací
+                    # Verify actual DB record count
+                    from sqlalchemy import func as sa_func
+                    db_count = session.query(sa_func.count(DBFileEntry.id)).filter(
+                        DBFileEntry.scan_id == scan_id
+                    ).scalar() or 0
+                    
+                    if log_cb:
+                        log_cb(f"DB verification: counter={total_files}, db_records={db_count}, lost={records_lost}, commit_failures={commit_failures}")
+                    
+                    if db_count < total_files and records_lost == 0:
+                        if log_cb:
+                            log_cb(f"WARNING: DB has fewer records than expected ({db_count} < {total_files})")
+                    
+                    # Update scan status
                     try:
                         session.refresh(scan)
                     except Exception:
-                        # Pokud refresh selže, zkusit načíst scan znovu
                         scan = session.query(Scan).filter(Scan.id == scan_id).first()
                         if not scan:
-                            raise Exception(f"Scan {scan_id} not found for final commit")
+                            raise Exception(f"Scan {scan_id} not found for final update")
                     
-                    scan.total_files = total_files
+                    scan.total_files = db_count
                     scan.total_size = total_size
                     scan.status = "completed"
                     scan.error_message = "\n".join(scan_log_lines[-500:]) if scan_log_lines else None
                     
                     commit_success = False
-                    try:
-                        session.commit()
-                        commit_success = True
-                    except Exception as commit_error:
-                        session.rollback()
-                        if log_cb:
-                            log_cb(f"Final commit error: {commit_error}, retrying...")
-                        # Zkusit znovu načíst scan a aktualizovat
+                    for attempt in range(3):
                         try:
-                            scan = session.query(Scan).filter(Scan.id == scan_id).first()
-                            if scan:
-                                scan.total_files = total_files
-                                scan.total_size = total_size
-                                scan.status = "completed"
-                                session.commit()
-                                commit_success = True
-                        except Exception:
-                            pass
+                            session.commit()
+                            commit_success = True
+                            break
+                        except Exception as e:
+                            session.rollback()
+                            if log_cb:
+                                log_cb(f"WARNING: Status commit attempt {attempt+1} failed: {e}")
+                            try:
+                                scan = session.query(Scan).filter(Scan.id == scan_id).first()
+                                if scan:
+                                    scan.total_files = db_count
+                                    scan.total_size = total_size
+                                    scan.status = "completed"
+                                    scan.error_message = "\n".join(scan_log_lines[-500:]) if scan_log_lines else None
+                            except Exception:
+                                pass
                     
-                    # Pokud ani to nefunguje, použít novou session - VŽDY zajistit aktualizaci statusu
                     if not commit_success:
                         new_session = storage_service.get_session()
                         if new_session:
                             try:
-                                scan_new = new_session.query(Scan).filter(Scan.id == scan_id).first()
-                                if scan_new:
-                                    scan_new.total_files = total_files
-                                    scan_new.total_size = total_size
-                                    scan_new.status = "completed"
+                                s = new_session.query(Scan).filter(Scan.id == scan_id).first()
+                                if s:
+                                    s.total_files = db_count
+                                    s.total_size = total_size
+                                    s.status = "completed"
+                                    s.error_message = "\n".join(scan_log_lines[-500:]) if scan_log_lines else None
                                     new_session.commit()
                                     commit_success = True
-                                    if log_cb:
-                                        log_cb(f"Scan status updated using new session")
-                            except Exception as e:
+                            except Exception:
                                 new_session.rollback()
-                                if log_cb:
-                                    log_cb(f"Failed to update scan status in new session: {e}")
-                                # Zkusit ještě jednou s novou session
-                                try:
-                                    retry_session = storage_service.get_session()
-                                    if retry_session:
-                                        scan_retry = retry_session.query(Scan).filter(Scan.id == scan_id).first()
-                                        if scan_retry:
-                                            scan_retry.total_files = total_files
-                                            scan_retry.total_size = total_size
-                                            scan_retry.status = "completed"
-                                            retry_session.commit()
-                                            commit_success = True
-                                            if log_cb:
-                                                log_cb(f"Scan status updated using retry session")
-                                        retry_session.close()
-                                except Exception:
-                                    pass
                             finally:
                                 new_session.close()
                     
                     if log_cb:
-                        log_cb(f"Scan completed: {total_files} files, {total_size / 1024 / 1024:.2f} MB")
+                        log_cb(f"Scan completed: {db_count} files in DB (scanned {total_files}), {total_size / 1024 / 1024:.2f} MB, lost={records_lost}")
                     
-                    # Ověřit, že status je skutečně nastaven na "completed" před broadcast
-                    final_status_check = False
+                    broadcast_status = "completed" if commit_success else "failed"
                     try:
-                        # Zkontrolovat status v databázi
-                        check_session = storage_service.get_session()
-                        if check_session:
-                            check_scan = check_session.query(Scan).filter(Scan.id == scan_id).first()
-                            if check_scan and check_scan.status == "completed":
-                                final_status_check = True
-                            check_session.close()
-                    except Exception:
-                        pass
-                    
-                    # Broadcast finish - vždy poslat, ale s kontrolou statusu
-                    try:
-                        # Pokud status není "completed", zkusit ho ještě jednou nastavit
-                        if not final_status_check and not commit_success:
-                            if log_cb:
-                                log_cb(f"Warning: Status not set to completed, attempting final update...")
-                            final_session = storage_service.get_session()
-                            if final_session:
-                                try:
-                                    final_scan = final_session.query(Scan).filter(Scan.id == scan_id).first()
-                                    if final_scan:
-                                        final_scan.total_files = total_files
-                                        final_scan.total_size = total_size
-                                        final_scan.status = "completed"
-                                        final_session.commit()
-                                        final_status_check = True
-                                        if log_cb:
-                                            log_cb(f"Final status update successful")
-                                except Exception as final_error:
-                                    if log_cb:
-                                        log_cb(f"Final status update failed: {final_error}")
-                                finally:
-                                    final_session.close()
-                        
-                        # Broadcast s aktuálním statusem - ale nejdřív zkontrolovat skutečný status v DB
-                        actual_status = "failed"
-                        try:
-                            status_check_session = storage_service.get_session()
-                            if status_check_session:
-                                status_scan = status_check_session.query(Scan).filter(Scan.id == scan_id).first()
-                                if status_scan:
-                                    actual_status = status_scan.status
-                                status_check_session.close()
-                        except Exception:
-                            pass
-                        
-                        # Pokud status není "completed", zkusit ho ještě jednou nastavit
-                        if actual_status != "completed" and (final_status_check or commit_success):
-                            if log_cb:
-                                log_cb(f"Warning: Status mismatch detected ({actual_status}), attempting final fix...")
-                            fix_session = storage_service.get_session()
-                            if fix_session:
-                                try:
-                                    fix_scan = fix_session.query(Scan).filter(Scan.id == scan_id).first()
-                                    if fix_scan:
-                                        fix_scan.total_files = total_files
-                                        fix_scan.total_size = total_size
-                                        fix_scan.status = "completed"
-                                        fix_session.commit()
-                                        actual_status = "completed"
-                                        if log_cb:
-                                            log_cb(f"Status fixed to completed")
-                                except Exception as fix_error:
-                                    if log_cb:
-                                        log_cb(f"Failed to fix status: {fix_error}")
-                                finally:
-                                    fix_session.close()
-                        
-                        # Broadcast s aktuálním statusem
-                        broadcast_status = "completed" if (actual_status == "completed" or (final_status_check or commit_success)) else "failed"
                         asyncio.run(websocket_manager.broadcast({
                             "type": "job.finished",
                             "data": {
-                                "job_id": scan_id, 
-                                "type": "scan", 
+                                "job_id": scan_id,
+                                "type": "scan",
                                 "status": broadcast_status,
-                                "error": None if broadcast_status == "completed" else "Failed to update status to completed"
+                                "error": None if commit_success else "Failed to commit scan status"
                             }
                         }))
                     except Exception as broadcast_error:
@@ -308,13 +252,9 @@ class JobRunner:
                             log_cb(f"Failed to broadcast job.finished: {broadcast_error}")
                 except Exception as scan_error:
                     if log_cb:
-                        log_cb(f"Error during scan iteration: {scan_error}")
-                    # Pokud iterace nedokončila, vyhodit výjimku
+                        log_cb(f"Error during scan: {scan_error}")
                     if not iteration_completed:
                         raise
-                    # Pokud iterace dokončila, ale došlo k chybě při zpracování výsledků, pokračovat s aktualizací statusu
-                    if log_cb:
-                        log_cb(f"Iteration completed but error occurred: {scan_error}, continuing with status update...")
                 
             except Exception as e:
                 try:

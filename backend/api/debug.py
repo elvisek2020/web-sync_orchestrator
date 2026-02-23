@@ -48,6 +48,12 @@ async def get_diagnostics():
                 .all()
             )
 
+            actual_db_count = (
+                session.query(func.count(FileEntry.id))
+                .filter(FileEntry.scan_id == scan.id)
+                .scalar()
+            ) or 0
+
             root_rel_values = (
                 session.query(FileEntry.root_rel_path, func.count(FileEntry.id))
                 .filter(FileEntry.scan_id == scan.id)
@@ -75,6 +81,8 @@ async def get_diagnostics():
             log_errors = [l for l in scan_log.split("\n") if l.startswith("ERROR:") or l.startswith("WARNING:") or l.startswith("FATAL:")]
             log_summary_lines = [l for l in scan_log.split("\n") if l.startswith("Scan summary:")]
 
+            db_vs_claimed = actual_db_count - (scan.total_files or 0)
+
             result["scans"].append({
                 "id": scan.id,
                 "dataset_id": scan.dataset_id,
@@ -83,6 +91,8 @@ async def get_diagnostics():
                 "dataset_roots": ds_roots,
                 "status": scan.status,
                 "total_files": scan.total_files,
+                "actual_db_records": actual_db_count,
+                "db_vs_claimed_diff": db_vs_claimed,
                 "total_size_gb": round((scan.total_size or 0) / (1024**3), 2),
                 "root_rel_path_distribution": [
                     {"root_rel_path": r or "(empty)", "count": c}
