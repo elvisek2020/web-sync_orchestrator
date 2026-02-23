@@ -65,8 +65,16 @@ class StorageService:
                 f"sqlite:///{db_path}",
                 connect_args={"check_same_thread": False},
                 poolclass=StaticPool,
-                echo=False
+                echo=False,
             )
+            
+            @event.listens_for(self.engine, "connect")
+            def _set_sqlite_pragmas(dbapi_conn, connection_record):
+                cursor = dbapi_conn.cursor()
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA synchronous=NORMAL")
+                cursor.execute("PRAGMA busy_timeout=10000")
+                cursor.close()
             logger.info("Engine created successfully")
             
             # Vytvoření tabulek

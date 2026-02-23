@@ -98,90 +98,103 @@ class JobRunner:
                         "data": {"job_id": scan_id, "type": "scan", "message": message}
                     }))
                 
-                # Spuštění scanu
+                # Spuštění scanu – dedicated sqlite3 connection for bulk inserts
+                import sqlite3
                 total_files = 0
                 total_size = 0.0
-                batch_pending = 0
-                commit_failures = 0
                 BATCH_SIZE = 500
+                batch_buffer = []
+                commit_failures = 0
+                records_lost = 0
                 iteration_completed = False
                 
                 if log_cb:
                     log_cb(f"Starting scan for dataset {dataset_id}, roots: {dataset.roots}")
                 
-                def _safe_batch_commit(force_msg=None):
-                    """Commit pending records with retry. Returns number of records lost on failure."""
-                    nonlocal batch_pending, commit_failures
-                    if batch_pending == 0:
-                        return 0
-                    pending_count = batch_pending
+                db_path = storage_service.db_path
+                bulk_conn = sqlite3.connect(db_path, timeout=30)
+                bulk_conn.execute("PRAGMA journal_mode=WAL")
+                bulk_conn.execute("PRAGMA synchronous=NORMAL")
+                bulk_conn.execute("PRAGMA busy_timeout=10000")
+                INSERT_SQL = "INSERT INTO file_entries (scan_id, full_rel_path, size, mtime_epoch, root_rel_path) VALUES (?, ?, ?, ?, ?)"
+                
+                def _flush_batch(force_msg=None):
+                    """Flush batch_buffer to DB via dedicated sqlite3 connection with retry."""
+                    nonlocal batch_buffer, commit_failures, records_lost
+                    if not batch_buffer:
+                        return
+                    rows = batch_buffer
+                    batch_buffer = []
                     for attempt in range(3):
                         try:
-                            session.commit()
-                            batch_pending = 0
+                            bulk_conn.executemany(INSERT_SQL, rows)
+                            bulk_conn.commit()
                             if force_msg and log_cb:
                                 log_cb(force_msg)
-                            return 0
+                            return
                         except Exception as e:
-                            session.rollback()
+                            try:
+                                bulk_conn.rollback()
+                            except Exception:
+                                pass
                             if attempt < 2:
                                 if log_cb:
-                                    log_cb(f"WARNING: Commit attempt {attempt+1} failed ({e}), retrying...")
+                                    log_cb(f"WARNING: Batch insert attempt {attempt+1} failed ({e}), retrying...")
                                 import time
                                 time.sleep(0.5)
                             else:
                                 commit_failures += 1
+                                records_lost += len(rows)
                                 if log_cb:
-                                    log_cb(f"ERROR: Commit failed after 3 attempts, {pending_count} records LOST: {e}")
-                                batch_pending = 0
-                                return pending_count
-                    return 0
+                                    log_cb(f"ERROR: Batch insert failed after 3 attempts, {len(rows)} records LOST: {e}")
                 
                 try:
                     from backend.config import DEFAULT_EXCLUDE_PATTERNS, match_exclude_pattern
                     exclude_patterns = DEFAULT_EXCLUDE_PATTERNS.copy()
                     
                     file_iterator = adapter.list_files(dataset.roots, progress_cb, log_cb)
-                    records_lost = 0
                     
                     for file_entry in file_iterator:
                         if match_exclude_pattern(file_entry.full_rel_path, exclude_patterns):
                             continue
                         
-                        db_entry = DBFileEntry(
-                            scan_id=scan_id,
-                            full_rel_path=file_entry.full_rel_path,
-                            size=file_entry.size,
-                            mtime_epoch=file_entry.mtime_epoch,
-                            root_rel_path=file_entry.root_rel_path
-                        )
-                        session.add(db_entry)
+                        batch_buffer.append((
+                            scan_id,
+                            file_entry.full_rel_path,
+                            file_entry.size,
+                            file_entry.mtime_epoch,
+                            file_entry.root_rel_path,
+                        ))
                         total_files += 1
                         total_size += file_entry.size
-                        batch_pending += 1
                         
-                        if batch_pending >= BATCH_SIZE:
-                            lost = _safe_batch_commit(f"Committed {total_files} files so far...")
-                            records_lost += lost
+                        if len(batch_buffer) >= BATCH_SIZE:
+                            _flush_batch(f"Committed {total_files} files so far...")
                     
                     # Final batch
-                    lost = _safe_batch_commit(f"Final batch committed, {total_files} files total")
-                    records_lost += lost
+                    _flush_batch(f"Final batch committed, {total_files} files total")
                     
                     iteration_completed = True
                     
-                    # Verify actual DB record count
-                    from sqlalchemy import func as sa_func
-                    db_count = session.query(sa_func.count(DBFileEntry.id)).filter(
-                        DBFileEntry.scan_id == scan_id
-                    ).scalar() or 0
+                    # Close dedicated bulk connection
+                    try:
+                        bulk_conn.close()
+                    except Exception:
+                        pass
+                    
+                    # Verify actual DB record count via fresh sqlite3 connection
+                    verify_conn = sqlite3.connect(db_path, timeout=10)
+                    db_count = verify_conn.execute(
+                        "SELECT COUNT(*) FROM file_entries WHERE scan_id = ?", (scan_id,)
+                    ).fetchone()[0]
+                    verify_conn.close()
                     
                     if log_cb:
                         log_cb(f"DB verification: counter={total_files}, db_records={db_count}, lost={records_lost}, commit_failures={commit_failures}")
                     
-                    if db_count < total_files and records_lost == 0:
+                    if db_count != total_files:
                         if log_cb:
-                            log_cb(f"WARNING: DB has fewer records than expected ({db_count} < {total_files})")
+                            log_cb(f"WARNING: DB mismatch ({db_count} != {total_files}), diff={db_count - total_files}")
                     
                     # Update scan status
                     try:
@@ -251,12 +264,20 @@ class JobRunner:
                         if log_cb:
                             log_cb(f"Failed to broadcast job.finished: {broadcast_error}")
                 except Exception as scan_error:
+                    try:
+                        bulk_conn.close()
+                    except Exception:
+                        pass
                     if log_cb:
                         log_cb(f"Error during scan: {scan_error}")
                     if not iteration_completed:
                         raise
                 
             except Exception as e:
+                try:
+                    bulk_conn.close()
+                except Exception:
+                    pass
                 try:
                     session.rollback()
                 except:
