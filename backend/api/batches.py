@@ -288,7 +288,9 @@ if [ ${{#EXTRA_FILES[@]}} -gt 0 ]; then
   read -p "  Smazat přebývající (${{#EXTRA_FILES[@]}})? [a/N]: " ans
   [[ "$ans" =~ ^[aAyY] ]] && DO_EXTRA="y"
 fi
-'''
+'''  # noqa: end of f-string section
+
+        script += r'''
 
 echo ""
 echo "========================================"
