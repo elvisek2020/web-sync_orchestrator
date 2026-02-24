@@ -20,7 +20,8 @@ export default function PlanTransfer() {
   const [expandedBatches, setExpandedBatches] = useState(new Set())
   const [batchItems, setBatchItems] = useState({})
   const [batchProgress, setBatchProgress] = useState({})
-  const [form, setForm] = useState({ diff_id: '', include_conflicts: false, exclude_patterns: '' })
+  const [form, setForm] = useState({ diff_id: '', include_conflicts: false, include_extra: false, exclude_patterns: '' })
+  const [diffSummary, setDiffSummary] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
   useEffect(() => {
@@ -42,6 +43,13 @@ export default function PlanTransfer() {
     })
   }, [messages])
 
+  useEffect(() => {
+    if (!form.diff_id) { setDiffSummary(null); return }
+    let cancelled = false
+    axios.get(`/api/diffs/${form.diff_id}/summary`).then(({ data }) => { if (!cancelled) setDiffSummary(data) }).catch(() => { if (!cancelled) setDiffSummary(null) })
+    return () => { cancelled = true }
+  }, [form.diff_id])
+
   const loadAll = () => { loadDiffs(); loadBatches(); loadScans(); loadDatasets() }
   const loadDiffs = async () => { try { const { data } = await axios.get('/api/diffs/'); setDiffs(Array.isArray(data) ? data : []) } catch { setDiffs([]) } }
   const loadBatches = async () => { try { setBatches((await axios.get('/api/batches/')).data || []) } catch { setBatches([]) } }
@@ -51,8 +59,8 @@ export default function PlanTransfer() {
   const handleCreate = async () => {
     try {
       const excludeList = form.exclude_patterns ? form.exclude_patterns.split(/[,\n]/).map(s => s.trim()).filter(Boolean) : null
-      await axios.post('/api/batches/', { diff_id: parseInt(form.diff_id), include_conflicts: form.include_conflicts, exclude_patterns: excludeList })
-      setForm({ diff_id: '', include_conflicts: false, exclude_patterns: '' })
+      await axios.post('/api/batches/', { diff_id: parseInt(form.diff_id), include_conflicts: form.include_conflicts, include_extra: form.include_extra, exclude_patterns: excludeList })
+      setForm({ diff_id: '', include_conflicts: false, include_extra: false, exclude_patterns: '' })
       notify('Plán vytvořen', 'success')
       loadBatches()
     } catch (err) {
@@ -131,12 +139,39 @@ export default function PlanTransfer() {
             ))}
           </select>
         </div>
+        {diffSummary && (
+          <div className="form-hint" style={{ marginTop: '-0.25rem', marginBottom: '0.75rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            <span>Chybí: <strong>{diffSummary.missing_count}</strong> ({formatGB(diffSummary.missing_size)})</span>
+            <span>Stejné: <strong>{diffSummary.same_count}</strong></span>
+            <span>Konflikty: <strong>{diffSummary.conflict_count}</strong>{diffSummary.conflict_count > 0 ? ` (${formatGB(diffSummary.conflict_size)})` : ''}</span>
+            <span>Extra: <strong>{diffSummary.extra_count}</strong>{diffSummary.extra_count > 0 ? ` (${formatGB(diffSummary.extra_size)})` : ''}</span>
+          </div>
+        )}
         <div className="form-group">
           <label className="checkbox-label">
             <input type="checkbox" checked={form.include_conflicts} onChange={e => setForm({ ...form, include_conflicts: e.target.checked })} />
             Zahrnout konflikty
           </label>
-          <span className="form-hint">Zahrne soubory se stejným názvem ale jinou velikostí. Přepíšou verzi na cíli.</span>
+          <span className="form-hint">
+            {diffSummary && diffSummary.conflict_count === 0
+              ? 'Toto porovnání neobsahuje žádné konflikty (0). Zaškrtnutí nemá efekt.'
+              : diffSummary && diffSummary.conflict_count > 0
+                ? `Zahrne ${diffSummary.conflict_count} konfliktních souborů (${formatGB(diffSummary.conflict_size)}) se stejným názvem ale jinou velikostí.`
+                : 'Zahrne soubory se stejným názvem ale jinou velikostí. Přepíšou verzi na cíli.'}
+          </span>
+        </div>
+        <div className="form-group">
+          <label className="checkbox-label">
+            <input type="checkbox" checked={form.include_extra} onChange={e => setForm({ ...form, include_extra: e.target.checked })} />
+            Zahrnout přebývající (ke smazání na cíli)
+          </label>
+          <span className="form-hint">
+            {diffSummary && diffSummary.extra_count === 0
+              ? 'Toto porovnání neobsahuje žádné přebývající soubory (0). Zaškrtnutí nemá efekt.'
+              : diffSummary && diffSummary.extra_count > 0
+                ? `Zahrne ${diffSummary.extra_count} přebývajících souborů (${formatGB(diffSummary.extra_size)}). Ve skriptu se zeptá, zda je smazat.`
+                : 'Zahrne soubory, které existují jen na cíli. Ve skriptu budete dotázáni na smazání.'}
+          </span>
         </div>
         <div className="form-group">
           <label className="form-label">Výjimky (exclude patterns)</label>

@@ -16,7 +16,8 @@ router = APIRouter()
 class BatchCreate(BaseModel):
     diff_id: int
     include_conflicts: bool = False
-    exclude_patterns: Optional[List[str]] = None  # Seznam patternů pro výjimky
+    include_extra: bool = False
+    exclude_patterns: Optional[List[str]] = None
 
 class BatchResponse(BaseModel):
     id: int
@@ -24,6 +25,7 @@ class BatchResponse(BaseModel):
     created_at: datetime
     usb_limit_pct: float
     include_conflicts: bool
+    include_extra: bool = False
     exclude_patterns: Optional[List[str]] = None
     status: str
     
@@ -78,8 +80,9 @@ async def create_batch(batch_data: BatchCreate, _: None = Depends(check_safe_mod
         # Vytvoření batch záznamu
         batch = Batch(
             diff_id=batch_data.diff_id,
-            usb_limit_pct=100.0,  # Vždy použít 100% - USB limit % byl odstraněn
+            usb_limit_pct=100.0,
             include_conflicts=batch_data.include_conflicts,
+            include_extra=batch_data.include_extra,
             exclude_patterns=exclude_patterns,
             status="pending"
         )
@@ -179,10 +182,7 @@ async def get_batch_summary(batch_id: int):
 
 @router.get("/{batch_id}/script")
 async def generate_copy_script(batch_id: int, direction: str = "nas-to-usb"):
-    """Generate a bash script for manual file copying.
-    
-    direction: 'nas-to-usb' or 'usb-to-nas'
-    """
+    """Generate an interactive bash script that handles missing/conflict/extra items."""
     session = storage_service.get_session()
     if not session:
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -200,9 +200,6 @@ async def generate_copy_script(batch_id: int, direction: str = "nas-to-usb"):
         if not items:
             raise HTTPException(status_code=404, detail="No enabled files in batch")
 
-        total_size = sum(i.size for i in items)
-        total_size_gb = total_size / (1024 ** 3)
-
         if direction == "usb-to-nas":
             default_src = "/mnt/usb"
             default_dst = "/mnt/nas2"
@@ -212,108 +209,212 @@ async def generate_copy_script(batch_id: int, direction: str = "nas-to-usb"):
             default_dst = "/mnt/usb"
             dir_label = "NAS → USB"
 
-        file_list = "\n".join(f'  "{item.full_rel_path}"' for item in items)
+        missing = [i for i in items if i.category == "missing"]
+        conflict = [i for i in items if i.category == "conflict"]
+        extra = [i for i in items if i.category == "extra"]
+
+        def file_array(name, file_list):
+            if not file_list:
+                return f"{name}=()"
+            entries = "\n".join(f'  "{item.full_rel_path}"' for item in file_list)
+            return f"{name}=(\n{entries}\n)"
+
+        def size_gb(file_list):
+            return sum(i.size for i in file_list) / (1024 ** 3)
+
+        total_size_gb = size_gb(items)
+        show_extra = direction == "usb-to-nas" and len(extra) > 0
 
         script = f'''#!/usr/bin/env bash
 # ============================================================
-# Copy script – Batch #{batch_id} ({dir_label})
+# Sync script – Batch #{batch_id} ({dir_label})
 # Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-# Files: {len(items)}, Total size: {total_size_gb:.2f} GB
 # ============================================================
 #
 # Usage:
-#   bash copy_batch_{batch_id}.sh <source_root> <dest_root>
+#   bash sync_batch_{batch_id}.sh <source_root> <dest_root>
 #
 # Example:
-#   bash copy_batch_{batch_id}.sh {default_src} {default_dst}
+#   bash sync_batch_{batch_id}.sh {default_src} {default_dst}
 #
-# Parameters:
-#   $1 = source root directory (where files are read from)
-#   $2 = destination root directory (where files are copied to)
-#
-# Each file is copied with rsync preserving directory structure,
-# timestamps, and permissions. Failed files are logged and
-# summarized at the end.
 # ============================================================
 
 set -euo pipefail
 
 SRC="${{1:?"Usage: $0 <source_root> <dest_root>"}}"
 DST="${{2:?"Usage: $0 <source_root> <dest_root>"}}"
-
-# Remove trailing slashes
 SRC="${{SRC%/}}"
 DST="${{DST%/}}"
 
-if [ ! -d "$SRC" ]; then
-  echo "ERROR: Source directory does not exist: $SRC"
-  exit 1
+[ ! -d "$SRC" ] && echo "ERROR: Source not found: $SRC" && exit 1
+[ ! -d "$DST" ] && echo "ERROR: Dest not found: $DST" && exit 1
+
+# ---- File lists by category ----
+{file_array("MISSING_FILES", missing)}
+
+{file_array("CONFLICT_FILES", conflict)}
+
+{file_array("EXTRA_FILES", extra)}
+
+# ---- Summary ----
+echo "========================================"
+echo "  Batch #{batch_id} – {dir_label}"
+echo "  Source: $SRC"
+echo "  Dest:   $DST"
+echo "========================================"
+echo ""
+echo "  Kategorie:"
+echo "    1) Chybí:     ${{#MISSING_FILES[@]}} souborů ({size_gb(missing):.2f} GB) → kopírovat na cíl"
+echo "    2) Konflikty: ${{#CONFLICT_FILES[@]}} souborů ({size_gb(conflict):.2f} GB) → přepsat na cíli"'''
+
+        if show_extra:
+            script += f'''
+echo "    3) Přebývá:   ${{#EXTRA_FILES[@]}} souborů ({size_gb(extra):.2f} GB) → smazat z cíle"'''
+
+        script += f'''
+echo ""
+
+# ---- Interactive menu ----
+DO_MISSING="y"
+DO_CONFLICT="y"
+DO_EXTRA="n"
+
+if [ ${{#MISSING_FILES[@]}} -gt 0 ]; then
+  read -p "  Kopírovat chybějící (${{#MISSING_FILES[@]}})? [A/n]: " ans
+  [[ "$ans" =~ ^[nN] ]] && DO_MISSING="n"
 fi
 
-if [ ! -d "$DST" ]; then
-  echo "ERROR: Destination directory does not exist: $DST"
-  exit 1
-fi
+if [ ${{#CONFLICT_FILES[@]}} -gt 0 ]; then
+  read -p "  Přepsat konflikty (${{#CONFLICT_FILES[@]}})? [A/n]: " ans
+  [[ "$ans" =~ ^[nN] ]] && DO_CONFLICT="n"
+fi'''
 
-FILES=(
-{file_list}
-)
+        if show_extra:
+            script += f'''
 
-TOTAL=${{#FILES[@]}}
+if [ ${{#EXTRA_FILES[@]}} -gt 0 ]; then
+  read -p "  Smazat přebývající (${{#EXTRA_FILES[@]}})? [a/N]: " ans
+  [[ "$ans" =~ ^[aAyY] ]] && DO_EXTRA="y"
+fi'''
+
+        script += '''
+
+echo ""
+echo "========================================"
+
 COPIED=0
+OVERWRITTEN=0
+DELETED=0
 FAILED=0
 FAILED_LIST=()
 
-echo "========================================"
-echo "Batch #{batch_id} – {dir_label}"
-echo "Source: $SRC"
-echo "Dest:   $DST"
-echo "Files:  $TOTAL ({total_size_gb:.2f} GB)"
-echo "========================================"
+# ---- Copy missing files ----
+if [ "$DO_MISSING" = "y" ] && [ ${#MISSING_FILES[@]} -gt 0 ]; then
+  echo ""
+  echo ">> Kopíruji chybějící soubory..."
+  IDX=0
+  for FILE in "${MISSING_FILES[@]}"; do
+    IDX=$((IDX + 1))
+    SRC_PATH="${SRC}/${FILE}"
+    DST_PATH="${DST}/${FILE}"
+    printf "  [%d/%d] %s ... " "$IDX" "${#MISSING_FILES[@]}" "$FILE"
+    if [ ! -f "$SRC_PATH" ]; then
+      echo "SKIP (source not found)"
+      FAILED=$((FAILED + 1))
+      FAILED_LIST+=("COPY: $FILE (source not found)")
+      continue
+    fi
+    mkdir -p "$(dirname "$DST_PATH")"
+    if rsync -a --inplace "$SRC_PATH" "$DST_PATH" 2>/dev/null; then
+      echo "OK"
+      COPIED=$((COPIED + 1))
+    else
+      echo "FAILED"
+      FAILED=$((FAILED + 1))
+      FAILED_LIST+=("COPY: $FILE")
+    fi
+  done
+fi
+
+# ---- Overwrite conflict files ----
+if [ "$DO_CONFLICT" = "y" ] && [ ${#CONFLICT_FILES[@]} -gt 0 ]; then
+  echo ""
+  echo ">> Přepisuji konflikty..."
+  IDX=0
+  for FILE in "${CONFLICT_FILES[@]}"; do
+    IDX=$((IDX + 1))
+    SRC_PATH="${SRC}/${FILE}"
+    DST_PATH="${DST}/${FILE}"
+    printf "  [%d/%d] %s ... " "$IDX" "${#CONFLICT_FILES[@]}" "$FILE"
+    if [ ! -f "$SRC_PATH" ]; then
+      echo "SKIP (source not found)"
+      FAILED=$((FAILED + 1))
+      FAILED_LIST+=("OVERWRITE: $FILE (source not found)")
+      continue
+    fi
+    mkdir -p "$(dirname "$DST_PATH")"
+    if rsync -a --inplace "$SRC_PATH" "$DST_PATH" 2>/dev/null; then
+      echo "OK"
+      OVERWRITTEN=$((OVERWRITTEN + 1))
+    else
+      echo "FAILED"
+      FAILED=$((FAILED + 1))
+      FAILED_LIST+=("OVERWRITE: $FILE")
+    fi
+  done
+fi
+
+# ---- Delete extra files ----
+if [ "$DO_EXTRA" = "y" ] && [ ${#EXTRA_FILES[@]} -gt 0 ]; then
+  echo ""
+  echo ">> Mažu přebývající soubory..."
+  IDX=0
+  for FILE in "${EXTRA_FILES[@]}"; do
+    IDX=$((IDX + 1))
+    DST_PATH="${DST}/${FILE}"
+    printf "  [%d/%d] %s ... " "$IDX" "${#EXTRA_FILES[@]}" "$FILE"
+    if [ ! -f "$DST_PATH" ]; then
+      echo "SKIP (not found)"
+      continue
+    fi
+    if rm -f "$DST_PATH" 2>/dev/null; then
+      echo "DELETED"
+      DELETED=$((DELETED + 1))
+      # Clean up empty parent directories
+      DIR=$(dirname "$DST_PATH")
+      while [ "$DIR" != "$DST" ] && [ -d "$DIR" ] && [ -z "$(ls -A "$DIR" 2>/dev/null)" ]; do
+        rmdir "$DIR" 2>/dev/null || break
+        DIR=$(dirname "$DIR")
+      done
+    else
+      echo "FAILED"
+      FAILED=$((FAILED + 1))
+      FAILED_LIST+=("DELETE: $FILE")
+    fi
+  done
+fi
+
+# ---- Final summary ----
 echo ""
-
-for FILE in "${{FILES[@]}}"; do
-  COPIED=$((COPIED + 1))
-  SRC_PATH="${{SRC}}/${{FILE}}"
-  DST_PATH="${{DST}}/${{FILE}}"
-  DST_DIR=$(dirname "$DST_PATH")
-
-  printf "[%d/%d] %s ... " "$COPIED" "$TOTAL" "$FILE"
-
-  if [ ! -f "$SRC_PATH" ]; then
-    echo "SKIP (source not found)"
-    FAILED=$((FAILED + 1))
-    FAILED_LIST+=("$FILE (source not found)")
-    continue
-  fi
-
-  mkdir -p "$DST_DIR"
-
-  if rsync -a --inplace "$SRC_PATH" "$DST_PATH" 2>/dev/null; then
-    echo "OK"
-  else
-    echo "FAILED"
-    FAILED=$((FAILED + 1))
-    FAILED_LIST+=("$FILE")
-  fi
-done
-
-echo ""
 echo "========================================"
-echo "Done: $((COPIED - FAILED))/$TOTAL copied, $FAILED failed"
+echo "  Hotovo!"
+echo "    Zkopírováno:  $COPIED"
+echo "    Přepsáno:     $OVERWRITTEN"
+echo "    Smazáno:      $DELETED"
+echo "    Chyby:        $FAILED"
 echo "========================================"
 
 if [ $FAILED -gt 0 ]; then
   echo ""
-  echo "Failed files:"
-  for F in "${{FAILED_LIST[@]}}"; do
-    echo "  - $F"
+  echo "  Chybné soubory:"
+  for F in "${FAILED_LIST[@]}"; do
+    echo "    - $F"
   done
   exit 1
 fi
 '''
 
-        filename = f"copy_batch_{batch_id}.sh"
+        filename = f"sync_batch_{batch_id}.sh"
         return PlainTextResponse(
             content=script,
             media_type="application/x-sh",

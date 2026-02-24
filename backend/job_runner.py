@@ -695,16 +695,18 @@ class JobRunner:
                     "data": {"job_id": batch_id, "type": "batch", "count": 0, "total": total_items, "message": f"Načítání {total_items} položek z porovnání..."}
                 }))
                 
-                # Filtrování podle include_conflicts
+                # Filtrování podle kategorií
                 items_to_include = [
                     item for item in diff_items
-                    if item.category == "missing" or (item.category == "conflict" and batch.include_conflicts)
+                    if item.category == "missing"
+                    or (item.category == "conflict" and batch.include_conflicts)
+                    or (item.category == "extra" and batch.include_extra)
                 ]
                 
                 # Progress feedback - po filtrování
                 asyncio.run(websocket_manager.broadcast({
                     "type": "job.progress",
-                    "data": {"job_id": batch_id, "type": "batch", "count": len(items_to_include), "total": total_items, "message": f"Filtrování podle konfliktů: {len(items_to_include)} položek..."}
+                    "data": {"job_id": batch_id, "type": "batch", "count": len(items_to_include), "total": total_items, "message": f"Filtrování podle kategorií: {len(items_to_include)} položek..."}
                 }))
                 
                 # Filtrování podle exclude_patterns

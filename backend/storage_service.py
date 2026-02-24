@@ -123,6 +123,12 @@ class StorageService:
             except Exception as e:
                 logger.warning(f"Migration _migrate_job_file_statuses failed: {e}", exc_info=True)
             
+            # Migrace - přidání include_extra do batches pokud neexistuje
+            try:
+                await self._migrate_batches_include_extra()
+            except Exception as e:
+                logger.warning(f"Migration _migrate_batches_include_extra failed: {e}", exc_info=True)
+            
             # Migrace - přidání error_message do diffs pokud neexistuje
             try:
                 await self._migrate_diffs_error_message()
@@ -280,6 +286,25 @@ class StorageService:
                     print("Migration: Created job_file_statuses table")
             else:
                 print("Migration: job_file_statuses table already exists")
+        except Exception as e:
+            print(f"Migration error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    async def _migrate_batches_include_extra(self):
+        """Migrace: přidá include_extra sloupec do batches tabulky pokud neexistuje"""
+        try:
+            from sqlalchemy import text
+            with self.engine.begin() as conn:
+                result = conn.execute(text("""
+                    SELECT COUNT(*) FROM pragma_table_info('batches') WHERE name='include_extra'
+                """))
+                count = result.scalar()
+                if count == 0:
+                    conn.execute(text("ALTER TABLE batches ADD COLUMN include_extra BOOLEAN DEFAULT 0"))
+                    print("Migration: Added include_extra column to batches table")
+                else:
+                    print("Migration: include_extra column already exists")
         except Exception as e:
             print(f"Migration error: {e}")
             import traceback
