@@ -1,6 +1,7 @@
 """
 Batch API endpoints
 """
+import unicodedata
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
@@ -216,7 +217,7 @@ async def generate_copy_script(batch_id: int, direction: str = "nas-to-usb"):
         def file_array(name, file_list):
             if not file_list:
                 return f"{name}=()"
-            entries = "\n".join(f'  "{item.full_rel_path}"' for item in file_list)
+            entries = "\n".join(f'  "{unicodedata.normalize("NFC", item.full_rel_path)}"' for item in file_list)
             return f"{name}=(\n{entries}\n)"
 
         def size_gb(file_list):

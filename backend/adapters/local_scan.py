@@ -2,6 +2,7 @@
 Local filesystem scan adapter
 """
 import os
+import unicodedata
 from typing import Iterator, List, Optional, Callable
 from backend.adapters.base import ScanAdapter, FileEntry
 
@@ -98,9 +99,9 @@ class LocalScanAdapter(ScanAdapter):
                     try:
                         stat = os.stat(file_path)
                         
-                        # Vytvoření relativní cesty k base_path
                         rel_path = os.path.relpath(file_path_abs, base_path_abs)
-                        rel_path = rel_path.replace("\\", "/")  # Normalizace pro cross-platform
+                        rel_path = rel_path.replace("\\", "/")
+                        rel_path = unicodedata.normalize("NFC", rel_path)
                         
                         # Pokud rel_path začíná "..", znamená to, že jsme mimo base_path
                         if rel_path.startswith("../"):
