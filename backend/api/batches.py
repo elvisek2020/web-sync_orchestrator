@@ -224,7 +224,6 @@ async def generate_copy_script(batch_id: int, direction: str = "nas-to-usb"):
             return sum(i.size for i in file_list) / (1024 ** 3)
 
         total_size_gb = size_gb(items)
-        show_extra = direction == "usb-to-nas" and len(extra) > 0
 
         script = f'''#!/usr/bin/env bash
 # ============================================================
@@ -266,13 +265,8 @@ echo "========================================"
 echo ""
 echo "  Kategorie:"
 echo "    1) Chybí:     ${{#MISSING_FILES[@]}} souborů ({size_gb(missing):.2f} GB) → kopírovat na cíl"
-echo "    2) Konflikty: ${{#CONFLICT_FILES[@]}} souborů ({size_gb(conflict):.2f} GB) → přepsat na cíli"'''
-
-        if show_extra:
-            script += f'''
-echo "    3) Přebývá:   ${{#EXTRA_FILES[@]}} souborů ({size_gb(extra):.2f} GB) → smazat z cíle"'''
-
-        script += f'''
+echo "    2) Konflikty: ${{#CONFLICT_FILES[@]}} souborů ({size_gb(conflict):.2f} GB) → přepsat na cíli"
+echo "    3) Přebývá:   ${{#EXTRA_FILES[@]}} souborů ({size_gb(extra):.2f} GB) → smazat z cíle"
 echo ""
 
 # ---- Interactive menu ----
@@ -288,17 +282,13 @@ fi
 if [ ${{#CONFLICT_FILES[@]}} -gt 0 ]; then
   read -p "  Přepsat konflikty (${{#CONFLICT_FILES[@]}})? [A/n]: " ans
   [[ "$ans" =~ ^[nN] ]] && DO_CONFLICT="n"
-fi'''
-
-        if show_extra:
-            script += f'''
+fi
 
 if [ ${{#EXTRA_FILES[@]}} -gt 0 ]; then
   read -p "  Smazat přebývající (${{#EXTRA_FILES[@]}})? [a/N]: " ans
   [[ "$ans" =~ ^[aAyY] ]] && DO_EXTRA="y"
-fi'''
-
-        script += '''
+fi
+'''
 
 echo ""
 echo "========================================"
