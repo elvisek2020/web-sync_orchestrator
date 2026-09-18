@@ -72,6 +72,11 @@ async def create_scan(scan_data: ScanCreate, _: None = Depends(check_safe_mode))
         # Spustit background job pro scan
         from backend.job_runner import job_runner
         import asyncio
+        import logging
+        logging.getLogger(__name__).info(
+            "[scan id=%s dataset=%s] API create_scan → scheduling background job",
+            scan.id, scan_data.dataset_id,
+        )
         asyncio.create_task(job_runner.run_scan(scan.id, scan_data.dataset_id))
         
         return ScanResponse.model_validate(scan)

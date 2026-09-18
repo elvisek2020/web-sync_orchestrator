@@ -5,12 +5,26 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+import logging
 import os
 
 from backend.api import router as api_router
 from backend.websocket_manager import websocket_manager
 from backend.mount_service import mount_service
 from backend.storage_service import storage_service
+
+# Logging do stdout (docker compose logs). LOG_LEVEL z env, default INFO.
+_log_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+_log_level = getattr(logging, _log_level_name, logging.INFO)
+logging.basicConfig(
+    level=_log_level,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    force=True,
+)
+logging.getLogger("backend").setLevel(_log_level)
+logger = logging.getLogger(__name__)
+logger.info("Logging configured: LOG_LEVEL=%s", _log_level_name)
 
 # Pro FastAPI 0.104+ použijeme lifespan místo on_event
 from contextlib import asynccontextmanager
@@ -24,8 +38,6 @@ async def lifespan(app: FastAPI):
     # Pokud ano, zkusit připojit
     mount_status = await mount_service.get_status()
     if not mount_status.get("safe_mode", True) and not storage_service.available:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.info("USB is available but database is not connected, attempting to connect...")
         await storage_service.handle_available()
     
@@ -35,28 +47,27 @@ async def lifespan(app: FastAPI):
         session = storage_service.get_session()
         if session:
             from backend.database import Scan, Diff, Batch
-            import logging
-            logger = logging.getLogger(__name__)
+            from datetime import datetime
             
             # Zkontrolovat Scany
             stuck_scans = session.query(Scan).filter(Scan.status == "running").all()
             for scan in stuck_scans:
                 scan.status = "failed"
                 scan.error_message = "Job byl přerušen restartem aplikace"
-                logger.warning(f"Marking stuck scan {scan.id} as failed")
+                logger.warning("Marking stuck scan %s as failed", scan.id)
             
             # Zkontrolovat Diffy
             stuck_diffs = session.query(Diff).filter(Diff.status == "running").all()
             for diff in stuck_diffs:
                 diff.status = "failed"
-                logger.warning(f"Marking stuck diff {diff.id} as failed")
+                logger.warning("Marking stuck diff %s as failed", diff.id)
             
             # Zkontrolovat Batches (Plány)
             stuck_batches = session.query(Batch).filter(Batch.status == "running").all()
             for batch in stuck_batches:
                 batch.status = "failed"
                 batch.error_message = "Job byl přerušen restartem aplikace"
-                logger.warning(f"Marking stuck batch {batch.id} as failed")
+                logger.warning("Marking stuck batch %s as failed", batch.id)
             
             # Zkontrolovat Copy joby (JobRun)
             from backend.database import JobRun
@@ -65,16 +76,17 @@ async def lifespan(app: FastAPI):
                 job.status = "failed"
                 job.error_message = "Job byl přerušen restartem aplikace"
                 job.finished_at = datetime.utcnow()
-                logger.warning(f"Marking stuck copy job {job.id} as failed")
+                logger.warning("Marking stuck copy job %s as failed", job.id)
             
             if stuck_scans or stuck_diffs or stuck_batches or stuck_jobs:
                 session.commit()
-                logger.info(f"Marked {len(stuck_scans)} scans, {len(stuck_diffs)} diffs, {len(stuck_batches)} batches, {len(stuck_jobs)} copy jobs as failed")
+                logger.info(
+                    "Marked stuck jobs failed: scans=%s diffs=%s batches=%s copy=%s",
+                    len(stuck_scans), len(stuck_diffs), len(stuck_batches), len(stuck_jobs),
+                )
             session.close()
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error checking stuck jobs: {e}", exc_info=True)
+        logger.error("Error checking stuck jobs: %s", e, exc_info=True)
     
     yield
     # Shutdown

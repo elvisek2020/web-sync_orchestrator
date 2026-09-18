@@ -2,8 +2,10 @@
 Background job runner pro asynchronní operace
 """
 import asyncio
+import logging
 import threading
-from typing import Dict, Optional, Callable
+import time
+from typing import Dict, Optional, Callable, Any
 from datetime import datetime
 from backend.database import JobRun, Scan, Diff, DiffItem, Batch, BatchItem, FileEntry as DBFileEntry, Dataset, JobFileStatus, JobFileStatus
 from backend.storage_service import storage_service
@@ -11,6 +13,21 @@ from backend.websocket_manager import websocket_manager
 from backend.adapters.factory import AdapterFactory
 from backend.adapters.base import FileEntry
 from backend.mount_service import mount_service
+
+logger = logging.getLogger(__name__)
+
+# Progress WS + docker-log heartbeat – neposílat na každý soubor (asyncio.run je drahý)
+PROGRESS_LOG_EVERY_N = 500
+PROGRESS_LOG_EVERY_SEC = 5.0
+
+
+def _broadcast_sync(message: Dict[str, Any], job_tag: str = "") -> None:
+    """Bezpečný sync broadcast z worker threadu; chyby jen zaloguje."""
+    try:
+        asyncio.run(websocket_manager.broadcast(message))
+    except Exception as e:
+        logger.warning("[%s] WebSocket broadcast failed (%s): %s", job_tag or "job", message.get("type"), e)
+
 
 class JobRunner:
     """Spouští background joby"""
@@ -22,10 +39,12 @@ class JobRunner:
     def _register_job(self, job_id: int, thread: threading.Thread):
         with self._lock:
             self.running_jobs[job_id] = thread
+        logger.info("[job id=%s] thread registered (alive jobs=%s)", job_id, list(self.running_jobs.keys()))
     
     def _unregister_job(self, job_id: int):
         with self._lock:
             self.running_jobs.pop(job_id, None)
+        logger.info("[job id=%s] thread unregistered (alive jobs=%s)", job_id, list(self.running_jobs.keys()))
     
     def _is_job_alive(self, job_id: int) -> bool:
         with self._lock:
@@ -34,70 +53,106 @@ class JobRunner:
     
     async def run_scan(self, scan_id: int, dataset_id: int):
         """Spustí scan job"""
+        tag = f"scan id={scan_id} dataset={dataset_id}"
+        logger.info("[%s] run_scan requested", tag)
+
         def scan_thread():
+            tag = f"scan id={scan_id} dataset={dataset_id}"
+            logger.info("[%s] thread started", tag)
             session = storage_service.get_session()
             if not session:
+                logger.error("[%s] ABORT: no DB session (USB/DB unavailable?) – status stays as-is", tag)
                 return
-            
+
+            scan_log_lines = []
+            bulk_conn = None
+            scan = None
+
             try:
                 scan = session.query(Scan).filter(Scan.id == scan_id).first()
                 if not scan:
+                    logger.error("[%s] ABORT: scan row not found in DB", tag)
                     return
-                
-                # Zkontrolovat, zda scan už není dokončený nebo běžící (ochrana proti duplicitnímu spuštění)
-                if scan.status in ["completed", "running"]:
+
+                # Ochrana proti duplicitnímu spuštění / completed scanu
+                if scan.status == "completed":
+                    logger.warning("[%s] ABORT: scan already completed – not re-running", tag)
+                    return
+                if scan.status == "running":
                     if self._is_job_alive(scan_id):
+                        logger.warning("[%s] ABORT: scan already running in another thread", tag)
                         return
-                    # Pokud není v running_jobs, ale status je running, resetovat na pending
-                    if scan.status == "running":
-                        scan.status = "pending"
-                        try:
-                            session.commit()
-                        except Exception:
-                            session.rollback()
-                            session.commit()
-                
+                    logger.warning("[%s] stale status=running without live thread – reset to pending", tag)
+                    scan.status = "pending"
+                    try:
+                        session.commit()
+                    except Exception:
+                        session.rollback()
+                        session.commit()
+
                 dataset = session.query(Dataset).filter(Dataset.id == dataset_id).first()
                 if not dataset:
+                    logger.error("[%s] ABORT: dataset not found – marking failed", tag)
                     scan.status = "failed"
+                    scan.error_message = "Dataset not found"
                     try:
                         session.commit()
                     except Exception:
                         session.rollback()
                     return
-                
-                # Broadcast start
-                asyncio.run(websocket_manager.broadcast({
+
+                logger.info(
+                    "[%s] phase=start location=%s scan_adapter=%s roots=%s",
+                    tag, dataset.location, dataset.scan_adapter_type, dataset.roots,
+                )
+
+                _broadcast_sync({
                     "type": "job.started",
                     "data": {"job_id": scan_id, "type": "scan"}
-                }))
-                
+                }, tag)
+
                 scan.status = "running"
                 try:
                     session.commit()
-                except Exception:
+                    logger.info("[%s] phase=status_running committed", tag)
+                except Exception as e:
+                    logger.warning("[%s] status=running commit failed (%s), retry after rollback", tag, e)
                     session.rollback()
                     session.commit()
-                
-                # Vytvoření adapteru
-                adapter = AdapterFactory.create_scan_adapter(dataset, dataset.location)
-                
-                # Callbacky – log_cb also accumulates messages for DB storage
-                scan_log_lines = []
+
+                # Callbacky – log jde vždy do docker logs; WS progress je throttled
+                last_progress_log_at = 0.0
+                last_progress_count = 0
 
                 def progress_cb(count: int, path: str):
-                    asyncio.run(websocket_manager.broadcast({
+                    nonlocal last_progress_log_at, last_progress_count
+                    now = time.monotonic()
+                    should_emit = (
+                        count - last_progress_count >= PROGRESS_LOG_EVERY_N
+                        or now - last_progress_log_at >= PROGRESS_LOG_EVERY_SEC
+                    )
+                    if not should_emit:
+                        return
+                    last_progress_log_at = now
+                    last_progress_count = count
+                    logger.info("[%s] progress files=%s path=%s", tag, count, path)
+                    _broadcast_sync({
                         "type": "job.progress",
                         "data": {"job_id": scan_id, "type": "scan", "count": count, "path": path}
-                    }))
-                
+                    }, tag)
+
                 def log_cb(message: str):
                     scan_log_lines.append(message)
-                    asyncio.run(websocket_manager.broadcast({
+                    upper = message[:12].upper()
+                    if upper.startswith(("ERROR", "FATAL", "WARNING")):
+                        logger.warning("[%s] %s", tag, message)
+                    else:
+                        logger.info("[%s] %s", tag, message)
+                    _broadcast_sync({
                         "type": "job.log",
                         "data": {"job_id": scan_id, "type": "scan", "message": message}
-                    }))
-                
+                    }, tag)
+
                 # Spuštění scanu – dedicated sqlite3 connection for bulk inserts
                 import sqlite3
                 total_files = 0
@@ -107,17 +162,21 @@ class JobRunner:
                 commit_failures = 0
                 records_lost = 0
                 iteration_completed = False
-                
-                if log_cb:
-                    log_cb(f"Starting scan for dataset {dataset_id}, roots: {dataset.roots}")
-                
+
+                log_cb(f"Starting scan for dataset {dataset_id}, roots: {dataset.roots}")
+
+                logger.info("[%s] phase=create_adapter", tag)
+                adapter = AdapterFactory.create_scan_adapter(dataset, dataset.location)
+                logger.info("[%s] phase=adapter_ready type=%s", tag, type(adapter).__name__)
+
                 db_path = storage_service.db_path
+                logger.info("[%s] phase=open_bulk_db path=%s", tag, db_path)
                 bulk_conn = sqlite3.connect(db_path, timeout=30)
                 bulk_conn.execute("PRAGMA journal_mode=WAL")
                 bulk_conn.execute("PRAGMA synchronous=NORMAL")
                 bulk_conn.execute("PRAGMA busy_timeout=10000")
                 INSERT_SQL = "INSERT INTO file_entries (scan_id, full_rel_path, size, mtime_epoch, root_rel_path) VALUES (?, ?, ?, ?, ?)"
-                
+
                 def _flush_batch(force_msg=None):
                     """Flush batch_buffer to DB via dedicated sqlite3 connection with retry."""
                     nonlocal batch_buffer, commit_failures, records_lost
@@ -125,12 +184,16 @@ class JobRunner:
                         return
                     rows = batch_buffer
                     batch_buffer = []
+                    t0 = time.monotonic()
                     for attempt in range(3):
                         try:
                             bulk_conn.executemany(INSERT_SQL, rows)
                             bulk_conn.commit()
-                            if force_msg and log_cb:
-                                log_cb(force_msg)
+                            elapsed_ms = (time.monotonic() - t0) * 1000
+                            if force_msg:
+                                log_cb(f"{force_msg} (flush {len(rows)} rows in {elapsed_ms:.0f}ms)")
+                            else:
+                                logger.debug("[%s] flushed %s rows in %.0fms", tag, len(rows), elapsed_ms)
                             return
                         except Exception as e:
                             try:
@@ -138,26 +201,24 @@ class JobRunner:
                             except Exception:
                                 pass
                             if attempt < 2:
-                                if log_cb:
-                                    log_cb(f"WARNING: Batch insert attempt {attempt+1} failed ({e}), retrying...")
-                                import time
+                                log_cb(f"WARNING: Batch insert attempt {attempt+1} failed ({e}), retrying...")
                                 time.sleep(0.5)
                             else:
                                 commit_failures += 1
                                 records_lost += len(rows)
-                                if log_cb:
-                                    log_cb(f"ERROR: Batch insert failed after 3 attempts, {len(rows)} records LOST: {e}")
-                
+                                log_cb(f"ERROR: Batch insert failed after 3 attempts, {len(rows)} records LOST: {e}")
+
                 try:
                     from backend.config import DEFAULT_EXCLUDE_PATTERNS, match_exclude_pattern
                     exclude_patterns = DEFAULT_EXCLUDE_PATTERNS.copy()
-                    
+
+                    logger.info("[%s] phase=list_files_start", tag)
                     file_iterator = adapter.list_files(dataset.roots, progress_cb, log_cb)
-                    
+
                     for file_entry in file_iterator:
                         if match_exclude_pattern(file_entry.full_rel_path, exclude_patterns):
                             continue
-                        
+
                         batch_buffer.append((
                             scan_id,
                             file_entry.full_rel_path,
@@ -167,58 +228,59 @@ class JobRunner:
                         ))
                         total_files += 1
                         total_size += file_entry.size
-                        
+
                         if len(batch_buffer) >= BATCH_SIZE:
                             _flush_batch(f"Committed {total_files} files so far...")
-                    
-                    # Final batch
+
                     _flush_batch(f"Final batch committed, {total_files} files total")
-                    
+
                     iteration_completed = True
-                    
-                    # Close dedicated bulk connection
+                    logger.info("[%s] phase=iteration_done files=%s", tag, total_files)
+
                     try:
                         bulk_conn.close()
+                        bulk_conn = None
                     except Exception:
                         pass
-                    
-                    # Verify actual DB record count via fresh sqlite3 connection
+
+                    logger.info("[%s] phase=db_verify", tag)
                     verify_conn = sqlite3.connect(db_path, timeout=10)
                     db_count = verify_conn.execute(
                         "SELECT COUNT(*) FROM file_entries WHERE scan_id = ?", (scan_id,)
                     ).fetchone()[0]
                     verify_conn.close()
-                    
-                    if log_cb:
-                        log_cb(f"DB verification: counter={total_files}, db_records={db_count}, lost={records_lost}, commit_failures={commit_failures}")
-                    
+
+                    log_cb(
+                        f"DB verification: counter={total_files}, db_records={db_count}, "
+                        f"lost={records_lost}, commit_failures={commit_failures}"
+                    )
+
                     if db_count != total_files:
-                        if log_cb:
-                            log_cb(f"WARNING: DB mismatch ({db_count} != {total_files}), diff={db_count - total_files}")
-                    
-                    # Update scan status
+                        log_cb(f"WARNING: DB mismatch ({db_count} != {total_files}), diff={db_count - total_files}")
+
+                    logger.info("[%s] phase=status_commit_start", tag)
                     try:
                         session.refresh(scan)
                     except Exception:
                         scan = session.query(Scan).filter(Scan.id == scan_id).first()
                         if not scan:
                             raise Exception(f"Scan {scan_id} not found for final update")
-                    
+
                     scan.total_files = db_count
                     scan.total_size = total_size
                     scan.status = "completed"
                     scan.error_message = "\n".join(scan_log_lines[-500:]) if scan_log_lines else None
-                    
+
                     commit_success = False
                     for attempt in range(3):
                         try:
                             session.commit()
                             commit_success = True
+                            logger.info("[%s] phase=status_commit_ok attempt=%s", tag, attempt + 1)
                             break
                         except Exception as e:
                             session.rollback()
-                            if log_cb:
-                                log_cb(f"WARNING: Status commit attempt {attempt+1} failed: {e}")
+                            log_cb(f"WARNING: Status commit attempt {attempt+1} failed: {e}")
                             try:
                                 scan = session.query(Scan).filter(Scan.id == scan_id).first()
                                 if scan:
@@ -228,8 +290,9 @@ class JobRunner:
                                     scan.error_message = "\n".join(scan_log_lines[-500:]) if scan_log_lines else None
                             except Exception:
                                 pass
-                    
+
                     if not commit_success:
+                        logger.warning("[%s] status commit failed on primary session – trying new session", tag)
                         new_session = storage_service.get_session()
                         if new_session:
                             try:
@@ -241,103 +304,125 @@ class JobRunner:
                                     s.error_message = "\n".join(scan_log_lines[-500:]) if scan_log_lines else None
                                     new_session.commit()
                                     commit_success = True
-                            except Exception:
+                                    logger.info("[%s] phase=status_commit_ok via_new_session", tag)
+                            except Exception as e:
+                                logger.error("[%s] new-session status commit failed: %s", tag, e)
                                 new_session.rollback()
                             finally:
                                 new_session.close()
-                    
-                    if log_cb:
-                        log_cb(f"Scan completed: {db_count} files in DB (scanned {total_files}), {total_size / 1024 / 1024:.2f} MB, lost={records_lost}")
-                    
+
+                    log_cb(
+                        f"Scan completed: {db_count} files in DB (scanned {total_files}), "
+                        f"{total_size / 1024 / 1024:.2f} MB, lost={records_lost}"
+                    )
+
                     broadcast_status = "completed" if commit_success else "failed"
-                    try:
-                        asyncio.run(websocket_manager.broadcast({
-                            "type": "job.finished",
-                            "data": {
-                                "job_id": scan_id,
-                                "type": "scan",
-                                "status": broadcast_status,
-                                "error": None if commit_success else "Failed to commit scan status"
-                            }
-                        }))
-                    except Exception as broadcast_error:
-                        if log_cb:
-                            log_cb(f"Failed to broadcast job.finished: {broadcast_error}")
+                    if not commit_success:
+                        logger.error("[%s] FINISHED as failed – could not persist status=completed", tag)
+                    else:
+                        logger.info("[%s] FINISHED status=%s files=%s", tag, broadcast_status, db_count)
+
+                    _broadcast_sync({
+                        "type": "job.finished",
+                        "data": {
+                            "job_id": scan_id,
+                            "type": "scan",
+                            "status": broadcast_status,
+                            "error": None if commit_success else "Failed to commit scan status"
+                        }
+                    }, tag)
                 except Exception as scan_error:
+                    if bulk_conn is not None:
+                        try:
+                            bulk_conn.close()
+                        except Exception:
+                            pass
+                        bulk_conn = None
+                    log_cb(f"Error during scan: {scan_error}")
+                    logger.exception("[%s] error during scan (iteration_completed=%s)", tag, iteration_completed)
+                    if not iteration_completed:
+                        raise
+
+            except Exception as e:
+                if bulk_conn is not None:
                     try:
                         bulk_conn.close()
                     except Exception:
                         pass
-                    if log_cb:
-                        log_cb(f"Error during scan: {scan_error}")
-                    if not iteration_completed:
-                        raise
-                
-            except Exception as e:
-                try:
-                    bulk_conn.close()
-                except Exception:
-                    pass
+                logger.exception("[%s] FATAL – marking failed: %s", tag, e)
                 try:
                     session.rollback()
-                except:
+                except Exception:
                     pass
-                scan.status = "failed"
-                log_with_error = scan_log_lines + [f"FATAL: {e}"]
-                scan.error_message = "\n".join(log_with_error[-500:])
-                try:
-                    session.commit()
-                except Exception as commit_error:
+                if scan is not None:
                     try:
-                        session.rollback()
+                        scan.status = "failed"
+                        log_with_error = scan_log_lines + [f"FATAL: {e}"]
+                        scan.error_message = "\n".join(log_with_error[-500:])
                         session.commit()
-                    except Exception:
-                        # Pokud ani to nefunguje, zkusit novou session
+                        logger.info("[%s] status=failed committed", tag)
+                    except Exception as commit_error:
+                        logger.warning("[%s] failed-status commit error: %s", tag, commit_error)
                         try:
-                            new_session = storage_service.get_session()
-                            if new_session:
-                                scan = new_session.query(Scan).filter(Scan.id == scan_id).first()
-                                if scan:
-                                    scan.status = "failed"
-                                    scan.error_message = str(e)
-                                    new_session.commit()
+                            session.rollback()
+                            session.commit()
+                        except Exception:
+                            try:
+                                new_session = storage_service.get_session()
+                                if new_session:
+                                    s = new_session.query(Scan).filter(Scan.id == scan_id).first()
+                                    if s:
+                                        s.status = "failed"
+                                        s.error_message = str(e)
+                                        new_session.commit()
+                                        logger.info("[%s] status=failed committed via new session", tag)
                                     new_session.close()
-                        except:
-                            pass
-                asyncio.run(websocket_manager.broadcast({
+                            except Exception as final_err:
+                                logger.error("[%s] could not persist failed status: %s", tag, final_err)
+                _broadcast_sync({
                     "type": "job.finished",
                     "data": {"job_id": scan_id, "type": "scan", "status": "failed", "error": str(e)}
-                }))
+                }, tag)
             finally:
                 try:
                     session.close()
-                except:
+                except Exception:
                     pass
                 self._unregister_job(scan_id)
-        
-        thread = threading.Thread(target=scan_thread, daemon=True)
+                logger.info("[%s] thread exit", tag)
+
+        thread = threading.Thread(target=scan_thread, daemon=True, name=f"scan-{scan_id}")
         self._register_job(scan_id, thread)
         thread.start()
+        logger.info("[%s] background thread started name=%s", tag, thread.name)
     
     async def run_diff(self, diff_id: int):
         """Spustí diff job"""
+        tag = f"diff id={diff_id}"
+        logger.info("[%s] run_diff requested", tag)
+
         def diff_thread():
+            tag = f"diff id={diff_id}"
+            logger.info("[%s] thread started", tag)
             session = storage_service.get_session()
             if not session:
+                logger.error("[%s] ABORT: no DB session", tag)
                 return
             
             try:
                 diff = session.query(Diff).filter(Diff.id == diff_id).first()
                 if not diff:
+                    logger.error("[%s] ABORT: diff row not found", tag)
                     return
                 
-                asyncio.run(websocket_manager.broadcast({
+                _broadcast_sync({
                     "type": "job.started",
                     "data": {"job_id": diff_id, "type": "diff"}
-                }))
+                }, tag)
                 
                 diff.status = "running"
                 session.commit()
+                logger.info("[%s] phase=status_running committed", tag)
                 
                 # Načtení scanů a jejich datasetů
                 source_scan = session.query(Scan).filter(Scan.id == diff.source_scan_id).first()
@@ -379,12 +464,10 @@ class JobRunner:
                     raise
                 
                 # Debug: Logování root složek pro diagnostiku
-                import logging
-                logger = logging.getLogger(__name__)
                 source_root = source_dataset.roots[0] if source_dataset.roots else ""
                 target_root = target_dataset.roots[0] if target_dataset.roots else ""
-                logger.info(f"Diff {diff_id}: Source dataset root: '{source_root}', Target dataset root: '{target_root}'")
-                logger.info(f"Diff {diff_id}: Source files count: {len(source_files_raw)}, Target files count: {len(target_files_raw)}")
+                logger.info("[%s] source_root=%r target_root=%r source_files=%s target_files=%s",
+                            tag, source_root, target_root, len(source_files_raw), len(target_files_raw))
                 
                 # Vytvoření mapy normalizovaných cest -> soubory
                 # Použijeme root_rel_path z každého souboru místo root z datasetu pro přesnější normalizaci
@@ -551,14 +634,16 @@ class JobRunner:
                     }))
                     session.commit()
                 
-                asyncio.run(websocket_manager.broadcast({
+                logger.info("[%s] FINISHED status=completed", tag)
+                _broadcast_sync({
                     "type": "job.finished",
                     "data": {"job_id": diff_id, "type": "diff", "status": "completed"}
-                }))
+                }, tag)
                 
             except Exception as e:
                 import traceback
                 from sqlalchemy.exc import DatabaseError
+                logger.exception("[%s] FATAL: %s", tag, e)
                 
                 # Detekce poškozené databáze
                 is_database_corrupted = False
@@ -630,46 +715,48 @@ class JobRunner:
                                     new_session.commit()
                                     new_session.close()
                         except Exception as final_error:
-                            import logging
-                            logging.getLogger(__name__).error(f"Failed to update diff error message: {final_error}")
+                            logger.error("[%s] Failed to update diff error message: %s", tag, final_error)
                 
-                # Broadcast s chybou
-                try:
-                    asyncio.run(websocket_manager.broadcast({
-                        "type": "job.finished",
-                        "data": {"job_id": diff_id, "type": "diff", "status": "failed", "error": str(e)}
-                    }))
-                except Exception as broadcast_error:
-                    import logging
-                    logging.getLogger(__name__).error(f"Failed to broadcast diff error: {broadcast_error}")
+                _broadcast_sync({
+                    "type": "job.finished",
+                    "data": {"job_id": diff_id, "type": "diff", "status": "failed", "error": str(e)}
+                }, tag)
             finally:
                 session.close()
                 self._unregister_job(diff_id)
+                logger.info("[%s] thread exit", tag)
         
-        thread = threading.Thread(target=diff_thread, daemon=True)
+        thread = threading.Thread(target=diff_thread, daemon=True, name=f"diff-{diff_id}")
         self._register_job(diff_id, thread)
         thread.start()
     
     async def run_batch_planning(self, batch_id: int):
         """Spustí batch planning job"""
+        tag = f"batch id={batch_id}"
+        logger.info("[%s] run_batch_planning requested", tag)
+
         def batch_thread():
+            tag = f"batch id={batch_id}"
+            logger.info("[%s] thread started", tag)
             session = storage_service.get_session()
             if not session:
+                logger.error("[%s] ABORT: no DB session", tag)
                 return
             
             try:
                 batch = session.query(Batch).filter(Batch.id == batch_id).first()
                 if not batch:
+                    logger.error("[%s] ABORT: batch row not found", tag)
                     return
                 
-                # Broadcast start
-                asyncio.run(websocket_manager.broadcast({
+                _broadcast_sync({
                     "type": "job.started",
                     "data": {"job_id": batch_id, "type": "batch"}
-                }))
+                }, tag)
                 
                 batch.status = "running"
                 session.commit()
+                logger.info("[%s] phase=status_running committed", tag)
                 
                 diff = session.query(Diff).filter(Diff.id == batch.diff_id).first()
                 if not diff:
@@ -764,16 +851,17 @@ class JobRunner:
                 
                 batch.status = "ready_to_phase_2"
                 session.commit()
+                logger.info("[%s] FINISHED status=ready_to_phase_2 items=%s size=%s", tag, len(selected_items), total_size)
                 
-                # Broadcast success
-                asyncio.run(websocket_manager.broadcast({
+                _broadcast_sync({
                     "type": "job.finished",
                     "data": {"job_id": batch_id, "type": "batch", "status": "ready"}
-                }))
+                }, tag)
                 
             except Exception as e:
                 import traceback
                 error_msg = str(e)
+                logger.exception("[%s] FATAL: %s", tag, e)
                 traceback.print_exc()
                 
                 try:
@@ -783,35 +871,44 @@ class JobRunner:
                         batch.status = "failed"
                         batch.error_message = error_msg
                         session.commit()
-                except:
+                except Exception:
                     pass
                 
-                asyncio.run(websocket_manager.broadcast({
+                _broadcast_sync({
                     "type": "job.finished",
                     "data": {"job_id": batch_id, "type": "batch", "status": "failed", "error": error_msg}
-                }))
+                }, tag)
             finally:
                 session.close()
                 self._unregister_job(batch_id)
+                logger.info("[%s] thread exit", tag)
         
-        thread = threading.Thread(target=batch_thread, daemon=True)
+        thread = threading.Thread(target=batch_thread, daemon=True, name=f"batch-{batch_id}")
         self._register_job(batch_id, thread)
         thread.start()
     
     def run_copy(self, job_id: int, batch_id: int, direction: str, dry_run: bool = False):
         """Spustí copy job"""
+        tag = f"copy id={job_id} batch={batch_id} dir={direction}"
+        logger.info("[%s] run_copy requested dry_run=%s", tag, dry_run)
+
         def copy_thread():
+            tag = f"copy id={job_id} batch={batch_id} dir={direction}"
+            logger.info("[%s] thread started", tag)
             session = storage_service.get_session()
             if not session:
+                logger.error("[%s] ABORT: no DB session", tag)
                 return
             
             try:
                 job = session.query(JobRun).filter(JobRun.id == job_id).first()
                 if not job:
+                    logger.error("[%s] ABORT: job row not found", tag)
                     return
                 
                 batch = session.query(Batch).filter(Batch.id == batch_id).first()
                 if not batch:
+                    logger.error("[%s] ABORT: batch not found", tag)
                     job.status = "failed"
                     job.error_message = "Batch not found"
                     job.finished_at = datetime.utcnow()
@@ -955,10 +1052,15 @@ class JobRunner:
                 def log_cb(message: str):
                     nonlocal log_messages
                     log_messages.append(message)
-                    asyncio.run(websocket_manager.broadcast({
+                    upper = message[:12].upper()
+                    if upper.startswith(("ERROR", "FATAL", "WARNING")):
+                        logger.warning("[%s] %s", tag, message)
+                    else:
+                        logger.info("[%s] %s", tag, message)
+                    _broadcast_sync({
                         "type": "job.log",
                         "data": {"job_id": job_id, "type": "copy", "message": message}
-                    }))
+                    }, tag)
                 
                 # Určení source a target base paths a adapterů podle konfigurace datasetů
                 # USB je vždy lokální mount
@@ -1038,11 +1140,13 @@ class JobRunner:
                 else:
                     raise ValueError(f"Unknown direction: {direction}")
                 
-                # Callbacky pro progress
+                # Callbacky pro progress (throttled – asyncio.run na každý soubor by scan/copy zabil)
                 total_files = len(file_entries)
-                
+                last_progress_log_at = 0.0
+                last_progress_count = 0
+
                 def progress_cb(count: int, path: str, file_size: int = 0, success: bool = True, error: str = None):
-                    nonlocal copied_count, copied_size
+                    nonlocal copied_count, copied_size, last_progress_log_at, last_progress_count
                     # count je počet zkopírovaných souborů z adapteru
                     copied_count = count
                     # Přidat velikost jen jednou pro každý soubor
@@ -1056,23 +1160,36 @@ class JobRunner:
                             "status": "copied" if success else "failed",
                             "error_message": error
                         })
-                    # Broadcast progress - použít copied_count (aktuální počet zkopírovaných souborů)
-                    asyncio.run(websocket_manager.broadcast({
+                    now = time.monotonic()
+                    should_emit = (
+                        count - last_progress_count >= PROGRESS_LOG_EVERY_N
+                        or now - last_progress_log_at >= PROGRESS_LOG_EVERY_SEC
+                        or count >= total_files
+                        or not success
+                    )
+                    if not should_emit:
+                        return
+                    last_progress_log_at = now
+                    last_progress_count = count
+                    logger.info("[%s] progress %s/%s path=%s", tag, copied_count, total_files, path)
+                    _broadcast_sync({
                         "type": "job.progress",
                         "data": {
                             "job_id": job_id,
                             "type": "copy",
                             "batch_id": batch_id,
-                            "count": copied_count,  # Použít copied_count místo count
+                            "count": copied_count,
                             "total_files": total_files,
                             "current_file": path,
                             "current_file_size": file_size,
                             "copied_size": copied_size,
                             "total_size": total_size
                         }
-                    }))
+                    }, tag)
                 
                 # Spuštění kopírování
+                logger.info("[%s] phase=transfer_start files=%s size=%s source=%s target=%s",
+                            tag, len(file_entries), total_size, source_base, target_base)
                 # Pro SSH adapter předáme source_is_remote parametr, pokud je potřeba
                 from backend.adapters.ssh_transfer import SshRsyncTransferAdapter
                 if isinstance(adapter, SshRsyncTransferAdapter) and direction == "nas1-usb":
@@ -1152,7 +1269,8 @@ class JobRunner:
                         raise
                 
                 # Broadcast finish
-                asyncio.run(websocket_manager.broadcast({
+                logger.info("[%s] FINISHED status=%s files_copied=%s", tag, job.status, result.get("files_copied", 0))
+                _broadcast_sync({
                     "type": "job.finished",
                     "data": {
                         "job_id": job_id,
@@ -1160,9 +1278,10 @@ class JobRunner:
                         "status": job.status,
                         "files_copied": result.get("files_copied", 0)
                     }
-                }))
+                }, tag)
                 
             except Exception as e:
+                logger.exception("[%s] FATAL: %s", tag, e)
                 session.rollback()
                 # Znovu načíst job a batch pro aktualizaci
                 job = session.query(JobRun).filter(JobRun.id == job_id).first()
@@ -1177,15 +1296,16 @@ class JobRunner:
                     session.commit()
                 except Exception:
                     session.rollback()
-                asyncio.run(websocket_manager.broadcast({
+                _broadcast_sync({
                     "type": "job.finished",
                     "data": {"job_id": job_id, "type": "copy", "status": "failed", "batch_id": batch_id, "error": str(e)}
-                }))
+                }, tag)
             finally:
                 session.close()
                 self._unregister_job(job_id)
+                logger.info("[%s] thread exit", tag)
 
-        thread = threading.Thread(target=copy_thread, daemon=True)
+        thread = threading.Thread(target=copy_thread, daemon=True, name=f"copy-{job_id}")
         self._register_job(job_id, thread)
         thread.start()
 
