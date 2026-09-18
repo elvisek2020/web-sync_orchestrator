@@ -763,126 +763,238 @@ class JobRunner:
                     batch.status = "failed"
                     batch.error_message = "Diff not found"
                     session.commit()
-                    asyncio.run(websocket_manager.broadcast({
+                    _broadcast_sync({
                         "type": "job.finished",
                         "data": {"job_id": batch_id, "type": "batch", "status": "failed", "error": "Diff not found"}
-                    }))
+                    }, tag)
                     return
-                
-                # Načtení diff items
-                diff_items = session.query(DiffItem).filter(
-                    DiffItem.diff_id == batch.diff_id
-                ).all()
-                
+
+                include_conflicts = bool(batch.include_conflicts)
+                include_extra = bool(batch.include_extra)
+                exclude_patterns = list(batch.exclude_patterns or [])
+                diff_id = batch.diff_id
+
+                logger.info(
+                    "[%s] phase=load_diff_items diff_id=%s include_conflicts=%s include_extra=%s",
+                    tag, diff_id, include_conflicts, include_extra,
+                )
+
+                # Načíst jen potřebná pole – bez držení 15k ORM objektů ve session
+                diff_items = session.query(
+                    DiffItem.full_rel_path,
+                    DiffItem.category,
+                    DiffItem.source_size,
+                    DiffItem.target_size,
+                ).filter(DiffItem.diff_id == diff_id).all()
+
                 total_items = len(diff_items)
-                
-                # Progress feedback - start
-                asyncio.run(websocket_manager.broadcast({
+                logger.info("[%s] phase=diff_items_loaded count=%s", tag, total_items)
+
+                _broadcast_sync({
                     "type": "job.progress",
-                    "data": {"job_id": batch_id, "type": "batch", "count": 0, "total": total_items, "message": f"Načítání {total_items} položek z porovnání..."}
-                }))
-                
-                # Filtrování podle kategorií
+                    "data": {
+                        "job_id": batch_id,
+                        "type": "batch",
+                        "count": 0,
+                        "total": total_items,
+                        "message": f"Načítání {total_items} položek z porovnání...",
+                    },
+                }, tag)
+
                 items_to_include = [
                     item for item in diff_items
                     if item.category == "missing"
-                    or (item.category == "conflict" and batch.include_conflicts)
-                    or (item.category == "extra" and batch.include_extra)
+                    or (item.category == "conflict" and include_conflicts)
+                    or (item.category == "extra" and include_extra)
                 ]
-                
-                # Progress feedback - po filtrování
-                asyncio.run(websocket_manager.broadcast({
+                logger.info("[%s] phase=filtered_by_category count=%s", tag, len(items_to_include))
+
+                _broadcast_sync({
                     "type": "job.progress",
-                    "data": {"job_id": batch_id, "type": "batch", "count": len(items_to_include), "total": total_items, "message": f"Filtrování podle kategorií: {len(items_to_include)} položek..."}
-                }))
-                
-                # Filtrování podle exclude_patterns
+                    "data": {
+                        "job_id": batch_id,
+                        "type": "batch",
+                        "count": len(items_to_include),
+                        "total": total_items,
+                        "message": f"Filtrování podle kategorií: {len(items_to_include)} položek...",
+                    },
+                }, tag)
+
                 from backend.config import match_exclude_pattern
-                exclude_patterns = batch.exclude_patterns or []
                 if exclude_patterns:
                     items_before_exclude = len(items_to_include)
                     items_to_include = [
                         item for item in items_to_include
                         if not match_exclude_pattern(item.full_rel_path, exclude_patterns)
                     ]
-                    # Progress feedback - po exclude patterns
-                    asyncio.run(websocket_manager.broadcast({
+                    logger.info(
+                        "[%s] phase=filtered_by_exclude before=%s after=%s",
+                        tag, items_before_exclude, len(items_to_include),
+                    )
+                    _broadcast_sync({
                         "type": "job.progress",
-                        "data": {"job_id": batch_id, "type": "batch", "count": len(items_to_include), "total": total_items, "message": f"Filtrování podle výjimek: {len(items_to_include)} položek (odfiltrováno {items_before_exclude - len(items_to_include)})..."}
-                    }))
-                
-                # Řazení od nejmenších
+                        "data": {
+                            "job_id": batch_id,
+                            "type": "batch",
+                            "count": len(items_to_include),
+                            "total": total_items,
+                            "message": (
+                                f"Filtrování podle výjimek: {len(items_to_include)} položek "
+                                f"(odfiltrováno {items_before_exclude - len(items_to_include)})..."
+                            ),
+                        },
+                    }, tag)
+
                 items_to_include.sort(key=lambda x: x.source_size or x.target_size or 0)
-                
-                # Výpočet dostupné kapacity USB (pro informaci, ale neomezujeme)
+
                 import shutil
                 try:
-                    total, used, free = shutil.disk_usage("/mnt/usb")
+                    _total, _used, free = shutil.disk_usage("/mnt/usb")
                     usb_available = free
                 except Exception as e:
                     usb_available = 0
-                    # Neoznačujeme jako failed, jen logujeme
-                    asyncio.run(websocket_manager.broadcast({
-                        "type": "job.log",
-                        "data": {"job_id": batch_id, "type": "batch", "message": f"Warning: Failed to get USB disk usage: {str(e)}"}
-                    }))
-                
-                # Vzít všechny soubory (bez limitu)
+                    logger.warning("[%s] USB disk usage failed: %s", tag, e)
+
                 selected_items = items_to_include
                 total_size = sum(item.source_size or item.target_size or 0 for item in selected_items)
-                processed_count = len(selected_items)
-                
-                # Progress feedback - před vytvářením batch items
-                asyncio.run(websocket_manager.broadcast({
+                logger.info(
+                    "[%s] phase=insert_start items=%s size=%s usb_free=%s",
+                    tag, len(selected_items), total_size, usb_available,
+                )
+
+                _broadcast_sync({
                     "type": "job.progress",
-                    "data": {"job_id": batch_id, "type": "batch", "count": len(selected_items), "total": len(items_to_include), "message": f"Vytváření plánu: {len(selected_items)} souborů..."}
-                }))
-                
-                # Vytvoření batch items
-                for item in selected_items:
-                    batch_item = BatchItem(
-                        batch_id=batch_id,
-                        full_rel_path=item.full_rel_path,
-                        size=item.source_size or item.target_size or 0,
-                        category=item.category,
-                        enabled=True  # Všechny soubory jsou ve výchozím stavu povolené
+                    "data": {
+                        "job_id": batch_id,
+                        "type": "batch",
+                        "count": len(selected_items),
+                        "total": len(items_to_include),
+                        "message": f"Vytváření plánu: {len(selected_items)} souborů...",
+                    },
+                }, tag)
+
+                # Uvolnit ORM session před bulk zápisem (stejný pattern jako scan)
+                session.expire_all()
+                session.close()
+                session = None
+
+                import sqlite3
+                db_path = storage_service.db_path
+                bulk_conn = sqlite3.connect(db_path, timeout=60)
+                try:
+                    bulk_conn.execute("PRAGMA journal_mode=WAL")
+                    bulk_conn.execute("PRAGMA synchronous=NORMAL")
+                    bulk_conn.execute("PRAGMA busy_timeout=30000")
+
+                    # Staré položky (re-run / stuck retry)
+                    bulk_conn.execute("DELETE FROM batch_items WHERE batch_id = ?", (batch_id,))
+                    bulk_conn.commit()
+
+                    INSERT_SQL = (
+                        "INSERT INTO batch_items (batch_id, full_rel_path, size, category, enabled) "
+                        "VALUES (?, ?, ?, ?, 1)"
                     )
-                    session.add(batch_item)
-                
-                batch.status = "ready_to_phase_2"
-                session.commit()
-                logger.info("[%s] FINISHED status=ready_to_phase_2 items=%s size=%s", tag, len(selected_items), total_size)
-                
+                    BATCH_SIZE = 500
+                    rows = []
+                    inserted = 0
+                    for item in selected_items:
+                        rows.append((
+                            batch_id,
+                            item.full_rel_path,
+                            item.source_size or item.target_size or 0,
+                            item.category,
+                        ))
+                        if len(rows) >= BATCH_SIZE:
+                            bulk_conn.executemany(INSERT_SQL, rows)
+                            bulk_conn.commit()
+                            inserted += len(rows)
+                            rows = []
+                            if inserted % 2000 == 0 or inserted == len(selected_items):
+                                logger.info("[%s] insert progress %s/%s", tag, inserted, len(selected_items))
+
+                    if rows:
+                        bulk_conn.executemany(INSERT_SQL, rows)
+                        bulk_conn.commit()
+                        inserted += len(rows)
+
+                    db_count = bulk_conn.execute(
+                        "SELECT COUNT(*) FROM batch_items WHERE batch_id = ?", (batch_id,)
+                    ).fetchone()[0]
+
+                    bulk_conn.execute(
+                        "UPDATE batches SET status = ? WHERE id = ?",
+                        ("ready_to_phase_2", batch_id),
+                    )
+                    bulk_conn.commit()
+
+                    db_status = bulk_conn.execute(
+                        "SELECT status FROM batches WHERE id = ?", (batch_id,)
+                    ).fetchone()
+                    db_status = db_status[0] if db_status else None
+                finally:
+                    bulk_conn.close()
+
+                logger.info(
+                    "[%s] FINISHED db_status=%s db_items=%s selected=%s size=%s",
+                    tag, db_status, db_count, len(selected_items), total_size,
+                )
+                if db_status != "ready_to_phase_2" or db_count != len(selected_items):
+                    logger.error(
+                        "[%s] VERIFY MISMATCH expected status=ready_to_phase_2 items=%s; "
+                        "got status=%s items=%s",
+                        tag, len(selected_items), db_status, db_count,
+                    )
+
                 _broadcast_sync({
                     "type": "job.finished",
-                    "data": {"job_id": batch_id, "type": "batch", "status": "ready"}
+                    "data": {
+                        "job_id": batch_id,
+                        "type": "batch",
+                        "status": db_status or "ready_to_phase_2",
+                    },
                 }, tag)
-                
+
             except Exception as e:
                 import traceback
                 error_msg = str(e)
                 logger.exception("[%s] FATAL: %s", tag, e)
                 traceback.print_exc()
-                
+
                 try:
-                    session.rollback()
-                    batch = session.query(Batch).filter(Batch.id == batch_id).first()
-                    if batch:
-                        batch.status = "failed"
-                        batch.error_message = error_msg
-                        session.commit()
-                except Exception:
-                    pass
-                
+                    if session is not None:
+                        session.rollback()
+                        batch = session.query(Batch).filter(Batch.id == batch_id).first()
+                        if batch:
+                            batch.status = "failed"
+                            batch.error_message = error_msg
+                            session.commit()
+                    else:
+                        import sqlite3
+                        fail_conn = sqlite3.connect(storage_service.db_path, timeout=30)
+                        try:
+                            fail_conn.execute(
+                                "UPDATE batches SET status = ?, error_message = ? WHERE id = ?",
+                                ("failed", error_msg[:2000], batch_id),
+                            )
+                            fail_conn.commit()
+                        finally:
+                            fail_conn.close()
+                except Exception as fail_err:
+                    logger.error("[%s] could not persist failed status: %s", tag, fail_err)
+
                 _broadcast_sync({
                     "type": "job.finished",
-                    "data": {"job_id": batch_id, "type": "batch", "status": "failed", "error": error_msg}
+                    "data": {"job_id": batch_id, "type": "batch", "status": "failed", "error": error_msg},
                 }, tag)
             finally:
-                session.close()
+                if session is not None:
+                    try:
+                        session.close()
+                    except Exception:
+                        pass
                 self._unregister_job(batch_id)
                 logger.info("[%s] thread exit", tag)
-        
+
         thread = threading.Thread(target=batch_thread, daemon=True, name=f"batch-{batch_id}")
         self._register_job(batch_id, thread)
         thread.start()

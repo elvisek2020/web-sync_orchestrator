@@ -10,6 +10,9 @@ const STATUS_MAP = {
   conflict: 'badge-conflict',
   extra: 'badge-extra',
   same: 'badge-same',
+  ready_to_phase_2: 'badge-completed',
+  ready_to_phase_3: 'badge-completed',
+  ready: 'badge-completed',
 }
 
 const LABEL_MAP = {
@@ -21,6 +24,9 @@ const LABEL_MAP = {
   conflict: 'Konflikt',
   extra: 'Přebývá',
   same: 'Stejné',
+  ready_to_phase_2: 'Ready fáze 2',
+  ready_to_phase_3: 'Ready fáze 3',
+  ready: 'Ready',
 }
 
 export default function StatusBadge({ status, label }) {

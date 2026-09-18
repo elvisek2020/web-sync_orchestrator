@@ -4,7 +4,7 @@ Storage service - spravuje životní cyklus SQLite DB na USB
 import os
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool
 from typing import Optional
 import asyncio
 
@@ -58,13 +58,15 @@ class StorageService:
         # Nejdřív vytvořit engine a SessionLocal, pak provést migrace
         # To zajistí, že i když migrace selže, engine a SessionLocal budou nastaveny
         try:
-            # SQLite s pool pro thread-safety
+            # NullPool: každé Session má vlastní SQLite spojení.
+            # StaticPool (1 shared connection) + API requesty paralelně s job threadem
+            # způsobovaly rollback cizí transakce → status zůstal "running", items=0.
             self.db_path = db_path
             logger.info(f"Creating engine for {db_path}")
             self.engine = create_engine(
                 f"sqlite:///{db_path}",
-                connect_args={"check_same_thread": False},
-                poolclass=StaticPool,
+                connect_args={"check_same_thread": False, "timeout": 30},
+                poolclass=NullPool,
                 echo=False,
             )
             
