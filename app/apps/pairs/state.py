@@ -1,11 +1,14 @@
 """Stav párů pro UI: poslední skeny, běžící skeny, porovnání a plán s kapacitou disku."""
 from __future__ import annotations
 
+import threading
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime
 
 from app import db
-from app.core.plan import PairPlan, allocate, build_plan, compare
+from app.core.excludes import Excluder
+from app.core.plan import Comparison, PairPlan, allocate, build_plan, compare
 from app.scan.common import Progress
 from app.scan.runner import pair_excluder, runner
 
@@ -80,6 +83,27 @@ def _side_state(side: str, scans: list[dict]) -> SideState:
     return state
 
 
+# Porovnání je čistá funkce skenů, vzorů a vyřazených souborů → výsledek lze znovu použít.
+# Bez toho by se při každém kliknutí porovnávaly desítky tisíc souborů všech párů.
+_compare_cache: "OrderedDict[tuple, Comparison]" = OrderedDict()
+_compare_lock = threading.Lock()
+_COMPARE_CACHE_SIZE = 16
+
+
+def _cached_compare(src_id: int, tgt_id: int, excluder: Excluder, skips: set[str]) -> Comparison:
+    key = (src_id, tgt_id, tuple(excluder.patterns), frozenset(skips))
+    with _compare_lock:
+        if key in _compare_cache:
+            _compare_cache.move_to_end(key)
+            return _compare_cache[key]
+    result = compare(pairs_db.load_files(src_id), pairs_db.load_files(tgt_id), excluder, skips)
+    with _compare_lock:
+        _compare_cache[key] = result
+        while len(_compare_cache) > _COMPARE_CACHE_SIZE:
+            _compare_cache.popitem(last=False)
+    return result
+
+
 def _hours_between(a: str, b: str) -> float:
     return abs((datetime.fromisoformat(a) - datetime.fromisoformat(b)).total_seconds()) / 3600
 
@@ -91,10 +115,7 @@ def load_overview() -> Overview:
         st = PairState(pair, _side_state("source", scans), _side_state("target", scans))
         src, tgt = st.source.current, st.target.current
         if src and tgt:
-            comparison = compare(
-                pairs_db.load_files(src["id"]), pairs_db.load_files(tgt["id"]),
-                pair_excluder(pair), pairs_db.skips_for_pair(pair["id"]),
-            )
+            comparison = _cached_compare(src["id"], tgt["id"], pair_excluder(pair), pairs_db.skips_for_pair(pair["id"]))
             st.plan = build_plan(
                 pair["id"], comparison, on_disk=bool(pair["on_disk"]),
                 include_conflicts=bool(pair["include_conflicts"]), include_extra=bool(pair["include_extra"]),

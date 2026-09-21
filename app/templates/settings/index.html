@@ -80,16 +80,30 @@
         <p class="card-subtitle">Plán rozdělí kapacitu mezi páry zaškrtnuté „Na disk“ v jejich pořadí; co se nevejde, je odloženo na další přenos.</p>
       </div>
     </div>
-    <form method="post" action="/nastaveni/disk" class="card-body">
-      <div class="form-group">
-        <label class="form-label" for="capacity_gb">Využitelná kapacita (GB)</label>
+    <div class="card-body stack">
+      {% if disk.mounted %}
+      <div class="disk-facts">
+        <div>
+          <strong>Připojený disk</strong> <span class="text-sm text-muted mono">{{ disk.path }}</span><br>
+          <span class="text-sm">volno <strong>{{ disk.free|filesize }}</strong> z {{ disk.total|filesize }}</span>
+          {% if disk.suspicious %}<br><span class="text-sm text-muted">Celková velikost je podezřele malá — není disk odpojený? Pak ukazuje místo na systémovém oddílu NASu.</span>{% endif %}
+        </div>
+        <form method="post" action="/nastaveni/disk/nacist">
+          <button type="submit" class="btn btn-secondary">{{ icon('hard-drive', 18) }}Načíst volné místo</button>
+        </form>
+      </div>
+      {% else %}
+      <p class="text-sm text-muted">Disk není do kontejneru připojený ({{ disk.path }}). Připoj ho v compose, např. <code>/volumeUSB1/usbshare:{{ disk.path }}:ro</code>, a volné místo se načte tlačítkem — nebo kapacitu zadej ručně.</p>
+      {% endif %}
+      <form method="post" action="/nastaveni/disk" class="form-group">
+        <label class="form-label" for="capacity_gb">Kapacita pro plán (GB)</label>
         <div class="input-group">
           <input class="input" id="capacity_gb" name="capacity_gb" inputmode="decimal" value="{{ capacity_gb }}" placeholder="např. 3900">
           <button type="submit" class="btn btn-primary">Uložit</button>
         </div>
-        <p class="form-hint">1 TB = 1000 GB. Zadej o něco méně, než je velikost disku. Prázdné = bez omezení. Skript před kopírováním ještě sám ověří skutečné volné místo.</p>
-      </div>
-    </form>
+        <p class="form-hint">1 TB = 1000 GB. Prázdné = bez omezení. Skript před kopírováním ještě sám ověří skutečné volné místo.</p>
+      </form>
+    </div>
   </section>
 
   <section class="card" id="vzory">
@@ -106,8 +120,8 @@
         <p class="form-hint">Vzor bez „/“ vyřadí soubor i celou složku s tímto názvem (<code>@eaDir</code>, <code>*.tmp</code>), vzor s „/“ se porovná s celou cestou. Velikost písmen nehraje roli. Složky podle vzorů se vynechají už při skenu — odebraný vzor se projeví po novém skenu.</p>
       </div>
       <div class="form-actions">
-        <button type="submit" class="btn btn-primary">Uložit vzory</button>
         <button type="submit" name="reset" value="1" class="btn btn-ghost">Obnovit výchozí</button>
+        <button type="submit" class="btn btn-primary">Uložit vzory</button>
       </div>
     </form>
   </section>

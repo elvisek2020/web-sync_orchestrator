@@ -1,0 +1,34 @@
+{% from "_icons.html" import icon %}
+{% from "_macros.html" import alert %}
+<div class="browser" id="browser-{{ side }}">
+  <div class="browser-head">
+    <span class="browser-path">{{ display }}</span>
+    <div class="cluster">
+      {% if parent is not none %}
+      <button type="button" class="btn btn-ghost btn-sm"
+              hx-get="/nastaveni/prochazet" hx-vals='{{ {"side": side, "host_id": host_id, "path": parent}|tojson }}'
+              hx-target="#browser-{{ side }}" hx-swap="outerHTML">{{ icon('arrow-up', 14) }}Nahoru</button>
+      {% endif %}
+      <button type="button" class="btn btn-ghost btn-sm" data-browser-close="browser-{{ side }}">Zavřít</button>
+      {% if not error %}
+      <button type="button" class="btn btn-primary btn-sm"
+              data-pick-target="{{ side }}_path" data-pick-value="{{ value }}" data-browser-close="browser-{{ side }}">{{ icon('check', 14) }}Vybrat tuto složku</button>
+      {% endif %}
+    </div>
+  </div>
+  {% if error %}
+  <div class="browser-empty">{{ alert('error', error) }}</div>
+  {% else %}
+  <ul class="browser-list">
+    {% for name, child in children %}
+    <li>
+      <button type="button" class="browser-item"
+              hx-get="/nastaveni/prochazet" hx-vals='{{ {"side": side, "host_id": host_id, "path": child}|tojson }}'
+              hx-target="#browser-{{ side }}" hx-swap="outerHTML">{{ icon('folder', 18) }}<span>{{ name }}</span></button>
+    </li>
+    {% else %}
+    <li class="browser-empty">Žádné podsložky — tuhle složku můžeš vybrat.</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>

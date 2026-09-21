@@ -16,6 +16,8 @@ FLASH_MESSAGES = {
     "deleted": ("success", "Smazáno."),
     "not_on_disk": ("error", "Pár není zařazený na disk — zaškrtněte u něj „Na disk“."),
     "no_plan": ("error", "Pár zatím nemá úspěšný sken obou stran."),
+    "disk_read": ("success", "Kapacita nastavena podle volného místa na disku."),
+    "disk_missing": ("error", "Disk není do kontejneru připojený — zadej kapacitu ručně."),
     "host_in_use": ("error", "Host používá některý pár — nejdřív pár upravte nebo smažte."),
 }
 

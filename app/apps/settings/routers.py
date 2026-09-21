@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import os
 import posixpath
+import stat
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
@@ -15,7 +16,7 @@ from app.common import page_ctx, redirect
 from app.config import settings
 from app.core.excludes import DEFAULT_EXCLUDE_PATTERNS, parse_patterns
 from app.scan.common import ScanError, cz_items
-from app.scan.sftp import test_connection
+from app.scan.sftp import SftpSession, test_connection
 from app.templates_engine import templates
 
 from . import db as settings_db
@@ -28,6 +29,24 @@ def _default_excludes_text() -> str:
     return db.get_setting("default_excludes", "\n".join(DEFAULT_EXCLUDE_PATTERNS))
 
 
+DISK_MIN_PLAUSIBLE = 20 * 10**9  # menší „disk“ je nejspíš prázdná složka na systémovém oddílu NASu
+
+
+def disk_info() -> dict:
+    """Volné místo na přenosovém disku připojeném do kontejneru (DISK_PATH)."""
+    path = settings.disk_path
+    info = {"path": str(path), "mounted": False, "free": 0, "total": 0, "suspicious": False}
+    if not path.is_dir():
+        return info
+    try:
+        st = os.statvfs(path)
+    except OSError:
+        return info
+    info.update(mounted=True, free=st.f_bavail * st.f_frsize, total=st.f_blocks * st.f_frsize)
+    info["suspicious"] = info["total"] < DISK_MIN_PLAUSIBLE
+    return info
+
+
 @router.get("/nastaveni", response_class=HTMLResponse)
 def settings_page(request: Request):
     capacity = get_capacity()
@@ -36,10 +55,21 @@ def settings_page(request: Request):
         pairs=pairs_db.list_pairs(), hosts=settings_db.list_hosts(),
         capacity_gb=f"{capacity / 1e9:g}".replace(".", ",") if capacity else "",
         default_excludes=_default_excludes_text(), local_root=str(settings.local_root),
+        disk=disk_info(),
     ))
 
 
 # --- disk a vzory ---
+
+@router.post("/nastaveni/disk/nacist")
+def read_disk_capacity():
+    info = disk_info()
+    if not info["mounted"]:
+        return redirect("/nastaveni", "disk_missing")
+    # Celé GB dolů — skript před kopírováním ještě sám ověří skutečné volné místo.
+    db.set_setting("disk_capacity", str(info["free"] // 10**9 * 10**9))
+    return redirect("/nastaveni", "disk_read")
+
 
 @router.post("/nastaveni/disk")
 def save_capacity(capacity_gb: str = Form("")):
@@ -181,6 +211,73 @@ def _test_side(host_id: str, path: str) -> tuple[bool, str]:
     except OSError as e:
         return False, f"Složku {full} nelze přečíst: {e}"
     return True, f"Složka {full} existuje ({cz_items(count)})."
+
+
+BROWSE_LIMIT = 500
+
+
+def _visible_dir(name: str) -> bool:
+    # systémové složky NASu (@appstore, #recycle, .snapshot…) v prohlížeči nenabízet
+    return not name.startswith((".", "@", "#"))
+
+
+def _browse_local(path: str) -> dict:
+    rel = _clean_local_path(path or "") or ""
+    full = settings.local_root / rel
+    while rel and not full.is_dir():  # neexistující cesta → nejbližší existující nadřazená
+        rel = posixpath.dirname(rel)
+        full = settings.local_root / rel
+    result = {"display": str(full), "value": rel, "parent": posixpath.dirname(rel) if rel else None, "children": [], "error": None}
+    try:
+        with os.scandir(full) as it:
+            names = [e.name for e in it if e.is_dir(follow_symlinks=False) and _visible_dir(e.name)]
+    except OSError as e:
+        result["error"] = f"Složku nelze přečíst: {e}"
+        return result
+    for name in sorted(names, key=str.casefold)[:BROWSE_LIMIT]:
+        result["children"].append((name, f"{rel}/{name}" if rel else name))
+    return result
+
+
+def _browse_remote(host_id: int, path: str) -> dict:
+    root = _clean_remote_path(path or "/")
+    result = {"display": root, "value": root, "parent": posixpath.dirname(root) if root != "/" else None, "children": [], "error": None}
+    host = settings_db.get_host_secret(host_id)
+    if not host:
+        result["error"] = "Neznámý SSH host."
+        return result
+    session = SftpSession(host["host"], int(host["port"]), host["username"], host["password"])
+    try:
+        session.connect()
+        try:
+            attrs = session.listdir_attr(root)
+        except FileNotFoundError:
+            result["error"] = f"Složka {root} neexistuje."
+            return result
+        names = [a.filename for a in attrs if stat.S_ISDIR(a.st_mode or 0) and _visible_dir(a.filename)]
+        for name in sorted(names, key=str.casefold)[:BROWSE_LIMIT]:
+            result["children"].append((name, posixpath.join(root, name)))
+    except ScanError as e:
+        result["error"] = str(e)
+    except Exception as e:
+        result["error"] = f"Chyba: {e}"
+    finally:
+        session.close()
+    return result
+
+
+@router.get("/nastaveni/prochazet", response_class=HTMLResponse)
+def browse_folders(request: Request, side: str = "source", host_id: str | None = None, path: str | None = None):
+    side = side if side in ("source", "target") else "source"
+    # První otevření posílá hodnoty z formuláře (source_host_id, source_path…), další kroky host_id a path.
+    if host_id is None:
+        host_id = request.query_params.get(f"{side}_host_id", "")
+    if path is None:
+        path = request.query_params.get(f"{side}_path", "")
+    listing = _browse_remote(int(host_id), path) if host_id else _browse_local(path)
+    return templates.TemplateResponse(request, "settings/_browser.html", {
+        "request": request, "side": side, "host_id": host_id, **listing,
+    })
 
 
 @router.post("/nastaveni/pary/test", response_class=HTMLResponse)

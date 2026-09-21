@@ -7,7 +7,8 @@ Na rozdíl od staré verze se nehledá podřetězec: `.git` nevyřadí `.gitigno
 """
 from __future__ import annotations
 
-from fnmatch import fnmatchcase
+import fnmatch
+import re
 
 DEFAULT_EXCLUDE_PATTERNS = [
     # macOS / Windows
@@ -53,15 +54,25 @@ def parse_patterns(text: str | None) -> list[str]:
     return out
 
 
+def _compile(patterns: list[str]) -> re.Pattern | None:
+    # Všechny vzory v jednom regulárním výrazu — o řád rychlejší než fnmatch pro každý zvlášť.
+    return re.compile("|".join(fnmatch.translate(p) for p in patterns)) if patterns else None
+
+
 class Excluder:
     def __init__(self, patterns: list[str]):
         self.patterns = list(patterns)
-        self._segment = [p.lower() for p in patterns if "/" not in p]
-        self._path = [p.strip("/").lower() for p in patterns if "/" in p]
+        self._segment_re = _compile([p.lower() for p in patterns if "/" not in p])
+        self._path_re = _compile([p.strip("/").lower() for p in patterns if "/" in p])
+        # Názvy složek se v cestách opakují tisíckrát → výsledek pro segment si pamatujeme.
+        self._segment_cache: dict[str, bool] = {}
 
     def _segment_excluded(self, segment: str) -> bool:
-        s = segment.lower()
-        return any(fnmatchcase(s, p) for p in self._segment)
+        hit = self._segment_cache.get(segment)
+        if hit is None:
+            hit = bool(self._segment_re and self._segment_re.match(segment.lower()))
+            self._segment_cache[segment] = hit
+        return hit
 
     def excluded_name(self, name: str) -> bool:
         """Pro prořezávání během skenu: vyhovuje samotný název položky?"""
@@ -70,5 +81,4 @@ class Excluder:
     def excluded(self, key: str) -> bool:
         if any(self._segment_excluded(seg) for seg in key.split("/")):
             return True
-        low = key.lower()
-        return any(fnmatchcase(low, p) for p in self._path)
+        return bool(self._path_re and self._path_re.match(key.lower()))

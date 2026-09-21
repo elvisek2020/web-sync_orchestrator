@@ -568,3 +568,29 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 })();
+
+// ---------------------------------------------------------------------------
+// Výběr složky z prohlížeče (Nastavení → pár):
+//   data-pick-target="id pole" + data-pick-value="cesta" → vyplní pole
+//   data-browser-close="id prohlížeče"                 → prohlížeč zavře
+// ---------------------------------------------------------------------------
+
+document.addEventListener('click', function (e) {
+    if (!e.target.closest) return;
+    var pick = e.target.closest('[data-pick-target]');
+    if (pick) {
+        var input = document.getElementById(pick.getAttribute('data-pick-target'));
+        if (input) {
+            input.value = pick.getAttribute('data-pick-value');
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }
+    var close = e.target.closest('[data-browser-close]');
+    if (close) {
+        var box = document.getElementById(close.getAttribute('data-browser-close'));
+        if (box) {
+            box.innerHTML = '';
+            box.className = '';
+        }
+    }
+});

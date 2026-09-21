@@ -30,8 +30,8 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 ### Nastavení (jednou)
 
 1. **Nastavení → SSH hosté → Přidat hosta**: adresa, port, uživatel a heslo NAS2 (heslo se už nikdy nezobrazí). Tlačítko *Otestovat spojení*.
-2. **Nastavení → Páry → Přidat pár**: název, zdroj (lokálně, cesta relativně k `/mnt/nas1`, např. `NAS-FILMY`) a cíl (SSH host + absolutní cesta, např. `/share/Filmy`). Tlačítko *Ověřit složky*.
-3. **Nastavení → Disk pro přenos**: využitelná kapacita disku v GB (1 TB = 1000 GB).
+2. **Nastavení → Páry → Přidat pár**: název, zdroj (lokálně, cesta relativně k `/mnt/nas1`, např. `NAS-FILMY`) a cíl (SSH host + absolutní cesta, např. `/share/Filmy`). Složku lze vybrat tlačítkem *Procházet*, pak *Ověřit složky*.
+3. **Nastavení → Disk pro přenos**: *Načíst volné místo* (je-li disk připojený do kontejneru přes `DISK_PATH`), nebo kapacitu v GB zadat ručně (1 TB = 1000 GB).
 
 ### Každý přenos
 
@@ -83,6 +83,7 @@ services:
     volumes:
       - ./data:/data              # databáze (lokální disk, vlastník UID 1000)
       - /share:/mnt/nas1:ro       # NAS1 — upravit podle systému
+      - /volumeUSB1/usbshare:/mnt/disk:ro   # volitelně: přenosový disk (jen pro načtení volného místa)
     # user: "0:0"                 # jen pokud UID 1000 nemá právo číst všechny složky NAS1
 ```
 
@@ -98,6 +99,7 @@ Aplikace bude na `http://<nas1>:8080`.
 
 - Databáze (SQLite, WAL) musí ležet na **lokálním disku** hostitele, ne na síťovém sdílení.
 - Kontejner běží jako UID 1000. Pokud sken NAS1 skončí chybou *„Nelze přečíst složku…“*, nemá tento uživatel práva — odkomentuj `user: "0:0"`.
+- **Synology:** sdílené složky mají ACL (`drwxrwxrwx+`), které UID 1000 nepustí ani při zobrazených právech 777. Spusť kontejner pod svým uživatelem DSM (`id <uživatel>`), např. `user: "1026:100"` + `group_add: ["101"]` (administrators), a `./data` mu předej (`chown -R 1026:100 data`).
 - Uvicorn běží s jedním workerem (stav běžících skenů je v paměti procesu).
 
 ### Přechod ze staré verze (v1)
@@ -115,6 +117,7 @@ v2 používá **novou databázi** — stará (`/mnt/usb/sync_orchestrator.db`) s
 |---|---|---|
 | `DATABASE_PATH` | `/data/sync_orchestrator.db` | soubor databáze |
 | `LOCAL_ROOT` | `/mnt/nas1` | kořen NAS1 v kontejneru; lokální cesty párů jsou relativní k němu |
+| `DISK_PATH` | `/mnt/disk` | přenosový disk v kontejneru (volitelné) — tlačítko *Načíst volné místo* v Nastavení |
 | `LOG_LEVEL` | `INFO` | úroveň logování (průběh skenů je vidět v `docker compose logs`) |
 | `APP_NAME` | `Sync Orchestrator` | název v hlavičce |
 

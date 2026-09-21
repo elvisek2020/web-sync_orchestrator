@@ -19,6 +19,8 @@ class Config:
         self.database_path = Path(os.environ.get("DATABASE_PATH", str(DATA_DIR / "sync_orchestrator.db")))
         # Kořen lokálně připojeného NAS1 v kontejneru; cesty lokálních stran páru jsou relativní k němu.
         self.local_root = Path(os.environ.get("LOCAL_ROOT", "/mnt/nas1"))
+        # Volitelně: přenosový disk připojený do kontejneru (jen pro zjištění volného místa).
+        self.disk_path = Path(os.environ.get("DISK_PATH", "/mnt/disk"))
 
     @property
     def db_url(self) -> str:

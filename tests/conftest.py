@@ -8,6 +8,7 @@ import pytest
 
 from app import db
 from app.apps.pairs import db as pairs_db
+from app.apps.pairs import state
 from app.config import settings
 from app.core.keys import FileRec, key_from_local
 
@@ -21,6 +22,7 @@ def temp_db(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "local_root", local_root)
     db.reset_engine(f"sqlite:///{db_path}")
     pairs_db._files_cache.clear()
+    state._compare_cache.clear()
     db.init_db()
     yield local_root
     db.reset_engine(None)

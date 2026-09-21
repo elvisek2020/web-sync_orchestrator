@@ -19,6 +19,7 @@ services:
     volumes:
       - ./data/app:/data
       - ./data/nas1:/mnt/nas1:ro
+      - ./data/disk:/mnt/disk:ro
 
   nas2:
     image: lscr.io/linuxserver/openssh-server:latest

@@ -5,14 +5,13 @@
 
 {% block content %}
 {% set back = '/pary/' ~ pair.id %}
-<a href="/" class="back-link">{{ icon('arrow-left', 16) }}Přehled</a>
-
 <div class="page-header">
   <div class="page-header-text">
     <h1 class="page-title">{{ pair.name }}</h1>
     <p class="page-description">{{ source_desc }} {{ icon('arrow-right', 12, 'inline-icon') }} {{ target_desc }}</p>
   </div>
   <div class="page-header-actions">
+    <a href="/" class="btn btn-outline">{{ icon('arrow-left', 18) }}Zpět</a>
     <form method="post" action="/pary/{{ pair.id }}/aktualizovat">
       <input type="hidden" name="next" value="{{ back }}">
       <button type="submit" class="btn btn-outline" {% if st.busy %}disabled{% endif %}>{{ icon('refresh', 18) }}Aktualizovat</button>
@@ -62,14 +61,16 @@
       {{ icon('chevron-down', 18) }}
     </summary>
     <form method="post" action="/pary/{{ pair.id }}/volby" class="card-body stack">
-      <label class="check-row">
-        <input type="checkbox" name="include_conflicts" value="1" {% if pair.include_conflicts %}checked{% endif %}>
-        <span>Přenášet konflikty (soubor je na obou stranách, ale liší se velikost) — na NAS2 se přepíše</span>
-      </label>
-      <label class="check-row">
-        <input type="checkbox" name="include_extra" value="1" {% if pair.include_extra %}checked{% endif %}>
-        <span>Mazat přebývající soubory na NAS2 (skript se před smazáním vždy zeptá)</span>
-      </label>
+      <div class="check-list">
+        <label class="check-row">
+          <input type="checkbox" name="include_conflicts" value="1" {% if pair.include_conflicts %}checked{% endif %}>
+          <span>Přenášet konflikty (soubor je na obou stranách, ale liší se velikost) — na NAS2 se přepíše</span>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" name="include_extra" value="1" {% if pair.include_extra %}checked{% endif %}>
+          <span>Mazat přebývající soubory na NAS2 (skript se před smazáním vždy zeptá)</span>
+        </label>
+      </div>
       <div class="form-group">
         <label class="form-label" for="exclude_patterns">Vlastní vzory k vynechání <span class="optional">(volitelné)</span></label>
         <textarea class="input mono" id="exclude_patterns" name="exclude_patterns" rows="4" placeholder="např. Naked Attraction CZ">{{ pair.exclude_patterns }}</textarea>

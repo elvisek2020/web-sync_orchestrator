@@ -18,18 +18,26 @@
     </div>
     <div class="form-group">
       <label class="form-label" for="{{ side }}_path">Složka</label>
-      <input class="input mono" id="{{ side }}_path" name="{{ side }}_path" value="{{ form[side ~ '_path'] }}" required placeholder="{{ hint }}">
+      <div class="path-field">
+        <input class="input mono" id="{{ side }}_path" name="{{ side }}_path" value="{{ form[side ~ '_path'] }}" required placeholder="{{ hint }}">
+        <button type="button" class="btn btn-outline"
+                hx-get="/nastaveni/prochazet" hx-include="#{{ side }}_host_id, #{{ side }}_path" hx-vals='{"side": "{{ side }}"}'
+                hx-target="#browser-{{ side }}" hx-swap="outerHTML">{{ icon('folder', 18) }}Procházet</button>
+      </div>
     </div>
   </div>
+  <div id="browser-{{ side }}"></div>
 </fieldset>
 {% endmacro %}
 
 {% block content %}
-<a href="/nastaveni#pary" class="back-link">{{ icon('arrow-left', 16) }}Nastavení</a>
 <div class="page-header">
   <div class="page-header-text">
     <h1 class="page-title">{{ 'Upravit pár' if pair else 'Nový pár' }}</h1>
     <p class="page-description">Zdroj (NAS1) je vzor, cíl (NAS2) se mu má podobat.</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="/nastaveni#pary" class="btn btn-outline">{{ icon('arrow-left', 18) }}Zpět</a>
   </div>
 </div>
 
@@ -44,25 +52,23 @@
     </div>
     {{ side_fields('source', 'Zdroj — NAS1', 'např. NAS-FILMY') }}
     {{ side_fields('target', 'Cíl — NAS2', 'např. /share/Filmy') }}
-    <div>
-      <button type="button" class="btn btn-outline btn-sm"
-              hx-post="/nastaveni/pary/test" hx-include="closest form" hx-target="#pair-test" hx-swap="innerHTML"
-              hx-indicator="#pair-test-spinner">{{ icon('check', 16) }}Ověřit složky</button>
-      <span id="pair-test-spinner" class="search-spinner htmx-indicator" aria-hidden="true"></span>
-      <div id="pair-test" class="mt-2" aria-live="polite"></div>
-    </div>
+    <div id="pair-test" aria-live="polite"></div>
   </div>
   <div class="card-footer">
-    <button type="submit" class="btn btn-primary">Uložit pár</button>
+    {% if pair %}
+    <button type="submit" form="delete-pair" class="btn btn-danger-ghost">{{ icon('trash', 16) }}Smazat</button>
+    {% endif %}
     <a href="/nastaveni#pary" class="btn btn-ghost">Zrušit</a>
+    <button type="button" class="btn btn-outline"
+            hx-post="/nastaveni/pary/test" hx-include="closest form" hx-target="#pair-test" hx-swap="innerHTML"
+            hx-indicator="#pair-test-spinner"><span id="pair-test-spinner" class="search-spinner htmx-indicator" aria-hidden="true"></span>{{ icon('check', 16) }}Ověřit složky</button>
+    <button type="submit" class="btn btn-primary">Uložit pár</button>
   </div>
 </form>
 
 {% if pair %}
-<form method="post" action="/nastaveni/pary/{{ pair.id }}/smazat" class="mt-5"
+<form id="delete-pair" method="post" action="/nastaveni/pary/{{ pair.id }}/smazat"
       data-confirm="Pár „{{ pair.name }}“ se smaže i se všemi skeny a vyřazenými soubory. Data na NASech zůstanou beze změny."
-      data-confirm-title="Smazat pár?" data-confirm-ok="Smazat" data-confirm-danger>
-  <button type="submit" class="btn btn-danger-ghost">{{ icon('trash', 16) }}Smazat pár</button>
-</form>
+      data-confirm-title="Smazat pár?" data-confirm-ok="Smazat" data-confirm-danger></form>
 {% endif %}
 {% endblock %}

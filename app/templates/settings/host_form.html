@@ -4,11 +4,13 @@
 {% block title %}{{ 'Upravit hosta' if host else 'Nový SSH host' }} — {{ app_name }}{% endblock %}
 
 {% block content %}
-<a href="/nastaveni#hosty" class="back-link">{{ icon('arrow-left', 16) }}Nastavení</a>
 <div class="page-header">
   <div class="page-header-text">
     <h1 class="page-title">{{ 'Upravit hosta' if host else 'Nový SSH host' }}</h1>
     <p class="page-description">Přístup přes SSH/SFTP — aplikace jen čte seznam souborů, nic nemění.</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="/nastaveni#hosty" class="btn btn-outline">{{ icon('arrow-left', 18) }}Zpět</a>
   </div>
 </div>
 
@@ -42,25 +44,23 @@
     </div>
     {% if host %}<input type="hidden" name="keep_password" value="1">{% endif %}
     <p class="form-hint">Heslo se uloží do databáze aplikace a do prohlížeče se už nikdy nevrátí.</p>
-    <div>
-      <button type="button" class="btn btn-outline btn-sm"
-              hx-post="/nastaveni/hosty-test" hx-include="closest form" hx-target="#host-test" hx-swap="innerHTML"
-              hx-indicator="#host-test-spinner">{{ icon('check', 16) }}Otestovat spojení</button>
-      <span id="host-test-spinner" class="search-spinner htmx-indicator" aria-hidden="true"></span>
-      <div id="host-test" class="mt-2" aria-live="polite"></div>
-    </div>
+    <div id="host-test" aria-live="polite"></div>
   </div>
   <div class="card-footer">
-    <button type="submit" class="btn btn-primary">Uložit hosta</button>
+    {% if host %}
+    <button type="submit" form="delete-host" class="btn btn-danger-ghost">{{ icon('trash', 16) }}Smazat</button>
+    {% endif %}
     <a href="/nastaveni#hosty" class="btn btn-ghost">Zrušit</a>
+    <button type="button" class="btn btn-outline"
+            hx-post="/nastaveni/hosty-test" hx-include="closest form" hx-target="#host-test" hx-swap="innerHTML"
+            hx-indicator="#host-test-spinner"><span id="host-test-spinner" class="search-spinner htmx-indicator" aria-hidden="true"></span>{{ icon('check', 16) }}Otestovat spojení</button>
+    <button type="submit" class="btn btn-primary">Uložit hosta</button>
   </div>
 </form>
 
 {% if host %}
-<form method="post" action="/nastaveni/hosty/{{ host.id }}/smazat" class="mt-5"
+<form id="delete-host" method="post" action="/nastaveni/hosty/{{ host.id }}/smazat"
       data-confirm="Host „{{ host.name }}“ se smaže. Nejde to, dokud ho používá některý pár."
-      data-confirm-title="Smazat hosta?" data-confirm-ok="Smazat" data-confirm-danger>
-  <button type="submit" class="btn btn-danger-ghost">{{ icon('trash', 16) }}Smazat hosta</button>
-</form>
+      data-confirm-title="Smazat hosta?" data-confirm-ok="Smazat" data-confirm-danger></form>
 {% endif %}
 {% endblock %}
