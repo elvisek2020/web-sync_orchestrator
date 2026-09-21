@@ -33,3 +33,9 @@ ui/.vite/
 _backup/
 _docs/
 
+
+# Data aplikace a E2E prostředí
+/data/
+/e2e/data/
+/e2e/scripts/
+.env

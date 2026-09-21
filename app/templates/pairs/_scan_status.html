@@ -1,0 +1,44 @@
+{% from "_icons.html" import icon %}
+{% from "_macros.html" import alert %}
+<div id="scan-status" class="stack-lg" {% if job %}hx-get="/skeny/{{ scan.id }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  <section class="card">
+    <div class="card-body">
+      <dl class="meta-list">
+        <div class="meta-item"><dt>Stav</dt><dd>
+          {% if job %}
+            {% if scan.status == 'queued' %}<span class="badge">Čeká ve frontě</span>{% else %}<span class="badge badge--accent"><span class="pulse-dot" aria-hidden="true"></span>Skenuje</span>{% endif %}
+          {% elif scan.status == 'done' %}<span class="badge badge--success">{{ icon('check', 12) }}Dokončen</span>
+          {% elif scan.status == 'cancelled' %}<span class="badge badge--warn">Zrušen</span>
+          {% else %}<span class="badge badge--error">Selhal</span>{% endif %}
+        </dd></div>
+        {% if job %}
+          <div class="meta-item"><dt>Průběh</dt><dd>{{ job.progress.files|number }} souborů · {{ job.progress.bytes|filesize }} · {{ job.progress.dirs|number }} složek</dd></div>
+          <div class="meta-item"><dt>Právě</dt><dd class="path">{{ job.progress.current }}</dd></div>
+          <div class="meta-item"><dt>Běží</dt><dd>{{ job.progress.elapsed|duration }}</dd></div>
+        {% else %}
+          <div class="meta-item"><dt>Soubory</dt><dd>{{ scan.total_files|number }} · {{ scan.total_size|filesize }}</dd></div>
+          <div class="meta-item"><dt>Dokončen</dt><dd>{{ scan.finished_at|cz_datetime }}</dd></div>
+        {% endif %}
+      </dl>
+    </div>
+    {% if job %}
+    <div class="card-footer">
+      <form method="post" action="/skeny/{{ scan.id }}/zrusit">
+        <input type="hidden" name="next" value="/skeny/{{ scan.id }}">
+        <button type="submit" class="btn btn-outline btn-sm">{{ icon('stop', 14) }}Zrušit sken</button>
+      </form>
+    </div>
+    {% endif %}
+  </section>
+
+  {% if scan.error and not job %}
+    {% call alert('error') %}<pre class="log log--inline">{{ scan.error }}</pre>{% endcall %}
+  {% endif %}
+
+  <section class="card">
+    <div class="card-header"><h2 class="card-title">Log</h2></div>
+    <div class="card-body">
+      <pre class="log">{{ live_log if job else (scan.log or 'Log je prázdný.') }}</pre>
+    </div>
+  </section>
+</div>

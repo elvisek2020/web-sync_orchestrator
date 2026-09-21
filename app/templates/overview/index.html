@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_macros.html" import empty_state %}
+{% block title %}Přehled — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-text">
+    <h1 class="page-title">Přehled</h1>
+    <p class="page-description">Aktualizuj páry, zkontroluj plán a stáhni skript pro přenos přes disk.</p>
+  </div>
+  {% if ov.pairs %}
+  <div class="page-header-actions">
+    <form method="post" action="/aktualizovat-vse">
+      <button type="submit" class="btn btn-primary">{{ icon('refresh', 18) }}Aktualizovat vše</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+{% if ov.pairs %}
+  {% include "overview/_table.html" %}
+{% else %}
+  <div class="card">
+    {% call empty_state('hard-drive', 'Zatím žádné páry', 'Pár spojuje složku na NAS1 se složkou na NAS2. Nejdřív přidej SSH hosta pro NAS2, potom páry.') %}
+      <a href="/nastaveni" class="btn btn-primary">{{ icon('settings', 18) }}Otevřít nastavení</a>
+    {% endcall %}
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,2767 @@
+/*
+ * theme_corporate.css — paleta pro firemní a pracovní aplikace
+ * -----------------------------------------------------------------------------
+ * Střízlivé neutrální povrchy, modrá akcentní barva, bezpatková písma ze systému
+ * (žádná externí písma = nic se nenačítá z cizích serverů).
+ * Vhodné pro interní nástroje, evidence, administrace, reporty.
+ *
+ * Nahrává se PŘED reference_app.css:
+ *     cat theme_corporate.css reference_app.css > app/static/css/app.css
+ *
+ * Změna akcentní barvy = tři tokeny: --color-primary, --color-primary-hover,
+ * --color-primary-soft (a jejich tmavé protějšky níže).
+ *
+ * POZOR: tmavé hodnoty jsou ve dvou blocích (podle systému / ruční volba).
+ * Když měníš jeden, změň i druhý — musí zůstat shodné.
+ */
+
+:root {
+    color-scheme: light;
+
+    /* Povrchy a linky */
+    --color-bg: #f5f6f8;
+    --color-surface: #ffffff;
+    --color-surface-2: #eef0f4;
+    --color-surface-3: #e2e6ec;
+    --color-border: #dfe3ea;
+    --color-border-strong: #c2c9d4;
+
+    /* Text */
+    --color-text: #16191f;
+    --color-text-2: #3d4653;
+    --color-text-light: #6b7484;
+
+    /* Akcentní barva */
+    --color-primary: #2a5bd7;
+    --color-primary-hover: #1f47ad;
+    --color-primary-soft: #e6ecfc;
+    --color-primary-text: #ffffff;
+
+    /* Stavy */
+    --color-success: #1f7a4d;
+    --color-success-soft: #e3f3ea;
+    --color-warning: #8a5a00;
+    --color-warning-soft: #fbefd4;
+    --color-error: #b42318;
+    --color-error-soft: #fde8e6;
+    --color-on-danger: #ffffff;
+    --color-info: #2f5d7c;
+    --color-info-soft: #e5eff5;
+
+    /* Překryvy (modal, lightbox, mobilní panel) */
+    --color-overlay: rgba(12, 16, 24, 0.45);
+    --color-overlay-strong: rgba(8, 11, 16, 0.88);
+
+    /* Stíny a focus */
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+    --shadow: 0 1px 3px rgba(16, 24, 40, 0.10), 0 4px 12px -6px rgba(16, 24, 40, 0.10);
+    --shadow-lg: 0 18px 40px -12px rgba(16, 24, 40, 0.28);
+    --shadow-up: 0 -10px 18px -14px rgba(16, 24, 40, 0.45);
+    --focus-ring: 0 0 0 3px rgba(42, 91, 215, 0.28);
+
+    /* Písma — systémová, bez externího načítání */
+    --font-display: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* Tmavý režim podle systému — pokud si uživatel ručně nezvolil světlý */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        color-scheme: dark;
+
+        --color-bg: #0f1115;
+        --color-surface: #171a20;
+        --color-surface-2: #1e222a;
+        --color-surface-3: #272c36;
+        --color-border: #2b313b;
+        --color-border-strong: #3a424f;
+
+        --color-text: #e9ebef;
+        --color-text-2: #c4cad3;
+        --color-text-light: #8d95a3;
+
+        --color-primary: #7ea2ff;
+        --color-primary-hover: #9ab6ff;
+        --color-primary-soft: #1a2540;
+        --color-primary-text: #0b1220;
+
+        --color-success: #7cc79b;
+        --color-success-soft: #14271d;
+        --color-warning: #e2b263;
+        --color-warning-soft: #2e2413;
+        --color-error: #f28b82;
+        --color-error-soft: #33191a;
+        --color-on-danger: #0b1220;
+        --color-info: #8dbad8;
+        --color-info-soft: #16252f;
+
+        --color-overlay: rgba(0, 0, 0, 0.6);
+        --color-overlay-strong: rgba(0, 0, 0, 0.9);
+
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 6px 16px -8px rgba(0, 0, 0, 0.55);
+        --shadow-lg: 0 20px 44px -12px rgba(0, 0, 0, 0.7);
+        --shadow-up: 0 -10px 18px -14px rgba(0, 0, 0, 0.6);
+        --focus-ring: 0 0 0 3px rgba(126, 162, 255, 0.4);
+    }
+}
+
+/* Ruční volba tmavého režimu (přepínač v zápatí) */
+:root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --color-bg: #0f1115;
+    --color-surface: #171a20;
+    --color-surface-2: #1e222a;
+    --color-surface-3: #272c36;
+    --color-border: #2b313b;
+    --color-border-strong: #3a424f;
+
+    --color-text: #e9ebef;
+    --color-text-2: #c4cad3;
+    --color-text-light: #8d95a3;
+
+    --color-primary: #7ea2ff;
+    --color-primary-hover: #9ab6ff;
+    --color-primary-soft: #1a2540;
+    --color-primary-text: #0b1220;
+
+    --color-success: #7cc79b;
+    --color-success-soft: #14271d;
+    --color-warning: #e2b263;
+    --color-warning-soft: #2e2413;
+    --color-error: #f28b82;
+    --color-error-soft: #33191a;
+    --color-on-danger: #0b1220;
+    --color-info: #8dbad8;
+    --color-info-soft: #16252f;
+
+    --color-overlay: rgba(0, 0, 0, 0.6);
+    --color-overlay-strong: rgba(0, 0, 0, 0.9);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 6px 16px -8px rgba(0, 0, 0, 0.55);
+    --shadow-lg: 0 20px 44px -12px rgba(0, 0, 0, 0.7);
+    --shadow-up: 0 -10px 18px -14px rgba(0, 0, 0, 0.6);
+    --focus-ring: 0 0 0 3px rgba(126, 162, 255, 0.4);
+}
+/*
+ * reference_app.css — základ design systému webových aplikací
+ * -----------------------------------------------------------------------------
+ * Tento soubor obsahuje POUZE strukturu a komponenty. Barvy, písma a stíny
+ * přicházejí z palety, která se nahrává PŘED tímto souborem:
+ *
+ *     cat theme_personal.css  reference_app.css  > app/static/css/app.css
+ *     cat theme_corporate.css reference_app.css  > app/static/css/app.css
+ *
+ * Pravidla:
+ *   - v tomto souboru nesmí být žádná konkrétní barva, jen var(--color-…),
+ *   - komponenty se nepřepisují v šablonách, rozšiřuje se tento soubor,
+ *   - každá aplikace si vlastní (doménové) třídy přidává na konec app.css
+ *     do samostatné sekce, ne mezi tyto.
+ *
+ * Obsah:
+ *   1. Strukturální tokeny        5. Tlačítka, karty, menu
+ *   2. Základ a přístupnost       6. Formuláře
+ *   3. Hlavička, menu, zápatí     7. Stavové prvky a data
+ *   4. Layout stránky             8. Vzor master–detail, utility
+ */
+
+/* ========================================================================
+   1. Strukturální tokeny (barevné tokeny jsou v paletě)
+   ======================================================================== */
+:root {
+    --radius-lg: 20px;
+    --radius: 14px;
+    --radius-sm: 10px;
+    --radius-xs: 6px;
+    --radius-pill: 999px;
+
+    --btn-height: 44px;
+    --btn-height-sm: 36px;
+    --btn-height-lg: 52px;
+    --header-height: 64px;
+    --tabbar-height: 64px;
+    --container: 1100px;
+    --container-wide: 1460px;
+
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.5rem;
+    --space-6: 2rem;
+    --space-7: 3rem;
+
+    --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* Volitelně širší stránka — přepínač v zápatí */
+body.layout-wide {
+    --container: var(--container-wide);
+}
+
+/* ========================================================================
+   2. Základ a přístupnost
+   ======================================================================== */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-top: calc(var(--header-height) + 1rem);
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-family: var(--font-ui);
+    font-size: 1rem;
+    line-height: 1.55;
+    color: var(--color-text);
+    background: var(--color-bg);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+}
+
+img,
+svg {
+    display: block;
+    max-width: 100%;
+}
+
+a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+h1, h2, h3, h4 {
+    line-height: 1.2;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+ul, ol {
+    padding-left: 1.25rem;
+}
+
+fieldset {
+    border: 0;
+    min-width: 0;
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+    color: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+    border-radius: var(--radius-xs);
+}
+
+.icon {
+    flex-shrink: 0;
+}
+
+::selection {
+    background: var(--color-primary-soft);
+}
+
+/* ========================================================================
+   3. Hlavička, menu, mobilní lišta, zápatí
+   ======================================================================== */
+.header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    height: var(--header-height);
+    background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+    backdrop-filter: saturate(1.4) blur(12px);
+    -webkit-backdrop-filter: saturate(1.4) blur(12px);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.header-inner {
+    max-width: var(--container);
+    height: 100%;
+    margin: 0 auto;
+    padding: 0 var(--space-5);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+    min-width: 0;
+}
+
+.logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--color-text);
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+}
+
+.logo:hover {
+    text-decoration: none;
+    color: var(--color-primary);
+}
+
+.logo-mark {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    background: var(--color-primary);
+    color: var(--color-primary-text);
+}
+
+.nav {
+    display: flex;
+    gap: var(--space-1);
+}
+
+/* Záložky menu: 150×40 px (standard aplikací) */
+.nav-item {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 150px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-2);
+    font-size: 0.95rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+}
+
+.nav-item:hover {
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+.nav-item--active,
+.nav-item--active:hover {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.user-chip {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    color: var(--color-text-light);
+    padding-right: var(--space-2);
+}
+
+/* Banner aktivního vaření */
+.action-banner {
+    background: var(--color-primary);
+    color: var(--color-primary-text);
+}
+
+.action-banner a {
+    max-width: var(--container);
+    margin: 0 auto;
+    padding: 0.55rem var(--space-5);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    color: inherit;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.action-banner a:hover {
+    text-decoration: none;
+}
+
+.action-banner-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 400;
+}
+
+.action-banner-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+
+.pulse-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 1.6s ease-in-out infinite;
+    flex-shrink: 0;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.8); }
+}
+
+/* Mobilní spodní lišta */
+.tabbar {
+    display: none;
+}
+
+@media (max-width: 899px) {
+    .nav,
+    .header-desktop-only {
+        display: none !important;
+    }
+
+    .header-inner {
+        padding: 0 var(--space-4);
+    }
+
+    .tabbar {
+        position: fixed;
+        inset: auto 0 0 0;
+        z-index: 60;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        height: calc(var(--tabbar-height) + env(safe-area-inset-bottom));
+        padding-bottom: env(safe-area-inset-bottom);
+        background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-top: 1px solid var(--color-border);
+    }
+
+    .tabbar-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        border: 0;
+        background: none;
+        color: var(--color-text-light);
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+    }
+
+    .tabbar-item:hover {
+        text-decoration: none;
+    }
+
+    .tabbar-item.is-active {
+        color: var(--color-primary);
+    }
+
+    .tabbar-item.is-active .icon {
+        stroke-width: 2.4;
+    }
+
+    body.has-tabbar .main-content {
+        padding-bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + var(--space-5));
+    }
+
+    body.has-tabbar .footer {
+        padding-bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + var(--space-4));
+    }
+
+    .action-banner a {
+        padding: 0.55rem var(--space-4);
+    }
+}
+
+/* Panel „Více“ (mobil) */
+.mobile-nav-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    background: var(--color-overlay);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+}
+
+.mobile-nav-panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 90;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: var(--space-2) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom));
+    background: var(--color-surface);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: var(--shadow-lg);
+    transform: translateY(100%);
+    transition: transform 0.25s var(--ease);
+}
+
+.mobile-nav-panel::before {
+    content: "";
+    display: block;
+    width: 40px;
+    height: 4px;
+    margin: 0 auto var(--space-3);
+    border-radius: 2px;
+    background: var(--color-border-strong);
+}
+
+body.mobile-nav-open {
+    overflow: hidden;
+}
+
+body.mobile-nav-open .mobile-nav-overlay {
+    opacity: 1;
+    visibility: visible;
+}
+
+body.mobile-nav-open .mobile-nav-panel {
+    transform: translateY(0);
+}
+
+.mobile-nav-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--space-2) var(--space-3);
+}
+
+.mobile-nav-user {
+    font-size: 0.875rem;
+    color: var(--color-text-light);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mobile-nav-links {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.mobile-nav-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 52px;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.mobile-nav-item:hover {
+    background: var(--color-surface-2);
+    text-decoration: none;
+}
+
+.mobile-nav-item.active {
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+.mobile-nav-item .icon {
+    color: var(--color-text-light);
+}
+
+.mobile-nav-item.active .icon {
+    color: var(--color-primary);
+}
+
+.mobile-nav-divider {
+    height: 1px;
+    margin: var(--space-2) 0;
+    background: var(--color-border);
+}
+
+.footer {
+    margin-top: auto;
+    padding: var(--space-5) 0;
+    color: var(--color-text-light);
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+.footer-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--space-3) var(--space-4);
+}
+
+/* Přepínač světlý / tmavý režim */
+.theme-switch {
+    display: inline-flex;
+    padding: 3px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+}
+
+.theme-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    height: 30px;
+    padding: 0 0.7rem;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: none;
+    color: var(--color-text-light);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.theme-option:hover {
+    color: var(--color-text);
+}
+
+.theme-option.is-active {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+}
+
+/* Samostatné tlačítko v patičce (šířka stránky) */
+.footer-toggle {
+    height: 36px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+/* Na úzkém displeji nemá širší stránka smysl */
+@media (max-width: 1100px) {
+    .footer-toggle {
+        display: none;
+    }
+}
+
+@media (max-width: 420px) {
+    .theme-option span {
+        display: none;
+    }
+
+    .theme-option {
+        padding: 0 0.6rem;
+    }
+}
+
+/* ========================================================================
+   4. Layout stránky
+   ======================================================================== */
+.main-content {
+    flex: 1;
+    padding: var(--space-6) 0 var(--space-7);
+}
+
+.container {
+    max-width: var(--container);
+    margin: 0 auto;
+    padding: 0 var(--space-5);
+}
+
+
+@media (max-width: 640px) {
+    .main-content {
+        padding-top: var(--space-5);
+    }
+
+    .container {
+        padding: 0 var(--space-4);
+    }
+}
+
+.page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    margin-bottom: var(--space-5);
+}
+
+.page-header-text {
+    min-width: 0;
+}
+
+.page-title {
+    font-family: var(--font-display);
+    font-size: clamp(1.75rem, 1.3rem + 1.6vw, 2.4rem);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+
+.page-description,
+.page-subtitle {
+    margin-top: 0.4rem;
+    color: var(--color-text-light);
+    font-size: 1rem;
+}
+
+.page-header-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: var(--space-3);
+    color: var(--color-text-light);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.back-link:hover {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.section {
+    margin-top: var(--space-6);
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.section-count {
+    color: var(--color-text-light);
+    font-weight: 500;
+}
+
+.stack > * + * {
+    margin-top: var(--space-4);
+}
+
+.stack-lg > * + * {
+    margin-top: var(--space-5);
+}
+
+.cluster {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* Mřížka karet (dlaždice se stejnou šířkou) */
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--space-5);
+}
+
+@media (max-width: 640px) {
+    .card-grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-4);
+    }
+}
+
+/* Dvousloupcová stránka: postranní panel + obsah */
+.detail-layout {
+    display: grid;
+    grid-template-columns: minmax(280px, 4fr) minmax(0, 7fr);
+    gap: var(--space-5);
+    align-items: start;
+}
+
+.detail-side {
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-4));
+    max-height: calc(100vh - var(--header-height) - var(--space-6));
+    overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+    .detail-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .detail-side {
+        position: static;
+        max-height: none;
+    }
+}
+
+/* Záložky uvnitř stránky (ne hlavní menu) */
+.tabs {
+    display: flex;
+    gap: var(--space-1);
+    margin-bottom: var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+    overflow-x: auto;
+}
+
+.tabs-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 44px;
+    padding: 0 var(--space-4);
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: var(--color-text-light);
+    font-size: 0.95rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.tabs-item:hover {
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+.tabs-item--active,
+.tabs-item.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+
+/* ========================================================================
+   5. Tlačítka a karty
+   ======================================================================== */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: var(--btn-height);
+    padding: 0 1.1rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+}
+
+.btn:hover {
+    text-decoration: none;
+    background: var(--color-surface-3);
+}
+
+.btn:active {
+    transform: translateY(1px);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-primary {
+    background: var(--color-primary);
+    color: var(--color-primary-text);
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover {
+    background: var(--color-primary-hover);
+}
+
+.btn-secondary {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+}
+
+.btn-secondary:hover {
+    background: color-mix(in srgb, var(--color-primary-soft) 70%, var(--color-primary) 12%);
+}
+
+.btn-outline {
+    background: var(--color-surface);
+    border-color: var(--color-border-strong);
+    color: var(--color-text);
+}
+
+.btn-outline:hover {
+    background: var(--color-surface-2);
+    border-color: var(--color-border-strong);
+}
+
+.btn-ghost {
+    background: transparent;
+    color: var(--color-text-2);
+}
+
+.btn-ghost:hover {
+    background: var(--color-surface-2);
+    color: var(--color-text);
+}
+
+.btn-danger {
+    background: var(--color-error);
+    color: var(--color-on-danger);
+}
+
+.btn-danger:hover {
+    background: color-mix(in srgb, var(--color-error) 85%, #000);
+}
+
+.btn-danger-ghost {
+    background: transparent;
+    color: var(--color-error);
+}
+
+.btn-danger-ghost:hover {
+    background: var(--color-error-soft);
+}
+
+.btn-sm {
+    min-height: var(--btn-height-sm);
+    padding: 0 0.8rem;
+    font-size: 0.875rem;
+    border-radius: var(--radius-xs);
+}
+
+.btn-lg {
+    min-height: var(--btn-height-lg);
+    padding: 0 1.5rem;
+    font-size: 1.05rem;
+}
+
+.btn-block {
+    width: 100%;
+}
+
+.btn-icon {
+    width: var(--btn-height);
+    padding: 0;
+}
+
+.btn-icon.btn-sm {
+    width: var(--btn-height-sm);
+}
+
+.btn.is-on {
+    color: var(--color-primary);
+}
+
+.btn.is-on .icon {
+    fill: currentColor;
+}
+
+.card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5) 0;
+}
+
+.card-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.card-subtitle {
+    margin-top: 0.15rem;
+    color: var(--color-text-light);
+    font-size: 0.9rem;
+}
+
+.card-body {
+    padding: var(--space-5);
+}
+
+.card-header + .card-body {
+    padding-top: var(--space-4);
+}
+
+.card-footer {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    padding: var(--space-4) var(--space-5);
+    border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+    .card-header {
+        padding: var(--space-4) var(--space-4) 0;
+    }
+
+    .card-body {
+        padding: var(--space-4);
+    }
+
+    .card-footer {
+        padding: var(--space-4);
+    }
+}
+
+/* Rozbalovací menu (details/summary, bez JS) */
+.dropdown {
+    position: relative;
+}
+
+.dropdown > summary {
+    list-style: none;
+}
+
+.dropdown > summary::-webkit-details-marker {
+    display: none;
+}
+
+.dropdown-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 40;
+    min-width: 220px;
+    padding: var(--space-1);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+}
+
+.dropdown-menu form {
+    display: block;
+}
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: 42px;
+    padding: 0 var(--space-3);
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: none;
+    color: var(--color-text);
+    font-size: 0.95rem;
+    font-weight: 500;
+    text-align: left;
+}
+
+.menu-item:hover {
+    background: var(--color-surface-2);
+    text-decoration: none;
+}
+
+.menu-item .icon {
+    color: var(--color-text-light);
+}
+
+.menu-item--danger,
+.menu-item--danger .icon {
+    color: var(--color-error);
+}
+
+.menu-divider {
+    height: 1px;
+    margin: var(--space-1) 0;
+    background: var(--color-border);
+}
+
+/* ========================================================================
+   6. Formuláře
+   ======================================================================== */
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group:last-child {
+    margin-bottom: 0;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-text-2);
+}
+
+.form-label .optional {
+    font-weight: 400;
+    color: var(--color-text-light);
+}
+
+.form-hint {
+    margin-top: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--color-text-light);
+}
+
+.input,
+.select {
+    display: block;
+    width: 100%;
+    min-height: var(--btn-height);
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 1rem;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input::placeholder {
+    color: var(--color-text-light);
+    opacity: 0.8;
+}
+
+.input:hover,
+.select:hover {
+    border-color: var(--color-text-light);
+}
+
+.input:focus,
+.select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+}
+
+select.input,
+.select {
+    appearance: none;
+    padding-right: 2.25rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a6f64' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+}
+
+textarea.input {
+    min-height: 6rem;
+    resize: vertical;
+    line-height: 1.5;
+}
+
+.input-sm {
+    min-height: var(--btn-height-sm);
+    padding: 0.35rem 0.7rem;
+    font-size: 0.9rem;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 var(--space-4);
+}
+
+.form-grid .span-2 {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-5);
+}
+
+.form-actions--end {
+    justify-content: flex-end;
+}
+
+.input-group {
+    display: flex;
+    gap: var(--space-2);
+    align-items: stretch;
+}
+
+.input-group > .input {
+    flex: 1;
+    min-width: 0;
+}
+
+.search-field {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.search-field .icon {
+    position: absolute;
+    left: 0.85rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-text-light);
+    pointer-events: none;
+}
+
+.search-field .input {
+    padding-left: 2.6rem;
+}
+
+/* Checkbox / radio */
+.check-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 44px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+
+/* Volba jako karta (části receptu) */
+.choice-list {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.choice-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 56px;
+    padding: 0.7rem var(--space-4);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.choice-card:hover {
+    border-color: var(--color-text-light);
+}
+
+.choice-card:has(input:checked) {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+.choice-card-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.choice-card-title {
+    font-weight: 600;
+}
+
+.choice-card-meta {
+    font-size: 0.85rem;
+    color: var(--color-text-light);
+}
+
+/* Stepper násobku */
+.stepper {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    overflow: hidden;
+}
+
+.stepper button {
+    width: 48px;
+    border: 0;
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    display: grid;
+    place-items: center;
+}
+
+.stepper button:hover {
+    background: var(--color-surface-3);
+}
+
+.stepper input {
+    width: 5.5rem;
+    min-height: var(--btn-height-lg);
+    border: 0;
+    background: transparent;
+    text-align: center;
+    font-size: 1.25rem;
+    font-weight: 700;
+    -moz-appearance: textfield;
+}
+
+.stepper input::-webkit-outer-spin-button,
+.stepper input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+}
+
+.stepper input:focus {
+    outline: none;
+}
+
+.stepper:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+}
+
+/* Menší varianta — časovač ve vaření */
+.stepper--sm button {
+    width: 40px;
+}
+
+.stepper--sm input {
+    width: 3rem;
+    min-height: 40px;
+    font-size: 1.05rem;
+}
+
+.stepper-suffix {
+    display: flex;
+    align-items: center;
+    padding-right: 0.5rem;
+    color: var(--color-text-light);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+/* Soubor — velká dropzóna */
+.file-drop {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: 180px;
+    padding: var(--space-5);
+    border: 2px dashed var(--color-border-strong);
+    border-radius: var(--radius);
+    background: var(--color-surface-2);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.file-drop:hover,
+.file-drop.is-dragover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+.file-drop input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.file-drop-icon {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--color-surface);
+    color: var(--color-primary);
+    box-shadow: var(--shadow-sm);
+}
+
+.file-drop-title {
+    font-weight: 700;
+}
+
+.file-drop-hint {
+    font-size: 0.875rem;
+    color: var(--color-text-light);
+}
+
+.file-list {
+    margin-top: var(--space-3);
+    list-style: none;
+    padding: 0;
+    font-size: 0.9rem;
+    color: var(--color-text-2);
+}
+
+.file-list li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0.2rem 0;
+}
+
+/* ========================================================================
+   7. Stavové prvky — badge, chip, alert, empty state, toast, modal, tabulka
+   ======================================================================== */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    height: 24px;
+    padding: 0 0.6rem;
+    border-radius: var(--radius-pill);
+    background: var(--color-surface-2);
+    color: var(--color-text-2);
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.badge--warn {
+    background: var(--color-warning-soft);
+    color: var(--color-warning);
+}
+
+.badge--success {
+    background: var(--color-success-soft);
+    color: var(--color-success);
+}
+
+.badge--error {
+    background: var(--color-error-soft);
+    color: var(--color-error);
+}
+
+.badge--accent {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+}
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 38px;
+    padding: 0 0.95rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    color: var(--color-text-2);
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.chip:hover {
+    border-color: var(--color-text-light);
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+.chip--active,
+.chip--active:hover {
+    background: var(--color-text);
+    border-color: var(--color-text);
+    color: var(--color-bg);
+}
+
+.chip .icon {
+    color: currentColor;
+}
+
+.alert {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    font-size: 0.95rem;
+}
+
+.alert > .icon {
+    margin-top: 2px;
+}
+
+.alert-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.alert--error {
+    background: var(--color-error-soft);
+    border-color: color-mix(in srgb, var(--color-error) 25%, transparent);
+    color: var(--color-error);
+}
+
+.alert--success {
+    background: var(--color-success-soft);
+    border-color: color-mix(in srgb, var(--color-success) 25%, transparent);
+    color: var(--color-success);
+}
+
+.alert--info {
+    background: var(--color-info-soft);
+    border-color: color-mix(in srgb, var(--color-info) 25%, transparent);
+    color: var(--color-info);
+}
+
+.alert--warn {
+    background: var(--color-warning-soft);
+    border-color: color-mix(in srgb, var(--color-warning) 25%, transparent);
+    color: var(--color-warning);
+}
+
+.alert .alert-body,
+.alert .alert-body a {
+    color: var(--color-text);
+}
+
+.alert-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-7) var(--space-5);
+    text-align: center;
+}
+
+.empty-state-icon {
+    display: grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    margin-bottom: var(--space-4);
+    border-radius: 50%;
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+}
+
+.empty-state-title {
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    font-weight: 600;
+}
+
+.empty-state-text {
+    max-width: 26rem;
+    margin-top: var(--space-2);
+    color: var(--color-text-light);
+}
+
+.empty-state .cluster {
+    justify-content: center;
+    margin-top: var(--space-5);
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+
+.table th {
+    padding: 0.6rem var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-light);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.table td {
+    padding: 0.75rem var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+}
+
+.table tr:last-child td {
+    border-bottom: 0;
+}
+
+/* Řádkový seznam v kartě */
+.list-rows {
+    list-style: none;
+    padding: 0;
+}
+
+.list-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 56px;
+    padding: 0.6rem var(--space-5);
+    border-top: 1px solid var(--color-border);
+}
+
+.list-row:first-child {
+    border-top: 0;
+}
+
+.list-row-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.list-row-title,
+.list-row-meta {
+    display: block;
+}
+
+.list-row-title {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+a.list-row:hover {
+    background: var(--color-surface-2);
+    text-decoration: none;
+}
+
+.list-row-meta {
+    font-size: 0.85rem;
+    color: var(--color-text-light);
+}
+
+.list-row > .icon:last-child {
+    color: var(--color-text-light);
+}
+
+@media (max-width: 640px) {
+    .list-row {
+        padding: 0.6rem var(--space-4);
+    }
+}
+
+.list-plain {
+    list-style: none;
+    padding: 0;
+}
+
+/* Toast */
+.toast-container {
+    position: fixed;
+    left: 50%;
+    bottom: var(--space-5);
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    transform: translateX(-50%);
+    pointer-events: none;
+    width: min(92vw, 420px);
+}
+
+body.has-tabbar .toast-container {
+    bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + var(--space-3));
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: 0.8rem 1rem;
+    border-radius: var(--radius-sm);
+    background: var(--color-text);
+    color: var(--color-bg);
+    box-shadow: var(--shadow-lg);
+    font-weight: 600;
+    font-size: 0.95rem;
+    pointer-events: auto;
+    animation: toast-in 0.25s var(--ease);
+}
+
+.toast::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-info);
+    flex-shrink: 0;
+}
+
+.toast--success::before { background: var(--color-success); }
+.toast--error::before { background: var(--color-error); }
+
+.toast--hide {
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+@keyframes toast-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 150;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+    background: var(--color-overlay);
+    animation: fade-in 0.15s ease;
+}
+
+.modal {
+    width: 100%;
+    max-width: 440px;
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    animation: modal-in 0.2s var(--ease);
+}
+
+.modal-header {
+    padding: var(--space-5) var(--space-5) 0;
+}
+
+.modal-title {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 600;
+}
+
+.modal-body {
+    padding: var(--space-2) var(--space-5) 0;
+    color: var(--color-text-2);
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    padding: var(--space-5);
+}
+
+@media (max-width: 480px) {
+    .modal-overlay {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .modal {
+        max-width: none;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .modal-footer .btn {
+        flex: 1;
+    }
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+}
+
+@keyframes modal-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+}
+
+/* Lightbox — náhled fotografie na celou obrazovku */
+.lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-5);
+    background: var(--color-overlay-strong);
+    backdrop-filter: blur(6px);
+    animation: fade-in 0.15s ease;
+    cursor: zoom-out;
+}
+
+.lightbox[hidden] {
+    display: none !important;
+}
+
+.lightbox img {
+    max-width: min(96vw, 1200px);
+    max-height: 90vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+    cursor: default;
+    background: var(--color-surface-2);
+}
+
+.lightbox-close {
+    position: absolute;
+    top: max(0.75rem, env(safe-area-inset-top));
+    right: max(0.75rem, env(safe-area-inset-right));
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.15s var(--ease);
+}
+
+.lightbox-close:hover,
+.lightbox-close:focus-visible {
+    background: rgba(255, 255, 255, 0.22);
+    outline: none;
+}
+
+.lightbox-nav {
+    position: absolute;
+    top: 50%;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    margin-top: -26px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.15s var(--ease);
+}
+
+.lightbox-nav:hover,
+.lightbox-nav:focus-visible {
+    background: rgba(255, 255, 255, 0.26);
+    outline: none;
+}
+
+.lightbox-nav[hidden],
+.lightbox-counter[hidden] {
+    display: none;
+}
+
+.lightbox-prev { left: max(0.75rem, env(safe-area-inset-left)); }
+.lightbox-next { right: max(0.75rem, env(safe-area-inset-right)); }
+
+.lightbox-counter {
+    position: absolute;
+    left: 50%;
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-pill);
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+@media (max-width: 640px) {
+    .lightbox-nav {
+        width: 44px;
+        height: 44px;
+        margin-top: -22px;
+    }
+}
+
+body.lightbox-open {
+    overflow: hidden;
+}
+
+a[data-lightbox],
+button[data-lightbox] {
+    cursor: zoom-in;
+}
+
+.meta-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-5);
+    margin-top: var(--space-4);
+    color: var(--color-text-2);
+    font-size: 0.95rem;
+}
+
+.meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.meta-item .icon {
+    color: var(--color-text-light);
+}
+
+.tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+
+.tag {
+    display: inline-flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 0.7rem;
+    border-radius: var(--radius-pill);
+    background: var(--color-surface-2);
+    color: var(--color-text-2);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+a.tag:hover {
+    background: var(--color-surface-3);
+    text-decoration: none;
+}
+
+.tag form {
+    display: contents;
+}
+
+.tag-remove {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.3rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-text-light);
+    border-radius: var(--radius-pill);
+}
+
+.tag-remove:hover {
+    color: var(--color-error);
+}
+
+}
+
+.progress {
+    flex: 1;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--color-surface-3);
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--color-success);
+    transition: width 0.3s var(--ease);
+}
+
+.page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+    .page-actions .btn {
+        flex: 1;
+    }
+}
+
+.sticky-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+    padding: var(--space-3) 0;
+    background: linear-gradient(to top, var(--color-bg) 75%, transparent);
+}
+
+body.has-tabbar /* Lišta akcí napevno na konci stránky */
+.page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+    .page-actions .btn {
+        flex: 1;
+    }
+}
+
+.sticky-actions {
+    bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 640px) {
+    /* Lišta akcí napevno na konci stránky */
+.page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+    .page-actions .btn {
+        flex: 1;
+    }
+}
+
+.sticky-actions {
+        gap: var(--space-2);
+        padding: var(--space-3) 0;
+        background: var(--color-bg);
+        box-shadow: var(--shadow-up);
+    }
+
+    .sticky-actions .btn {
+        flex: 1;
+    }
+}
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: var(--space-5);
+    align-items: start;
+}
+
+.link-icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2);
+    color: var(--color-text-2);
+    flex-shrink: 0;
+}
+
+.tag-list-block {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.split-layout {
+    display: grid;
+    grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+    gap: var(--space-5);
+    align-items: start;
+}
+
+.split-list {
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-4));
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - var(--header-height) - var(--space-6));
+    overflow: hidden;
+}
+
+.split-search {
+    padding: var(--space-4) var(--space-4) var(--space-3);
+}
+
+.split-items {
+    flex: 1;
+    overflow-y: auto;
+    border-top: 1px solid var(--color-border);
+}
+
+.split-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 56px;
+    padding: 0.5rem var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text);
+}
+
+.split-item:hover {
+    background: var(--color-surface-2);
+    text-decoration: none;
+}
+
+.split-item.is-selected {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+}
+
+.split-item-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.split-item-name {
+    display: block;
+    font-weight: 600;
+}
+
+.split-item-meta {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--color-text-light);
+}
+
+.split-item.is-selected .split-item-meta {
+    color: inherit;
+    opacity: 0.8;
+}
+
+.split-empty {
+    padding: var(--space-5) var(--space-4);
+    text-align: center;
+}
+
+.split-add {
+    padding: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface-2);
+}
+
+.split-add .form-label {
+    margin-bottom: 0.3rem;
+}
+
+.split-detail {
+    min-width: 0;
+}
+
+.split-detail-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.split-detail-title {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.split-detail-cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-5);
+    align-items: start;
+}
+
+.split-back {
+    display: none;
+    width: 100%;
+}
+
+@media (max-width: 899px) {
+    .split-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .split-list {
+        position: static;
+        max-height: none;
+    }
+
+    .split-layout.has-selection .split-list {
+        display: none;
+    }
+
+    .split-back {
+        display: inline-flex;
+    }
+}
+
+/* ========================================================================
+   8. Přihlášení, editor, utility
+   ======================================================================== */
+
+/* Opakovatelné bloky formuláře, napovídání, indikátor hledání
+   (chování viz skill web-app-interactions) */
+.editor-list {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.editor-block {
+    position: relative;
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2);
+}
+
+.editor-block-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.editor-block-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+}
+
+/* Napovídání surovin pod textovým polem */
+.suggest-box {
+    position: absolute;
+    z-index: 40;
+    max-height: 240px;
+    overflow-y: auto;
+    padding: var(--space-1);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+}
+
+.suggest-item {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.7rem;
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: none;
+    color: var(--color-text);
+    font-size: 0.95rem;
+    text-align: left;
+}
+
+.suggest-item:hover,
+.suggest-item.is-active {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+}
+
+.editor-area {
+    font-family: var(--font-mono);
+    font-size: 0.92rem;
+    line-height: 1.7;
+    background: var(--color-surface);
+}
+
+/* Indikátor průběžného hledání */
+.search-spinner {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    width: 16px;
+    height: 16px;
+    margin-top: -8px;
+    border: 2px solid var(--color-border-strong);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.htmx-request .search-spinner,
+.search-spinner.htmx-request {
+    opacity: 1;
+    animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.auth-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-5) var(--space-4);
+    background:
+        radial-gradient(ellipse 60% 50% at 50% 0%, var(--color-primary-soft), transparent),
+        var(--color-bg);
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 420px;
+    box-shadow: var(--shadow-lg);
+}
+
+.auth-card .card-body {
+    padding: var(--space-6);
+}
+
+.auth-logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+    text-align: center;
+}
+
+.auth-logo .logo-mark {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+}
+
+.auth-title {
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    font-weight: 600;
+}
+
+.auth-subtitle {
+    color: var(--color-text-light);
+}
+
+.divider-text {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin: var(--space-5) 0;
+    color: var(--color-text-light);
+    font-size: 0.85rem;
+}
+
+.divider-text::before,
+.divider-text::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--color-border);
+}
+
+.text-muted { color: var(--color-text-light); }
+.text-sm { font-size: 0.875rem; }
+.text-center { text-align: center; }
+.font-bold { font-weight: 700; }
+.mt-2 { margin-top: var(--space-2); }
+.mt-4 { margin-top: var(--space-4); }
+.mt-5 { margin-top: var(--space-5); }
+.mb-4 { margin-bottom: var(--space-4); }
+.mb-5 { margin-bottom: var(--space-5); }
+.w-full { width: 100%; }
+
+.visually-hidden {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+@media (max-width: 640px) {
+    .hide-mobile { display: none !important; }
+}
+
+@media (min-width: 641px) {
+    .show-mobile { display: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+/* ========================================================================
+   Aplikace: Sync Orchestrator
+   ======================================================================== */
+
+/* Menu má jen dvě záložky */
+@media (max-width: 899px) {
+    .tabbar.tabbar--2 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.inline-form {
+    display: inline;
+}
+
+.inline-icon {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.mono,
+.path,
+.log,
+code {
+    font-family: var(--font-mono);
+}
+
+code {
+    font-size: 0.9em;
+    padding: 0 0.25em;
+    border-radius: var(--radius-xs);
+    background: var(--color-surface-2);
+}
+
+/* Souhrn disku na přehledu */
+.disk-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.disk-summary-icon {
+    display: inline-flex;
+    color: var(--color-primary);
+}
+
+.disk-summary-main {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Karta páru */
+.pair-card--off .stat-grid {
+    opacity: 0.75;
+}
+
+.disk-toggle {
+    font-size: 0.9rem;
+    min-height: var(--btn-height-sm);
+}
+
+.pair-sides {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .pair-sides {
+        grid-template-columns: 1fr;
+    }
+}
+
+.pair-side-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-1);
+    color: var(--color-text-light);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+.side-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* Čísla páru */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2);
+    color: var(--color-text);
+}
+
+a.stat:hover {
+    border-color: var(--color-border-strong);
+    text-decoration: none;
+}
+
+.stat-label {
+    color: var(--color-text-light);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.stat-value {
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.stat-meta {
+    color: var(--color-text-light);
+    font-size: 0.82rem;
+}
+
+.stat--accent {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+.stat--accent .stat-value {
+    color: var(--color-primary);
+}
+
+.stat--warn {
+    background: var(--color-warning-soft);
+}
+
+.stat--warn .stat-value {
+    color: var(--color-warning);
+}
+
+.stat--error {
+    background: var(--color-error-soft);
+}
+
+.stat--error .stat-value {
+    color: var(--color-error);
+}
+
+/* Detail páru */
+.tabs--scroll {
+    overflow-x: auto;
+    padding: 0 var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+    scrollbar-width: thin;
+}
+
+.tabs--scroll .tabs-item {
+    white-space: nowrap;
+}
+
+.tabs-count {
+    color: var(--color-text-light);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.toolbar .search-field {
+    flex: 1;
+    min-width: 200px;
+}
+
+.files-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.table--compact td,
+.table--compact th {
+    padding: 0.45rem var(--space-3);
+}
+
+.table .num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.table .col-check {
+    width: 44px;
+}
+
+.table .col-check input {
+    width: 18px;
+    height: 18px;
+}
+
+.table .path {
+    font-size: 0.86rem;
+    overflow-wrap: anywhere;
+}
+
+.badge--sm {
+    height: 20px;
+    padding: 0 0.45rem;
+    font-size: 0.72rem;
+    font-family: var(--font-ui);
+}
+
+.pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.summary-toggle {
+    cursor: pointer;
+    list-style: none;
+}
+
+.summary-toggle::-webkit-details-marker {
+    display: none;
+}
+
+details[open] > .summary-toggle > .icon {
+    transform: rotate(180deg);
+}
+
+/* Log skenu */
+.log {
+    max-height: 60vh;
+    overflow: auto;
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.log--inline {
+    max-height: 30vh;
+    margin-top: var(--space-2);
+    background: transparent;
+    padding: 0;
+}
+
+.meta-list dt {
+    color: var(--color-text-light);
+    font-size: 0.85rem;
+}
+
+.meta-list dt::after {
+    content: ":";
+}
+
+.meta-list dd {
+    margin: 0;
+}

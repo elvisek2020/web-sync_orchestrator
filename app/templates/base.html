@@ -1,0 +1,102 @@
+{% from "_icons.html" import icon %}
+{%- set show_chrome = not hide_chrome -%}
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
+    <script>
+        // Zvolený motiv nastavit ještě před vykreslením (jinak by stránka blikla).
+        try {
+            var t = localStorage.getItem('theme');
+            if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {}
+    </script>
+    <script src="/static/js/htmx.min.js?v={{ app_version }}"></script>
+    <script src="/static/js/app.js?v={{ app_version }}" defer></script>
+    {% block head %}{% endblock %}
+</head>
+<body class="{% if show_chrome %}has-tabbar{% endif %} {% block body_class %}{% endblock %}">
+    <script>
+        try {
+            if (localStorage.getItem('layout-wide') === '1') document.body.classList.add('layout-wide');
+        } catch (e) {}
+    </script>
+    {% if show_chrome %}
+    <header class="header">
+        <div class="header-inner">
+            <div class="header-left">
+                <a href="/" class="logo" title="{{ app_name }}">
+                    <span class="logo-mark">{{ icon('refresh', 20) }}</span>
+                    <span>{{ app_name }}</span>
+                </a>
+                <nav class="nav" aria-label="Hlavní navigace">
+                    <a href="/" class="nav-item {% if current_tab == 'overview' %}nav-item--active{% endif %}" {% if current_tab == 'overview' %}aria-current="page"{% endif %}>{{ icon('hard-drive', 18) }}Přehled</a>
+                    <a href="/nastaveni" class="nav-item {% if current_tab == 'settings' %}nav-item--active{% endif %}" {% if current_tab == 'settings' %}aria-current="page"{% endif %}>{{ icon('settings', 18) }}Nastavení</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <nav class="tabbar tabbar--2" aria-label="Hlavní navigace">
+        <a href="/" class="tabbar-item {% if current_tab == 'overview' %}is-active{% endif %}">{{ icon('hard-drive', 22) }}Přehled</a>
+        <a href="/nastaveni" class="tabbar-item {% if current_tab == 'settings' %}is-active{% endif %}">{{ icon('settings', 22) }}Nastavení</a>
+    </nav>
+    {% endif %}
+
+    <main class="main-content {% block main_class %}{% endblock %}">
+        {% if show_chrome %}<div class="container {% block container_class %}{% endblock %}">{% endif %}
+            {% block content %}{% endblock %}
+        {% if show_chrome %}</div>{% endif %}
+    </main>
+
+    {% if show_chrome %}
+    <footer class="footer">
+        <div class="container footer-inner">
+            <p>{{ app_name }}{% if app_version %} · verze {{ app_version }}{% endif %}</p>
+            <div class="theme-switch" role="group" aria-label="Motiv stránky">
+                <button type="button" class="theme-option" data-theme-option="auto" title="Podle systému">{{ icon('settings', 14) }}<span>Systém</span></button>
+                <button type="button" class="theme-option" data-theme-option="light" title="Světlý režim">{{ icon('sun', 14) }}<span>Světlý</span></button>
+                <button type="button" class="theme-option" data-theme-option="dark" title="Tmavý režim">{{ icon('moon', 14) }}<span>Tmavý</span></button>
+            </div>
+            <button type="button" class="theme-option footer-toggle" id="layout-wide-toggle" title="Širší stránka na velkém monitoru" aria-pressed="false">{{ icon('expand', 14) }}<span>Široká stránka</span></button>
+            {% block footer %}{% endblock %}
+        </div>
+    </footer>
+    {% endif %}
+
+    <div id="notification-toast" class="toast-container" aria-live="polite"></div>
+
+    <div id="confirm-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title" style="display:none">
+        <div class="modal">
+            <div class="modal-header">
+                <div id="confirm-title" class="modal-title"></div>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button id="confirm-cancel" type="button" class="btn btn-outline" onclick="closeConfirm()">Zrušit</button>
+                <button id="confirm-ok" type="button" class="btn btn-primary"></button>
+            </div>
+        </div>
+    </div>
+
+    {% if flash %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            showNotification({{ flash.text|tojson }}, {{ flash.kind|tojson }});
+            // Kód zprávy z adresy odstranit, ať se po obnovení stránky neukáže znovu.
+            try {
+                var url = new URL(window.location.href);
+                url.searchParams.delete('msg');
+                history.replaceState(null, '', url.pathname + url.search + url.hash);
+            } catch (e) {}
+        });
+    </script>
+    {% endif %}
+    {% block scripts %}{% endblock %}
+</body>
+</html>

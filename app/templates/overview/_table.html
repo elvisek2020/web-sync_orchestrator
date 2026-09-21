@@ -1,0 +1,118 @@
+{% from "_icons.html" import icon %}
+{% from "_macros.html" import alert, side_status %}
+<div id="overview" class="stack-lg" {% if ov.busy %}hx-get="/" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+
+  <section class="card">
+    <div class="card-body disk-summary">
+      <span class="disk-summary-icon">{{ icon('hard-drive', 22) }}</span>
+      {% if ov.capacity %}
+        {% set used_pct = (ov.allocated * 100 / ov.capacity)|round(0, 'floor')|int %}
+        <div class="disk-summary-main">
+          <div class="cluster">
+            <strong>Disk {{ ov.capacity|filesize }}</strong>
+            <span class="text-sm text-muted">přiděleno {{ ov.allocated|filesize }} · volno {{ (ov.capacity - ov.allocated)|filesize }}{% if ov.deferred %} · odloženo {{ ov.deferred|filesize }}{% endif %}</span>
+          </div>
+          <div class="progress mt-2"><div class="progress-bar" style="width: {{ [used_pct, 100]|min }}%"></div></div>
+        </div>
+      {% else %}
+        <div class="disk-summary-main">
+          <strong>Kapacita disku není nastavená</strong>
+          <span class="text-sm text-muted">— plán vezme všechno. <a href="/nastaveni#disk">Nastavit kapacitu</a></span>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  {% for st in ov.pairs %}
+  {% set pair = st.pair %}
+  {% set plan = st.plan %}
+  <section class="card pair-card{% if not pair.on_disk %} pair-card--off{% endif %}">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title"><a href="/pary/{{ pair.id }}">{{ pair.name }}</a></h2>
+        <p class="card-subtitle">
+          {{ pair.source_host_name or 'lokálně' }}: {{ pair.source_path or '/' }} {{ icon('arrow-right', 12, 'inline-icon') }} {{ pair.target_host_name or 'lokálně' }}: {{ pair.target_path }}
+        </p>
+      </div>
+      <div class="cluster">
+        <label class="check-row disk-toggle" title="Zahrnout pár do plánu pro přenosový disk">
+          <input type="checkbox" name="on_disk" value="1" {% if pair.on_disk %}checked{% endif %}
+                 hx-post="/pary/{{ pair.id }}/na-disk" hx-trigger="change" hx-target="#overview" hx-swap="outerHTML">
+          <span>Na disk</span>
+        </label>
+        <form method="post" action="/pary/{{ pair.id }}/aktualizovat">
+          <input type="hidden" name="next" value="/">
+          <button type="submit" class="btn btn-outline btn-sm" {% if st.busy %}disabled{% endif %}>{{ icon('refresh', 16) }}Aktualizovat</button>
+        </form>
+        {% if plan and pair.on_disk %}
+          <a href="/pary/{{ pair.id }}/skript" class="btn btn-secondary btn-sm" download>{{ icon('download', 16) }}Skript</a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="pair-sides">
+        <div>
+          <div class="pair-side-label">{{ icon('server', 14) }}Zdroj</div>
+          {{ side_status(st.source) }}
+        </div>
+        <div>
+          <div class="pair-side-label">{{ icon('server', 14) }}Cíl</div>
+          {{ side_status(st.target) }}
+        </div>
+      </div>
+
+      {% if plan %}
+      {% set cmp = plan.comparison %}
+      <div class="stat-grid">
+        {% if pair.on_disk %}
+        <a class="stat stat--accent" href="/pary/{{ pair.id }}?tab=copy">
+          <span class="stat-label">Kopírovat</span>
+          <span class="stat-value">{{ plan.selected|length|number }}</span>
+          <span class="stat-meta">{{ plan.selected_size|filesize }}</span>
+        </a>
+        <a class="stat{% if plan.deferred %} stat--warn{% endif %}" href="/pary/{{ pair.id }}?tab=deferred">
+          <span class="stat-label">Odloženo</span>
+          <span class="stat-value">{{ plan.deferred|length|number }}</span>
+          <span class="stat-meta">{{ plan.deferred_size|filesize }}</span>
+        </a>
+        {% else %}
+        <a class="stat" href="/pary/{{ pair.id }}?tab=copy">
+          <span class="stat-label">K přenosu</span>
+          <span class="stat-value">{{ plan.transfer|length|number }}</span>
+          <span class="stat-meta">{{ plan.transfer_size|filesize }} · není zařazeno na disk</span>
+        </a>
+        {% endif %}
+        <a class="stat" href="/pary/{{ pair.id }}?tab=conflict">
+          <span class="stat-label">Konflikty</span>
+          <span class="stat-value">{{ cmp.conflict|length|number }}</span>
+          <span class="stat-meta">{% if pair.include_conflicts %}přepíšou se{% else %}nepřenáší se{% endif %}</span>
+        </a>
+        <a class="stat" href="/pary/{{ pair.id }}?tab=extra">
+          <span class="stat-label">Přebývá</span>
+          <span class="stat-value">{{ cmp.extra|length|number }}</span>
+          <span class="stat-meta">{{ cmp.extra|sum(attribute='size')|filesize }} · {% if pair.include_extra and not plan.deletion_blocked %}smažou se{% else %}nemažou se{% endif %}</span>
+        </a>
+        <div class="stat">
+          <span class="stat-label">Shodné</span>
+          <span class="stat-value">{{ cmp.same_count|number }}</span>
+          <span class="stat-meta">{{ cmp.same_size|filesize }}</span>
+        </div>
+        {% if cmp.problems %}
+        <a class="stat stat--error" href="/pary/{{ pair.id }}?tab=problems">
+          <span class="stat-label">Problémy</span>
+          <span class="stat-value">{{ cmp.problems|length|number }}</span>
+          <span class="stat-meta">nepřenáší se</span>
+        </a>
+        {% endif %}
+      </div>
+      {% elif not st.busy %}
+      <p class="text-sm text-muted mt-4">Porovnání se ukáže po úspěšném skenu obou stran — klikni na Aktualizovat.</p>
+      {% endif %}
+
+      {% for w in st.warnings %}
+        <div class="mt-4">{{ alert('warn', w) }}</div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+</div>

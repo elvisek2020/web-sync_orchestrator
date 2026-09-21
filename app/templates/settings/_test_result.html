@@ -1,0 +1,6 @@
+{% from "_macros.html" import alert %}
+<div class="stack">
+  {% for label, ok, message in results %}
+    {{ alert('success' if ok else 'error', label ~ ': ' ~ message) }}
+  {% endfor %}
+</div>

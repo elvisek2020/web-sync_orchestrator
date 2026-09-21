@@ -1,0 +1,49 @@
+{% from "_icons.html" import icon %}
+
+{#- Zpráva nad obsahem stránky. kind: error | success | info | warn -#}
+{%- macro alert(kind, text=None) -%}
+<div class="alert alert--{{ kind }}" role="{% if kind == 'error' %}alert{% else %}status{% endif %}">
+  {{ icon({'error': 'alert', 'warn': 'alert', 'success': 'check'}.get(kind, 'info'), 20) }}
+  <div class="alert-body">{% if caller %}{{ caller() }}{% else %}{{ text }}{% endif %}</div>
+</div>
+{%- endmacro -%}
+
+{#- Prázdný stav -#}
+{%- macro empty_state(icon_name, title, text='') -%}
+<div class="empty-state">
+  <div class="empty-state-icon">{{ icon(icon_name, 32) }}</div>
+  <h2 class="empty-state-title">{{ title }}</h2>
+  {% if text %}<p class="empty-state-text">{{ text }}</p>{% endif %}
+  {% if caller %}<div class="cluster">{{ caller() }}</div>{% endif %}
+</div>
+{%- endmacro -%}
+
+{#- Stav jedné strany páru (zdroj/cíl): poslední platný sken, běžící sken, neúspěch -#}
+{%- macro side_status(side, back='/') -%}
+<div class="side-status">
+  {% if side.running %}
+    {% if side.running.status == 'queued' %}
+      <span class="badge">{{ icon('clock', 12) }}Čeká ve frontě</span>
+    {% else %}
+      <span class="badge badge--accent"><span class="pulse-dot" aria-hidden="true"></span>Skenuje</span>
+      <span class="text-sm text-muted">{{ side.progress.files|number }} souborů · {{ side.progress.bytes|filesize }} · {{ side.progress.elapsed|duration }}</span>
+    {% endif %}
+    <form method="post" action="/skeny/{{ side.running.id }}/zrusit" class="inline-form">
+      <input type="hidden" name="next" value="{{ back }}">
+      <button type="submit" class="btn btn-ghost btn-sm">{{ icon('stop', 14) }}Zrušit</button>
+    </form>
+  {% endif %}
+  {% if side.current %}
+    <span class="text-sm" title="{{ side.current.finished_at|cz_datetime }}">
+      {{ side.current.finished_at|age }} · {{ side.current.total_files|number }} souborů · {{ side.current.total_size|filesize }}
+    </span>
+  {% elif not side.running %}
+    <span class="text-sm text-muted">Zatím nenaskenováno</span>
+  {% endif %}
+  {% if side.failed and not side.running %}
+    <a href="/skeny/{{ side.failed.id }}" class="badge badge--error" title="{{ (side.failed.error or '')|truncate(200) }}">
+      {{ icon('alert', 12) }}{% if side.failed.status == 'cancelled' %}Zrušeno{% else %}Sken selhal{% endif %}
+    </a>
+  {% endif %}
+</div>
+{%- endmacro -%}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Sken #{{ scan.id }} — {{ app_name }}{% endblock %}
+
+{% block content %}
+<a href="{% if pair %}/pary/{{ pair.id }}{% else %}/{% endif %}" class="back-link">{{ icon('arrow-left', 16) }}{{ pair.name if pair else 'Přehled' }}</a>
+
+<div class="page-header">
+  <div class="page-header-text">
+    <h1 class="page-title">Sken #{{ scan.id }} · {{ 'zdroj' if scan.side == 'source' else 'cíl' }}</h1>
+    <p class="page-description">{{ pair.name if pair else '' }} — zahájen {{ (scan.started_at or scan.created_at)|cz_datetime }}</p>
+  </div>
+</div>
+
+{% include "pairs/_scan_status.html" %}
+{% endblock %}

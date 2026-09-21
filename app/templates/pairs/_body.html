@@ -1,0 +1,52 @@
+{% from "_icons.html" import icon %}
+{% from "_macros.html" import alert %}
+<section class="card" id="pair-body">
+  {% if st.warnings %}
+  <div class="card-body stack">
+    {% for w in st.warnings %}{{ alert('warn', w) }}{% endfor %}
+  </div>
+  {% endif %}
+
+  <nav class="tabs tabs--scroll" aria-label="Kategorie souborů">
+    {% for key, label in tabs %}
+      <a href="/pary/{{ pair.id }}?tab={{ key }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}"
+         class="tabs-item {% if tab == key %}tabs-item--active{% endif %}" {% if tab == key %}aria-current="page"{% endif %}>
+        {{ label }} <span class="tabs-count">{{ counts[key]|number }}</span>
+      </a>
+    {% endfor %}
+  </nav>
+
+  <div class="card-body stack">
+    <p class="text-sm text-muted">
+      {% if tab == 'copy' %}
+        {% if plan.on_disk %}Soubory, které se vejdou na disk a zkopírují na NAS2.{% else %}Pár není zaškrtnutý „Na disk“ — tohle je vše, co čeká na přenos.{% endif %}
+        Odškrtnutím soubor vyřadíš (zůstane vyřazený i po dalších skenech).
+      {% elif tab == 'conflict' %}
+        Soubor je na obou stranách, ale liší se velikost. {% if pair.include_conflicts %}Na NAS2 se přepíše verzí z NAS1.{% else %}Přenášení konfliktů je v Volbách páru vypnuté.{% endif %}
+      {% elif tab == 'extra' %}
+        Soubor je jen na NAS2. {% if plan.deletions %}Skript ho v režimu to-nas po potvrzení smaže.{% elif plan.deletion_blocked %}{{ plan.deletion_blocked }}{% else %}Mazání je ve Volbách páru vypnuté.{% endif %}
+      {% elif tab == 'deferred' %}
+        Nevešlo se na disk — objeví se znovu po dalším skenu.
+      {% elif tab == 'skipped' %}
+        Ručně vyřazené soubory. Zaškrtnutím je vrátíš do plánu.
+      {% else %}
+        Tyto soubory se nepřenáší ani nemažou — vyřeš je ručně (přejmenováním na NAS1).
+      {% endif %}
+    </p>
+
+    <form class="toolbar" role="search" method="get" action="/pary/{{ pair.id }}"
+          hx-get="/pary/{{ pair.id }}" hx-target="#pair-files" hx-swap="outerHTML"
+          hx-trigger="input changed delay:300ms from:find input[name='q'], search from:find input[name='q']"
+          hx-push-url="true">
+      <input type="hidden" name="tab" value="{{ tab }}">
+      <label class="search-field">
+        <span class="visually-hidden">Hledat v cestě</span>
+        {{ icon('search', 18) }}
+        <input class="input" type="search" name="q" value="{{ q }}" placeholder="Hledat v cestě…" autocomplete="off">
+      </label>
+      <noscript><button type="submit" class="btn btn-outline">Hledat</button></noscript>
+    </form>
+
+    {% include "pairs/_files.html" %}
+  </div>
+</section>

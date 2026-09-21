@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_macros.html" import alert %}
+{% block title %}{{ 'Upravit pár' if pair else 'Nový pár' }} — {{ app_name }}{% endblock %}
+
+{% macro side_fields(side, label, hint) %}
+<fieldset class="stack">
+  <legend class="section-title">{{ label }}</legend>
+  <div class="form-grid">
+    <div class="form-group">
+      <label class="form-label" for="{{ side }}_host_id">Kde</label>
+      <select class="input" id="{{ side }}_host_id" name="{{ side }}_host_id">
+        <option value="" {% if not form[side ~ '_host_id'] %}selected{% endif %}>Lokálně v kontejneru ({{ local_root }})</option>
+        {% for h in hosts %}
+        <option value="{{ h.id }}" {% if form[side ~ '_host_id'] == h.id|string %}selected{% endif %}>SSH: {{ h.name }} ({{ h.host }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="{{ side }}_path">Složka</label>
+      <input class="input mono" id="{{ side }}_path" name="{{ side }}_path" value="{{ form[side ~ '_path'] }}" required placeholder="{{ hint }}">
+    </div>
+  </div>
+</fieldset>
+{% endmacro %}
+
+{% block content %}
+<a href="/nastaveni#pary" class="back-link">{{ icon('arrow-left', 16) }}Nastavení</a>
+<div class="page-header">
+  <div class="page-header-text">
+    <h1 class="page-title">{{ 'Upravit pár' if pair else 'Nový pár' }}</h1>
+    <p class="page-description">Zdroj (NAS1) je vzor, cíl (NAS2) se mu má podobat.</p>
+  </div>
+</div>
+
+{% if error %}<div class="mb-4">{{ alert('error', error) }}</div>{% endif %}
+
+<form method="post" action="/nastaveni/pary{% if pair %}/{{ pair.id }}{% endif %}" class="card">
+  <div class="card-body stack-lg">
+    <div class="form-group">
+      <label class="form-label" for="name">Název</label>
+      <input class="input" id="name" name="name" value="{{ form.name }}" required maxlength="100" placeholder="např. Filmy">
+      <p class="form-hint">Podle názvu se pojmenuje skript a podsložka na disku.</p>
+    </div>
+    {{ side_fields('source', 'Zdroj — NAS1', 'např. NAS-FILMY') }}
+    {{ side_fields('target', 'Cíl — NAS2', 'např. /share/Filmy') }}
+    <div>
+      <button type="button" class="btn btn-outline btn-sm"
+              hx-post="/nastaveni/pary/test" hx-include="closest form" hx-target="#pair-test" hx-swap="innerHTML"
+              hx-indicator="#pair-test-spinner">{{ icon('check', 16) }}Ověřit složky</button>
+      <span id="pair-test-spinner" class="search-spinner htmx-indicator" aria-hidden="true"></span>
+      <div id="pair-test" class="mt-2" aria-live="polite"></div>
+    </div>
+  </div>
+  <div class="card-footer">
+    <button type="submit" class="btn btn-primary">Uložit pár</button>
+    <a href="/nastaveni#pary" class="btn btn-ghost">Zrušit</a>
+  </div>
+</form>
+
+{% if pair %}
+<form method="post" action="/nastaveni/pary/{{ pair.id }}/smazat" class="mt-5"
+      data-confirm="Pár „{{ pair.name }}“ se smaže i se všemi skeny a vyřazenými soubory. Data na NASech zůstanou beze změny."
+      data-confirm-title="Smazat pár?" data-confirm-ok="Smazat" data-confirm-danger>
+  <button type="submit" class="btn btn-danger-ghost">{{ icon('trash', 16) }}Smazat pár</button>
+</form>
+{% endif %}
+{% endblock %}

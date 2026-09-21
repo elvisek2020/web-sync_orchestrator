@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_macros.html" import side_status %}
+{% block title %}{{ pair.name }} — {{ app_name }}{% endblock %}
+
+{% block content %}
+{% set back = '/pary/' ~ pair.id %}
+<a href="/" class="back-link">{{ icon('arrow-left', 16) }}Přehled</a>
+
+<div class="page-header">
+  <div class="page-header-text">
+    <h1 class="page-title">{{ pair.name }}</h1>
+    <p class="page-description">{{ source_desc }} {{ icon('arrow-right', 12, 'inline-icon') }} {{ target_desc }}</p>
+  </div>
+  <div class="page-header-actions">
+    <form method="post" action="/pary/{{ pair.id }}/aktualizovat">
+      <input type="hidden" name="next" value="{{ back }}">
+      <button type="submit" class="btn btn-outline" {% if st.busy %}disabled{% endif %}>{{ icon('refresh', 18) }}Aktualizovat</button>
+    </form>
+    {% if plan and pair.on_disk %}
+      <a href="/pary/{{ pair.id }}/skript" class="btn btn-primary" download>{{ icon('download', 18) }}Stáhnout skript</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="stack-lg">
+  <section class="card" id="pair-sides" {% if st.busy %}hx-get="{{ back }}" hx-trigger="every 3s" hx-select="#pair-sides" hx-swap="outerHTML"{% endif %}>
+    <div class="card-body pair-sides">
+      <div>
+        <div class="pair-side-label">{{ icon('server', 14) }}Zdroj · {{ source_desc }}</div>
+        {{ side_status(st.source, back) }}
+      </div>
+      <div>
+        <div class="pair-side-label">{{ icon('server', 14) }}Cíl · {{ target_desc }}</div>
+        {{ side_status(st.target, back) }}
+      </div>
+    </div>
+    {% if st.busy %}
+    <div class="card-footer">
+      <span class="text-sm text-muted">Po dokončení skenu obnov stránku, porovnání se přepočítá.</span>
+      <a href="{{ back }}" class="btn btn-ghost btn-sm">{{ icon('refresh', 14) }}Obnovit</a>
+    </div>
+    {% endif %}
+  </section>
+
+  {% if plan %}
+    {% include "pairs/_body.html" %}
+  {% else %}
+    <section class="card">
+      <div class="card-body">
+        <p>Porovnání se ukáže po úspěšném skenu obou stran.</p>
+      </div>
+    </section>
+  {% endif %}
+
+  <details class="card" id="pair-options" data-remember-open>
+    <summary class="card-header summary-toggle">
+      <div>
+        <h2 class="card-title">Volby páru</h2>
+        <p class="card-subtitle">Konflikty {{ 'se přepisují' if pair.include_conflicts else 'se nepřenáší' }} · přebývající {{ 'se mažou' if pair.include_extra else 'se nemažou' }}{% if pair.exclude_patterns %} · vlastní vzory{% endif %}</p>
+      </div>
+      {{ icon('chevron-down', 18) }}
+    </summary>
+    <form method="post" action="/pary/{{ pair.id }}/volby" class="card-body stack">
+      <label class="check-row">
+        <input type="checkbox" name="include_conflicts" value="1" {% if pair.include_conflicts %}checked{% endif %}>
+        <span>Přenášet konflikty (soubor je na obou stranách, ale liší se velikost) — na NAS2 se přepíše</span>
+      </label>
+      <label class="check-row">
+        <input type="checkbox" name="include_extra" value="1" {% if pair.include_extra %}checked{% endif %}>
+        <span>Mazat přebývající soubory na NAS2 (skript se před smazáním vždy zeptá)</span>
+      </label>
+      <div class="form-group">
+        <label class="form-label" for="exclude_patterns">Vlastní vzory k vynechání <span class="optional">(volitelné)</span></label>
+        <textarea class="input mono" id="exclude_patterns" name="exclude_patterns" rows="4" placeholder="např. Naked Attraction CZ">{{ pair.exclude_patterns }}</textarea>
+        <p class="form-hint">Jeden vzor na řádek; platí navíc k <a href="/nastaveni#vzory">výchozím vzorům</a>. Vzor bez „/“ vyřadí soubor nebo celou složku s tímto názvem, vzor s „/“ se porovná s celou cestou. Odebraný vzor se projeví až po novém skenu.</p>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Uložit volby</button>
+      </div>
+    </form>
+  </details>
+
+  <section class="card">
+    <div class="card-header"><h2 class="card-title">Skeny</h2></div>
+    <ul class="list-rows">
+      {% for scan in scans %}
+      <li><a class="list-row" href="/skeny/{{ scan.id }}">
+        <span class="link-icon">{{ icon('file', 18) }}</span>
+        <span class="list-row-main">
+          <span class="list-row-title">{{ 'Zdroj' if scan.side == 'source' else 'Cíl' }} · sken #{{ scan.id }}</span>
+          <span class="list-row-meta">{{ (scan.finished_at or scan.started_at or scan.created_at)|cz_datetime }} · {{ scan.total_files|number }} souborů · {{ scan.total_size|filesize }}</span>
+        </span>
+        {% if scan.status == 'done' %}<span class="badge badge--success">Platný</span>
+        {% elif scan.status == 'running' %}<span class="badge badge--accent">Běží</span>
+        {% elif scan.status == 'queued' %}<span class="badge">Ve frontě</span>
+        {% elif scan.status == 'cancelled' %}<span class="badge badge--warn">Zrušen</span>
+        {% else %}<span class="badge badge--error">Selhal</span>{% endif %}
+        {{ icon('chevron-right', 18) }}
+      </a></li>
+      {% else %}
+      <li class="list-row"><span class="text-muted">Pár ještě nebyl skenován.</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endblock %}

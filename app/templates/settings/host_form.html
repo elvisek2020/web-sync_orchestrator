@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_macros.html" import alert %}
+{% block title %}{{ 'Upravit hosta' if host else 'Nový SSH host' }} — {{ app_name }}{% endblock %}
+
+{% block content %}
+<a href="/nastaveni#hosty" class="back-link">{{ icon('arrow-left', 16) }}Nastavení</a>
+<div class="page-header">
+  <div class="page-header-text">
+    <h1 class="page-title">{{ 'Upravit hosta' if host else 'Nový SSH host' }}</h1>
+    <p class="page-description">Přístup přes SSH/SFTP — aplikace jen čte seznam souborů, nic nemění.</p>
+  </div>
+</div>
+
+{% if error %}<div class="mb-4">{{ alert('error', error) }}</div>{% endif %}
+
+<form method="post" action="/nastaveni/hosty{% if host %}/{{ host.id }}{% endif %}" class="card" autocomplete="off">
+  {% if host %}<input type="hidden" name="host_id" value="{{ host.id }}">{% endif %}
+  <div class="card-body stack">
+    <div class="form-group">
+      <label class="form-label" for="name">Název</label>
+      <input class="input" id="name" name="name" value="{{ form.name }}" required maxlength="100" placeholder="např. NAS2">
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label" for="host">Adresa</label>
+        <input class="input" id="host" name="host" value="{{ form.host }}" required placeholder="nas2.example.cz">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="port">Port</label>
+        <input class="input" id="port" name="port" value="{{ form.port }}" inputmode="numeric" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="username">Uživatel</label>
+        <input class="input" id="username" name="username" value="{{ form.username }}" required autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="password">Heslo{% if host %} <span class="optional">(prázdné = ponechat)</span>{% endif %}</label>
+        <input class="input" id="password" name="password" type="password" value="" autocomplete="new-password"
+               placeholder="{% if host and host.has_password %}•••••••• (uložené){% endif %}">
+      </div>
+    </div>
+    {% if host %}<input type="hidden" name="keep_password" value="1">{% endif %}
+    <p class="form-hint">Heslo se uloží do databáze aplikace a do prohlížeče se už nikdy nevrátí.</p>
+    <div>
+      <button type="button" class="btn btn-outline btn-sm"
+              hx-post="/nastaveni/hosty-test" hx-include="closest form" hx-target="#host-test" hx-swap="innerHTML"
+              hx-indicator="#host-test-spinner">{{ icon('check', 16) }}Otestovat spojení</button>
+      <span id="host-test-spinner" class="search-spinner htmx-indicator" aria-hidden="true"></span>
+      <div id="host-test" class="mt-2" aria-live="polite"></div>
+    </div>
+  </div>
+  <div class="card-footer">
+    <button type="submit" class="btn btn-primary">Uložit hosta</button>
+    <a href="/nastaveni#hosty" class="btn btn-ghost">Zrušit</a>
+  </div>
+</form>
+
+{% if host %}
+<form method="post" action="/nastaveni/hosty/{{ host.id }}/smazat" class="mt-5"
+      data-confirm="Host „{{ host.name }}“ se smaže. Nejde to, dokud ho používá některý pár."
+      data-confirm-title="Smazat hosta?" data-confirm-ok="Smazat" data-confirm-danger>
+  <button type="submit" class="btn btn-danger-ghost">{{ icon('trash', 16) }}Smazat hosta</button>
+</form>
+{% endif %}
+{% endblock %}

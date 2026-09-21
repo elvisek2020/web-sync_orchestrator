@@ -1,0 +1,44 @@
+# E2E prostředí: aplikace + falešný NAS2 (SSH/SFTP) + testovací data z make_data.py
+#
+#   python3 e2e/make_data.py
+#   docker compose -f e2e/docker-compose.yml up -d --build
+#   → http://localhost:8090 ; SSH host v Nastavení: nas2 / port 2222 / uživatel nas / heslo nas2heslo
+#
+# Skript pak lze pustit v kontejneru „shell“ (bash + rsync), který vidí stejná data:
+#   docker compose -f e2e/docker-compose.yml run --rm shell bash /e2e/sync_filmy.sh to-disk /nas1/NAS-FILMY /disk
+services:
+  app:
+    build:
+      context: ..
+    ports:
+      - "8090:8000"
+    environment:
+      - DATABASE_PATH=/data/sync_orchestrator.db
+      - LOCAL_ROOT=/mnt/nas1
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data/app:/data
+      - ./data/nas1:/mnt/nas1:ro
+
+  nas2:
+    image: lscr.io/linuxserver/openssh-server:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - PASSWORD_ACCESS=true
+      - USER_NAME=nas
+      - USER_PASSWORD=nas2heslo
+    volumes:
+      - ./data/nas2:/share
+
+  shell:
+    build:
+      context: ..
+      target: test
+    profiles: ["tools"]
+    working_dir: /e2e
+    volumes:
+      - ./data/nas1:/nas1:ro
+      - ./data/nas2:/nas2
+      - ./data/disk:/disk
+      - ./scripts:/e2e

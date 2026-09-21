@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_macros.html" import empty_state %}
+{% block title %}Nastavení — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-text">
+    <h1 class="page-title">Nastavení</h1>
+    <p class="page-description">Páry složek NAS1 ↔ NAS2, SSH přístup k NAS2, kapacita disku a výchozí vzory.</p>
+  </div>
+</div>
+
+<div class="stack-lg">
+  <section class="card" id="pary">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Páry</h2>
+        <p class="card-subtitle">Pořadí určuje, v jakém pořadí se páry plní na disk.</p>
+      </div>
+      <a href="/nastaveni/pary/novy" class="btn btn-primary btn-sm">{{ icon('plus', 16) }}Přidat pár</a>
+    </div>
+    {% if pairs %}
+    <ul class="list-rows">
+      {% for pair in pairs %}
+      <li class="list-row">
+        <span class="list-row-main">
+          <a class="list-row-title" href="/nastaveni/pary/{{ pair.id }}">{{ loop.index }}. {{ pair.name }}</a>
+          <span class="list-row-meta">{{ pair.source_host_name or 'lokálně' }}: {{ pair.source_path or '/' }} → {{ pair.target_host_name or 'lokálně' }}: {{ pair.target_path }}</span>
+        </span>
+        <div class="cluster">
+          <form method="post" action="/nastaveni/pary/{{ pair.id }}/posunout">
+            <input type="hidden" name="direction" value="-1">
+            <button type="submit" class="btn btn-ghost btn-icon btn-sm" title="Posunout výš" aria-label="Posunout {{ pair.name }} výš" {% if loop.first %}disabled{% endif %}>{{ icon('arrow-up', 16) }}</button>
+          </form>
+          <form method="post" action="/nastaveni/pary/{{ pair.id }}/posunout">
+            <input type="hidden" name="direction" value="1">
+            <button type="submit" class="btn btn-ghost btn-icon btn-sm" title="Posunout níž" aria-label="Posunout {{ pair.name }} níž" {% if loop.last %}disabled{% endif %}>{{ icon('arrow-down', 16) }}</button>
+          </form>
+          <a href="/nastaveni/pary/{{ pair.id }}" class="btn btn-ghost btn-icon btn-sm" title="Upravit" aria-label="Upravit {{ pair.name }}">{{ icon('edit', 16) }}</a>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      {{ empty_state('folder', 'Zatím žádné páry', 'Pár spojuje složku na NAS1 se složkou na NAS2.') }}
+    {% endif %}
+  </section>
+
+  <section class="card" id="hosty">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">SSH hosté</h2>
+        <p class="card-subtitle">Přístup k NASu, který není připojený přímo do kontejneru (NAS2).</p>
+      </div>
+      <a href="/nastaveni/hosty/novy" class="btn btn-outline btn-sm">{{ icon('plus', 16) }}Přidat hosta</a>
+    </div>
+    {% if hosts %}
+    <ul class="list-rows">
+      {% for host in hosts %}
+      <li><a class="list-row" href="/nastaveni/hosty/{{ host.id }}">
+        <span class="link-icon">{{ icon('server', 18) }}</span>
+        <span class="list-row-main">
+          <span class="list-row-title">{{ host.name }}</span>
+          <span class="list-row-meta">{{ host.username }}@{{ host.host }}:{{ host.port }}{% if not host.has_password %} · bez hesla{% endif %}</span>
+        </span>
+        {{ icon('chevron-right', 18) }}
+      </a></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      {{ empty_state('server', 'Žádný SSH host', 'Přidej NAS2 (adresa, port, uživatel, heslo).') }}
+    {% endif %}
+  </section>
+
+  <section class="card" id="disk">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Disk pro přenos</h2>
+        <p class="card-subtitle">Plán rozdělí kapacitu mezi páry zaškrtnuté „Na disk“ v jejich pořadí; co se nevejde, je odloženo na další přenos.</p>
+      </div>
+    </div>
+    <form method="post" action="/nastaveni/disk" class="card-body">
+      <div class="form-group">
+        <label class="form-label" for="capacity_gb">Využitelná kapacita (GB)</label>
+        <div class="input-group">
+          <input class="input" id="capacity_gb" name="capacity_gb" inputmode="decimal" value="{{ capacity_gb }}" placeholder="např. 3900">
+          <button type="submit" class="btn btn-primary">Uložit</button>
+        </div>
+        <p class="form-hint">1 TB = 1000 GB. Zadej o něco méně, než je velikost disku. Prázdné = bez omezení. Skript před kopírováním ještě sám ověří skutečné volné místo.</p>
+      </div>
+    </form>
+  </section>
+
+  <section class="card" id="vzory">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Výchozí vzory k vynechání</h2>
+        <p class="card-subtitle">Platí pro všechny páry, na zdroji i cíli. Každý pár může mít navíc vlastní.</p>
+      </div>
+    </div>
+    <form method="post" action="/nastaveni/vzory" class="card-body stack">
+      <div class="form-group">
+        <label class="form-label" for="default_excludes">Vzory (jeden na řádek)</label>
+        <textarea class="input mono" id="default_excludes" name="default_excludes" rows="10">{{ default_excludes }}</textarea>
+        <p class="form-hint">Vzor bez „/“ vyřadí soubor i celou složku s tímto názvem (<code>@eaDir</code>, <code>*.tmp</code>), vzor s „/“ se porovná s celou cestou. Velikost písmen nehraje roli. Složky podle vzorů se vynechají už při skenu — odebraný vzor se projeví po novém skenu.</p>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Uložit vzory</button>
+        <button type="submit" name="reset" value="1" class="btn btn-ghost">Obnovit výchozí</button>
+      </div>
+    </form>
+  </section>
+
+  <p class="text-sm text-muted">Lokální cesty se berou relativně ke složce <code>{{ local_root }}</code> v kontejneru.</p>
+</div>
+{% endblock %}
