@@ -92,6 +92,14 @@ class ScanRunner:
             return True
         return False
 
+    def cancel_pair(self, pair_id: int) -> int:
+        """Zruší všechny běžící i čekající skeny páru. Vrací jejich počet."""
+        with self._lock:
+            jobs = [a for a in self._active.values() if a.pair_id == pair_id]
+        for job in jobs:
+            job.progress.cancel.set()
+        return len(jobs)
+
     def _host_lock(self, key: str) -> threading.Lock:
         with self._lock:
             return self._host_locks.setdefault(key, threading.Lock())

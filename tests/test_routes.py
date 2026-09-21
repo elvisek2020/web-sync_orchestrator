@@ -98,3 +98,34 @@ def test_full_cycle_local(client, temp_db):
     scan_id = client.get("/pary/1").text.split("/skeny/")[1].split("/")[0]
     assert client.get(f"/skeny/{scan_id}").status_code == 200
     assert "Hotovo" in client.get(f"/skeny/{scan_id}/log").text
+
+
+def test_options_autosave_and_cancel_pair(client, temp_db):
+    import json
+
+    from app.scan.runner import runner
+
+    root = temp_db
+    write_file(root, "src/a.mkv", b"12")
+    write_file(root, "tgt/a.mkv", b"1")          # konflikt
+    client.post("/nastaveni/pary", data={"name": "P", "source_host_id": "", "source_path": "src",
+                                         "target_host_id": "", "target_path": "tgt"})
+    client.post("/pary/1/aktualizovat", data={"next": "/"})
+    wait_for_scans()
+
+    # volby se ukládají přes HTMX: vrátí překreslené tělo, nový souhrn voleb (OOB) a toast
+    r = client.post("/pary/1/volby", data={"include_extra": "1", "tab": "conflict"}, headers={"HX-Request": "true"})
+    assert r.status_code == 200 and 'id="pair-body"' in r.text
+    assert 'hx-swap-oob="true"' in r.text and "Konflikty se nepřenáší" in r.text
+    assert json.loads(r.headers["HX-Trigger"])["notify"]["message"] == "Volby uloženy."
+    assert pairs_db.get_pair(1)["include_conflicts"] == 0 and pairs_db.get_pair(1)["include_extra"] == 1
+
+    # „Zrušit aktualizaci“ zruší oba skeny páru
+    for i in range(300):
+        write_file(root, f"src/d{i % 30}/f{i}.bin")
+    runner.start_pair(1)
+    r = client.post("/pary/1/zrusit", data={"next": "/pary/1"}, follow_redirects=False)
+    assert r.status_code == 302 and "scan_cancelled" in r.headers["location"]
+    wait_for_scans()
+    statuses = {s["status"] for s in pairs_db.scans_for_pair(1)}
+    assert statuses <= {"done", "cancelled"}

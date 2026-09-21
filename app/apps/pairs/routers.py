@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 from urllib.parse import quote
 
 from fastapi import APIRouter, Form, Request
@@ -129,15 +130,27 @@ def bulk_toggle(
     return _after_change(request, pair_id, tab, q, 1)
 
 
-@router.post("/pary/{pair_id:int}/volby")
+@router.post("/pary/{pair_id:int}/volby", response_class=HTMLResponse)
 def save_options(
-    pair_id: int,
+    request: Request, pair_id: int,
     include_conflicts: str = Form(""), include_extra: str = Form(""), exclude_patterns: str = Form(""),
+    tab: str = Form("copy"), q: str = Form(""),
 ):
+    """Volby se ukládají hned při změně (HTMX); bez JS klasicky s přesměrováním."""
     pairs_db.update_pair_options(
         pair_id, include_conflicts=bool(include_conflicts), include_extra=bool(include_extra),
         exclude_patterns="\n".join(parse_patterns(exclude_patterns)),
     )
+    if request.headers.get("HX-Request"):
+        st = _load_state(pair_id)
+        if st and st.plan:
+            tab = tab if tab in TAB_KEYS else "copy"
+            ctx = dict(_detail_ctx(request, st, tab, q.strip(), 1), options_oob=True)
+            return templates.TemplateResponse(
+                request, "pairs/_body.html", ctx,
+                headers={"HX-Trigger": json.dumps({"notify": {"message": "Volby uloženy.", "type": "success"}})},
+            )
+        return Response(status_code=204, headers={"HX-Refresh": "true"})
     return redirect(f"/pary/{pair_id}", "saved")
 
 

@@ -8,14 +8,20 @@
 <div class="page-header">
   <div class="page-header-text">
     <h1 class="page-title">{{ pair.name }}</h1>
-    <p class="page-description">{{ source_desc }} {{ icon('arrow-right', 12, 'inline-icon') }} {{ target_desc }}</p>
   </div>
   <div class="page-header-actions">
     <a href="/" class="btn btn-outline">{{ icon('arrow-left', 18) }}Zpět</a>
+    {% if st.busy %}
+    <form method="post" action="/pary/{{ pair.id }}/zrusit">
+      <input type="hidden" name="next" value="{{ back }}">
+      <button type="submit" class="btn btn-danger">{{ icon('stop', 18) }}Zrušit aktualizaci</button>
+    </form>
+    {% else %}
     <form method="post" action="/pary/{{ pair.id }}/aktualizovat">
       <input type="hidden" name="next" value="{{ back }}">
-      <button type="submit" class="btn btn-outline" {% if st.busy %}disabled{% endif %}>{{ icon('refresh', 18) }}Aktualizovat</button>
+      <button type="submit" class="btn btn-outline">{{ icon('refresh', 18) }}Aktualizovat</button>
     </form>
+    {% endif %}
     {% if plan and pair.on_disk %}
       <a href="/pary/{{ pair.id }}/skript" class="btn btn-primary" download>{{ icon('download', 18) }}Stáhnout skript</a>
     {% endif %}
@@ -27,19 +33,13 @@
     <div class="card-body pair-sides">
       <div>
         <div class="pair-side-label">{{ icon('server', 14) }}Zdroj · {{ source_desc }}</div>
-        {{ side_status(st.source, back) }}
+        {{ side_status(st.source) }}
       </div>
       <div>
         <div class="pair-side-label">{{ icon('server', 14) }}Cíl · {{ target_desc }}</div>
-        {{ side_status(st.target, back) }}
+        {{ side_status(st.target) }}
       </div>
     </div>
-    {% if st.busy %}
-    <div class="card-footer">
-      <span class="text-sm text-muted">Po dokončení skenu obnov stránku, porovnání se přepočítá.</span>
-      <a href="{{ back }}" class="btn btn-ghost btn-sm">{{ icon('refresh', 14) }}Obnovit</a>
-    </div>
-    {% endif %}
   </section>
 
   {% if plan %}
@@ -56,11 +56,13 @@
     <summary class="card-header summary-toggle">
       <div>
         <h2 class="card-title">Volby páru</h2>
-        <p class="card-subtitle">Konflikty {{ 'se přepisují' if pair.include_conflicts else 'se nepřenáší' }} · přebývající {{ 'se mažou' if pair.include_extra else 'se nemažou' }}{% if pair.exclude_patterns %} · vlastní vzory{% endif %}</p>
+        {% with oob = false %}{% include "pairs/_options_summary.html" %}{% endwith %}
       </div>
       {{ icon('chevron-down', 18) }}
     </summary>
-    <form method="post" action="/pary/{{ pair.id }}/volby" class="card-body stack">
+    <form method="post" action="/pary/{{ pair.id }}/volby" class="card-body stack"
+          hx-post="/pary/{{ pair.id }}/volby" hx-trigger="change" hx-target="#pair-body" hx-swap="outerHTML">
+      <input type="hidden" name="tab" value="{{ tab }}">
       <div class="check-list">
         <label class="check-row">
           <input type="checkbox" name="include_conflicts" value="1" {% if pair.include_conflicts %}checked{% endif %}>
@@ -76,9 +78,8 @@
         <textarea class="input mono" id="exclude_patterns" name="exclude_patterns" rows="4" placeholder="např. Naked Attraction CZ">{{ pair.exclude_patterns }}</textarea>
         <p class="form-hint">Jeden vzor na řádek; platí navíc k <a href="/nastaveni#vzory">výchozím vzorům</a>. Vzor bez „/“ vyřadí soubor nebo celou složku s tímto názvem, vzor s „/“ se porovná s celou cestou. Odebraný vzor se projeví až po novém skenu.</p>
       </div>
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary">Uložit volby</button>
-      </div>
+      <p class="text-sm text-muted">Změny se ukládají automaticky — vzory po opuštění pole.</p>
+      <noscript><div class="form-actions"><button type="submit" class="btn btn-primary btn-wide">Uložit volby</button></div></noscript>
     </form>
   </details>
 

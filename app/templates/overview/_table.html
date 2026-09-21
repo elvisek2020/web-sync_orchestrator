@@ -103,10 +103,17 @@
 
         <div class="pair-actions">
           <a href="/pary/{{ pair.id }}" class="btn btn-outline btn-sm">{{ icon('list', 16) }}Detail</a>
+          {% if st.busy %}
+          <form method="post" action="/pary/{{ pair.id }}/zrusit">
+            <input type="hidden" name="next" value="/">
+            <button type="submit" class="btn btn-danger btn-sm">{{ icon('stop', 16) }}Zrušit aktualizaci</button>
+          </form>
+          {% else %}
           <form method="post" action="/pary/{{ pair.id }}/aktualizovat">
             <input type="hidden" name="next" value="/">
-            <button type="submit" class="btn btn-outline btn-sm" {% if st.busy %}disabled{% endif %}>{{ icon('refresh', 16) }}Aktualizovat</button>
+            <button type="submit" class="btn btn-outline btn-sm">{{ icon('refresh', 16) }}Aktualizovat</button>
           </form>
+          {% endif %}
           {% if plan and pair.on_disk %}
           <a href="/pary/{{ pair.id }}/skript" class="btn btn-primary btn-sm" download>{{ icon('download', 16) }}Stáhnout skript</a>
           {% endif %}

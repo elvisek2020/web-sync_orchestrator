@@ -22,7 +22,7 @@
         {% if plan.on_disk %}Soubory, které se vejdou na disk a zkopírují na NAS2.{% else %}Pár není zahrnutý do přenosu — tohle je vše, co čeká na přenos.{% endif %}
         Označené soubory můžeš vyřadit z plánu — zůstanou vyřazené i po dalších skenech.
       {% elif tab == 'conflict' %}
-        Soubor je na obou stranách, ale liší se velikost. {% if pair.include_conflicts %}Na NAS2 se přepíše verzí z NAS1.{% else %}Přenášení konfliktů je v Volbách páru vypnuté.{% endif %}
+        Soubor je na obou stranách, ale liší se velikost. {% if pair.include_conflicts %}Na NAS2 se přepíše verzí z NAS1.{% else %}Přenášení konfliktů je ve Volbách páru vypnuté.{% endif %}
       {% elif tab == 'extra' %}
         Soubor je jen na NAS2. {% if plan.deletions %}Skript ho v režimu to-nas po potvrzení smaže.{% elif plan.deletion_blocked %}{{ plan.deletion_blocked }}{% else %}Mazání je ve Volbách páru vypnuté.{% endif %}
       {% elif tab == 'deferred' %}
@@ -50,3 +50,4 @@
     {% include "pairs/_files.html" %}
   </div>
 </section>
+{% if options_oob %}{% with oob = true %}{% include "pairs/_options_summary.html" %}{% endwith %}{% endif %}

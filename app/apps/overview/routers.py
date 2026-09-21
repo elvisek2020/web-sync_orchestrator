@@ -43,6 +43,12 @@ def refresh_side(pair_id: int, side: str, next: str = Form("/")):
     return redirect(safe_next(next), "scan_started" if started else "scan_running")
 
 
+@router.post("/pary/{pair_id:int}/zrusit")
+def cancel_pair(pair_id: int, next: str = Form("/")):
+    runner.cancel_pair(pair_id)
+    return redirect(safe_next(next), "scan_cancelled")
+
+
 @router.post("/skeny/{scan_id:int}/zrusit")
 def cancel_scan(scan_id: int, next: str = Form("/")):
     runner.cancel(scan_id)

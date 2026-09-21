@@ -624,3 +624,12 @@ document.addEventListener('change', function (e) {
     }
     updateSelection(scope);
 });
+
+// ---------------------------------------------------------------------------
+// Toast z odpovědi serveru: hlavička HX-Trigger {"notify": {"message": …, "type": …}}
+// ---------------------------------------------------------------------------
+
+document.addEventListener('notify', function (e) {
+    var detail = e.detail || {};
+    if (detail.message) showNotification(detail.message, detail.type || 'success');
+});

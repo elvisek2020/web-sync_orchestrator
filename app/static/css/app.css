@@ -2572,6 +2572,12 @@ code {
 
 .side-status {
     display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.side-status-row {
+    display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2);
@@ -2973,4 +2979,9 @@ details.card[open] > .summary-toggle {
 .files-toolbar .selected-count {
     color: var(--color-text-light);
     font-weight: 600;
+}
+
+/* Široká stránka: okraje nejvýš 200 px (na menších monitorech zůstává 1460 px) */
+:root {
+    --container-wide: max(1460px, calc(100vw - 352px));
 }
