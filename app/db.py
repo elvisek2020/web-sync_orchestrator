@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import logging
+import os
+import sqlite3
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Iterable
 
 from sqlalchemy import create_engine, event, text
@@ -42,7 +45,10 @@ def _create_engine(url: str) -> Engine:
 def get_engine() -> Engine:
     global _engine
     if _engine is None:
-        settings.database_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            settings.database_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass  # srozumitelnou chybu nahlásí check_database()
         _engine = _create_engine(settings.db_url)
     return _engine
 
@@ -173,7 +179,42 @@ SCHEMA_STATEMENTS = [
 ]
 
 
+class DatabaseSetupError(RuntimeError):
+    """Databázi nelze použít — zpráva je určená přímo pro člověka v logu kontejneru."""
+
+
+# Tabulky, které měla jen stará verze (v1) — podle nich se pozná její databáze.
+LEGACY_TABLES = {"datasets", "diffs", "batches", "batch_items", "job_runs"}
+
+
+def check_database(path: Path) -> None:
+    uid = os.getuid() if hasattr(os, "getuid") else "?"
+    hint_new = "Nastav DATABASE_PATH na nový soubor, např. /data/sync_orchestrator.db (volume ./data:/data)."
+    if not path.parent.is_dir():
+        raise DatabaseSetupError(f"Adresář databáze {path.parent} neexistuje. {hint_new}")
+    if not os.access(path.parent, os.W_OK) or (path.exists() and not os.access(path, os.W_OK)):
+        raise DatabaseSetupError(
+            f"Databáze {path} není zapisovatelná pro uživatele kontejneru (UID {uid}). "
+            f"Pokud je to databáze staré verze (/mnt/usb/…), v2 ji nepoužívá — {hint_new} "
+            f"Adresář musí patřit UID {uid} (chown {uid}:{uid} data), případně spusť kontejner jako root (user: \"0:0\")."
+        )
+    if path.exists() and path.stat().st_size > 0:
+        con = sqlite3.connect(str(path))
+        try:
+            tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        finally:
+            con.close()
+        if tables & LEGACY_TABLES:
+            raise DatabaseSetupError(
+                f"{path} je databáze staré verze aplikace (tabulky {', '.join(sorted(tables & LEGACY_TABLES))}). "
+                f"v2 ji nepoužívá ani nemění. {hint_new}"
+            )
+
+
 def init_db() -> None:
+    database = get_engine().url.database
+    if database and database != ":memory:":
+        check_database(Path(database))
     with write_tx() as conn:
         for stmt in SCHEMA_STATEMENTS:
             conn.execute(text(stmt))

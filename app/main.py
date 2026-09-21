@@ -17,7 +17,7 @@ from app.apps.overview.routers import router as overview_router
 from app.apps.pairs.routers import router as pairs_router
 from app.apps.settings.routers import router as settings_router
 from app.config import STATIC_DIR, settings
-from app.db import get_engine, init_db
+from app.db import DatabaseSetupError, get_engine, init_db
 from app.scan.runner import recover_interrupted
 
 logging.basicConfig(
@@ -31,7 +31,11 @@ logger = logging.getLogger("sync")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    init_db()
+    try:
+        init_db()
+    except DatabaseSetupError as e:
+        logger.error("NELZE SPUSTIT: %s", e)
+        raise SystemExit(1) from None
     interrupted = recover_interrupted()
     if interrupted:
         logger.warning("Po restartu označeno %d nedokončených skenů jako selhané.", interrupted)

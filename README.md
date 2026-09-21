@@ -100,6 +100,15 @@ Aplikace bude na `http://<nas1>:8080`.
 - Kontejner běží jako UID 1000. Pokud sken NAS1 skončí chybou *„Nelze přečíst složku…“*, nemá tento uživatel práva — odkomentuj `user: "0:0"`.
 - Uvicorn běží s jedním workerem (stav běžících skenů je v paměti procesu).
 
+### Přechod ze staré verze (v1)
+
+v2 používá **novou databázi** — stará (`/mnt/usb/sync_orchestrator.db`) se nečte ani nemění a aplikace odmítne start, když na ni `DATABASE_PATH` ukazuje. V compose:
+
+1. `DATABASE_PATH=/data/sync_orchestrator.db` a volume `./data:/data` (`mkdir data && chown 1000:1000 data`),
+2. NAS1 připojit do `/mnt/nas1` jen pro čtení,
+3. odebrat volumes `usb` a `nas2`,
+4. po startu v Nastavení zadat SSH hosta a páry.
+
 ### Proměnné prostředí
 
 | Proměnná | Výchozí | Význam |

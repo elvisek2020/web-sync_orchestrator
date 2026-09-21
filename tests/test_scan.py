@@ -152,3 +152,35 @@ def test_dead_running_scan_is_marked_failed_on_read(temp_db):
     st = load_overview().get(pid)
     assert st.target.running is None and st.target.failed["id"] == sid
     assert pairs_db.get_scan(sid)["status"] == "failed"
+
+
+def test_legacy_database_is_refused_and_left_untouched(tmp_path):
+    import sqlite3
+
+    from app.db import DatabaseSetupError, check_database
+
+    old = tmp_path / "sync_orchestrator.db"
+    con = sqlite3.connect(old)
+    con.execute("CREATE TABLE datasets (id INTEGER PRIMARY KEY)")
+    con.execute("CREATE TABLE scans (id INTEGER PRIMARY KEY, dataset_id INTEGER)")
+    con.commit()
+    con.close()
+    with pytest.raises(DatabaseSetupError, match="staré verze"):
+        check_database(old)
+    con = sqlite3.connect(old)
+    assert {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")} == {"datasets", "scans"}
+    con.close()
+
+
+@pytest.mark.skipif(running_as_root, reason="root zapíše i do adresáře s právy 555")
+def test_readonly_database_dir_gives_clear_error(tmp_path):
+    from app.db import DatabaseSetupError, check_database
+
+    ro = tmp_path / "ro"
+    ro.mkdir()
+    ro.chmod(0o555)
+    try:
+        with pytest.raises(DatabaseSetupError, match="není zapisovatelná"):
+            check_database(ro / "sync_orchestrator.db")
+    finally:
+        ro.chmod(0o755)
