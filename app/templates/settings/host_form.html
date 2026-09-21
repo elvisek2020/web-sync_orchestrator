@@ -48,13 +48,13 @@
   </div>
   <div class="card-footer">
     {% if host %}
-    <button type="submit" form="delete-host" class="btn btn-danger-ghost">{{ icon('trash', 16) }}Smazat</button>
+    <button type="submit" form="delete-host" class="btn btn-danger-ghost btn-wide">{{ icon('trash', 16) }}Smazat</button>
     {% endif %}
-    <a href="/nastaveni#hosty" class="btn btn-ghost">Zrušit</a>
-    <button type="button" class="btn btn-outline"
+    <a href="/nastaveni#hosty" class="btn btn-outline btn-wide">Zrušit</a>
+    <button type="button" class="btn btn-outline btn-wide"
             hx-post="/nastaveni/hosty-test" hx-include="closest form" hx-target="#host-test" hx-swap="innerHTML"
             hx-indicator="#host-test-spinner"><span id="host-test-spinner" class="search-spinner htmx-indicator" aria-hidden="true"></span>{{ icon('check', 16) }}Otestovat spojení</button>
-    <button type="submit" class="btn btn-primary">Uložit hosta</button>
+    <button type="submit" class="btn btn-primary btn-wide">Uložit hosta</button>
   </div>
 </form>
 

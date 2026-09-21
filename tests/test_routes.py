@@ -67,10 +67,16 @@ def test_full_cycle_local(client, temp_db):
     assert "Navic.mkv" in client.get("/pary/1?tab=extra").text
 
     # ruční vyřazení přežije další sken
-    client.post("/pary/1/soubor", data={"key": "Druhy/Druhy.mkv", "tab": "copy", "q": "", "page": "1"})
+    client.post("/pary/1/vybrane", data={"key": ["Druhy/Druhy.mkv"], "action": "skip", "tab": "copy", "q": "", "page": "1"})
     client.post("/pary/1/aktualizovat", data={"next": "/"})
     wait_for_scans()
     assert "Druhy/Druhy.mkv" in client.get("/pary/1?tab=skipped").text
+    # vrácení označených a znovu vyřazení (výběr víc souborů najednou)
+    client.post("/pary/1/vybrane", data={"key": ["Druhy/Druhy.mkv"], "action": "unskip", "tab": "skipped"})
+    assert "Druhy/Druhy.mkv" not in client.get("/pary/1?tab=skipped").text
+    client.post("/pary/1/vybrane", data={"key": ["Druhy/Druhy.mkv", "Film (2001)/Film.mkv"], "action": "skip"})
+    assert "2" in client.get("/pary/1?tab=skipped").text.split('Vyřazené <span class="tabs-count">')[1][:3]
+    client.post("/pary/1/vybrane", data={"key": ["Film (2001)/Film.mkv"], "action": "unskip"})
 
     script = client.get("/pary/1/skript")
     assert script.status_code == 200
@@ -84,10 +90,11 @@ def test_full_cycle_local(client, temp_db):
     client.post("/nastaveni/disk", data={"capacity_gb": "0,000000001"})
     assert "Film (2001)/Film.mkv" in client.get("/pary/1?tab=deferred").text
 
-    # pár není „Na disk“ → skript se nestáhne
+    # pár není zahrnutý do přenosu → skript se nestáhne
     client.post("/pary/1/na-disk", data={})
     r = client.get("/pary/1/skript", follow_redirects=False)
     assert r.status_code == 302 and "not_on_disk" in r.headers["location"]
 
-    scan_id = client.get("/pary/1").text.split("/skeny/")[1].split('"')[0]
+    scan_id = client.get("/pary/1").text.split("/skeny/")[1].split("/")[0]
     assert client.get(f"/skeny/{scan_id}").status_code == 200
+    assert "Hotovo" in client.get(f"/skeny/{scan_id}/log").text

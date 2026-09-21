@@ -1,23 +1,26 @@
 {% from "_icons.html" import icon %}
 {% from "_macros.html" import empty_state %}
 {% set selectable = tab != 'problems' %}
-<div id="pair-files" class="stack">
+{% set restoring = tab == 'skipped' %}
+<div id="pair-files" class="stack" data-selection>
   <div class="files-toolbar">
     <span class="text-sm">
       <strong>{{ total|cz_plural('soubor', 'soubory', 'souborů') }}</strong> · {{ total_size|filesize }}{% if q %} · filtr „{{ q }}“{% endif %}
     </span>
     <div class="cluster">
-      {% if selectable and total %}
+      {% if selectable and items %}
+      <button type="submit" form="files-selected" class="btn btn-outline btn-sm" data-needs-selection disabled>
+        {% if restoring %}{{ icon('check', 14) }}Vrátit označené{% else %}{{ icon('x', 14) }}Vyřadit označené{% endif %}
+        <span class="selected-count" data-selected-count>(0)</span>
+      </button>
       <form method="post" action="/pary/{{ pair.id }}/hromadne"
-            data-confirm="{% if tab == 'skipped' %}Všech {{ total }} zobrazených souborů se vrátí do plánu.{% else %}Všech {{ total }} zobrazených souborů se vyřadí z plánu (i pro další skeny).{% endif %}"
-            data-confirm-title="{% if tab == 'skipped' %}Vrátit do plánu?{% else %}Vyřadit soubory?{% endif %}"
-            data-confirm-ok="{% if tab == 'skipped' %}Vrátit{% else %}Vyřadit{% endif %}">
-        <input type="hidden" name="action" value="{{ 'unskip' if tab == 'skipped' else 'skip' }}">
+            data-confirm="{% if restoring %}Všech {{ total }} souborů{% if q %} odpovídajících filtru{% endif %} se vrátí do plánu.{% else %}Všech {{ total }} souborů{% if q %} odpovídajících filtru{% endif %} se vyřadí z plánu (i pro další skeny).{% endif %}"
+            data-confirm-title="{% if restoring %}Vrátit do plánu?{% else %}Vyřadit soubory?{% endif %}"
+            data-confirm-ok="{% if restoring %}Vrátit{% else %}Vyřadit{% endif %}">
+        <input type="hidden" name="action" value="{{ 'unskip' if restoring else 'skip' }}">
         <input type="hidden" name="tab" value="{{ tab }}">
         <input type="hidden" name="q" value="{{ q }}">
-        <button type="submit" class="btn btn-ghost btn-sm">
-          {% if tab == 'skipped' %}{{ icon('check', 14) }}Vrátit zobrazené{% else %}{{ icon('x', 14) }}Vyřadit zobrazené{% endif %}
-        </button>
+        <button type="submit" class="btn btn-ghost btn-sm">{% if restoring %}Vrátit vše ({{ total|number }}){% else %}Vyřadit vše ({{ total|number }}){% endif %}</button>
       </form>
       {% endif %}
       {% if total %}
@@ -27,42 +30,45 @@
   </div>
 
   {% if items %}
-  <div class="table-wrap">
-    <table class="table table--compact">
-      <thead>
-        <tr>
-          {% if selectable %}<th class="col-check"><span class="visually-hidden">V plánu</span></th>{% endif %}
-          <th>Cesta</th>
-          <th class="num">Velikost</th>
-          {% if tab == 'conflict' %}<th class="num hide-mobile">Na NAS2</th>{% endif %}
-          {% if tab == 'problems' %}<th class="hide-mobile">Proč</th>{% endif %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for item in items %}
-        <tr>
-          {% if selectable %}
-          <td class="col-check">
-            <form hx-post="/pary/{{ pair.id }}/soubor" hx-trigger="change" hx-target="#pair-body" hx-swap="outerHTML">
-              <input type="hidden" name="key" value="{{ item.key }}">
-              <input type="hidden" name="tab" value="{{ tab }}">
-              <input type="hidden" name="q" value="{{ q }}">
-              <input type="hidden" name="page" value="{{ page }}">
-              <input type="checkbox" name="include" value="1" {% if tab != 'skipped' %}checked{% endif %}
-                     aria-label="{% if tab == 'skipped' %}Vrátit do plánu{% else %}Ponechat v plánu{% endif %}: {{ item.display }}">
-            </form>
-          </td>
-          {% endif %}
-          <td class="path">{{ item.display }}{% if tab in ('skipped', 'deferred') %} <span class="badge badge--sm">{{ {'missing': 'chybí', 'conflict': 'konflikt', 'extra': 'přebývá'}[item.category] }}</span>{% endif %}
-            {% if tab == 'problems' %}<div class="text-sm text-muted show-mobile">{{ item.problem }}</div>{% endif %}</td>
-          <td class="num">{{ item.size|filesize }}</td>
-          {% if tab == 'conflict' %}<td class="num hide-mobile">{{ item.tgt.size|filesize }}</td>{% endif %}
-          {% if tab == 'problems' %}<td class="text-sm hide-mobile">{{ item.problem }}</td>{% endif %}
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <form id="files-selected" method="post" action="/pary/{{ pair.id }}/vybrane"
+        hx-post="/pary/{{ pair.id }}/vybrane" hx-target="#pair-body" hx-swap="outerHTML">
+    <input type="hidden" name="action" value="{{ 'unskip' if restoring else 'skip' }}">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <input type="hidden" name="q" value="{{ q }}">
+    <input type="hidden" name="page" value="{{ page }}">
+    <div class="table-wrap">
+      <table class="table table--compact">
+        <thead>
+          <tr>
+            {% if selectable %}<th class="col-check"><input type="checkbox" data-check-all aria-label="Označit vše na stránce" title="Označit vše na stránce"></th>{% endif %}
+            <th>Cesta</th>
+            <th class="num">Velikost</th>
+            {% if tab == 'conflict' %}<th class="num hide-mobile">Na NAS2</th>{% endif %}
+            {% if tab == 'problems' %}<th class="hide-mobile">Proč</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            {% if selectable %}
+            <td class="col-check">
+              <input type="checkbox" id="sel-{{ loop.index }}" name="key" value="{{ item.key }}" aria-label="Označit: {{ item.display }}">
+            </td>
+            {% endif %}
+            <td class="path">
+              {% if selectable %}<label for="sel-{{ loop.index }}">{{ item.display }}</label>{% else %}{{ item.display }}{% endif %}
+              {% if tab in ('skipped', 'deferred') %} <span class="badge badge--sm">{{ {'missing': 'chybí', 'conflict': 'konflikt', 'extra': 'přebývá'}[item.category] }}</span>{% endif %}
+              {% if tab == 'problems' %}<div class="text-sm text-muted show-mobile">{{ item.problem }}</div>{% endif %}
+            </td>
+            <td class="num">{{ item.size|filesize }}</td>
+            {% if tab == 'conflict' %}<td class="num hide-mobile">{{ item.tgt.size|filesize }}</td>{% endif %}
+            {% if tab == 'problems' %}<td class="text-sm hide-mobile">{{ item.problem }}</td>{% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </form>
 
   {% if pages > 1 %}
   <nav class="pager" aria-label="Stránkování">

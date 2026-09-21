@@ -202,7 +202,7 @@ def build_plan(pair_id: int, comparison: Comparison, *, on_disk: bool, include_c
 
 
 def allocate(plans_in_order: list[PairPlan], capacity: int | None) -> int:
-    """Rozdělí kapacitu disku mezi páry zaškrtnuté „Na disk“ (v pořadí). Vrací zbývající kapacitu.
+    """Rozdělí kapacitu disku mezi páry zahrnuté do přenosu (v pořadí). Vrací zbývající kapacitu.
 
     Uvnitř páru se jde podle cesty a použije se first-fit: co se nevejde, přeskočí se
     a zkouší se další soubory. Bez kapacity (None/0) se vybere všechno.

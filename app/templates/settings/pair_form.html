@@ -56,13 +56,13 @@
   </div>
   <div class="card-footer">
     {% if pair %}
-    <button type="submit" form="delete-pair" class="btn btn-danger-ghost">{{ icon('trash', 16) }}Smazat</button>
+    <button type="submit" form="delete-pair" class="btn btn-danger-ghost btn-wide">{{ icon('trash', 16) }}Smazat</button>
     {% endif %}
-    <a href="/nastaveni#pary" class="btn btn-ghost">Zrušit</a>
-    <button type="button" class="btn btn-outline"
+    <a href="/nastaveni#pary" class="btn btn-outline btn-wide">Zrušit</a>
+    <button type="button" class="btn btn-outline btn-wide"
             hx-post="/nastaveni/pary/test" hx-include="closest form" hx-target="#pair-test" hx-swap="innerHTML"
             hx-indicator="#pair-test-spinner"><span id="pair-test-spinner" class="search-spinner htmx-indicator" aria-hidden="true"></span>{{ icon('check', 16) }}Ověřit složky</button>
-    <button type="submit" class="btn btn-primary">Uložit pár</button>
+    <button type="submit" class="btn btn-primary btn-wide">Uložit pár</button>
   </div>
 </form>
 

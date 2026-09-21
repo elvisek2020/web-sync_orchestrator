@@ -2580,9 +2580,49 @@ code {
 /* Čísla páru */
 .stat-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: var(--space-3);
+}
+
+/* Řádek karty páru: čísla + sloupec tlačítek (vypadá jako další „boxík“) */
+.pair-row {
+    display: flex;
+    align-items: stretch;
     gap: var(--space-3);
     margin-top: var(--space-4);
+}
+
+.pair-row .stat-grid {
+    flex: 1;
+    min-width: 0;
+}
+
+.pair-row-empty {
+    flex: 1;
+    align-self: center;
+}
+
+.pair-actions {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--space-2);
+    flex: 0 0 11rem;
+}
+
+.pair-actions form,
+.pair-actions .btn {
+    width: 100%;
+}
+
+@media (max-width: 640px) {
+    .pair-row {
+        flex-direction: column;
+    }
+
+    .pair-actions {
+        flex-basis: auto;
+    }
 }
 
 .stat {
@@ -2871,4 +2911,66 @@ details[open] > .summary-toggle > .icon {
     padding: var(--space-3);
     border-radius: var(--radius-sm);
     background: var(--color-surface-2);
+}
+
+/* Stejná šířka tlačítek v kartách a řádcích akcí */
+.btn-wide {
+    width: 12.5rem;
+    justify-content: center;
+}
+
+@media (max-width: 640px) {
+    .btn-wide {
+        width: auto;
+    }
+}
+
+/* Sbalovací karta (details): hlavička musí mít spodní odsazení i ve sbaleném stavu */
+details.card > .summary-toggle {
+    padding-bottom: var(--space-4);
+}
+
+details.card[open] > .summary-toggle {
+    padding-bottom: 0;
+}
+
+/* Skeny páru — rozbalovací řádky s logem */
+.scan-rows {
+    list-style: none;
+    padding: 0;
+}
+
+.scan-rows > li + li {
+    border-top: 1px solid var(--color-border);
+}
+
+.scan-row > summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-5);
+    cursor: pointer;
+    list-style: none;
+}
+
+.scan-row > summary::-webkit-details-marker {
+    display: none;
+}
+
+.scan-row > summary > .icon:last-child {
+    transition: transform 0.15s var(--ease);
+}
+
+.scan-row[open] > summary > .icon:last-child {
+    transform: rotate(180deg);
+}
+
+.scan-row-body {
+    padding: 0 var(--space-5) var(--space-4);
+}
+
+/* Výběr souborů v detailu páru */
+.files-toolbar .selected-count {
+    color: var(--color-text-light);
+    font-weight: 600;
 }

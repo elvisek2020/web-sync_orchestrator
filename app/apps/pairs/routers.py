@@ -106,13 +106,14 @@ def _after_change(request: Request, pair_id: int, tab: str, q: str, page: int):
     return redirect(f"/pary/{pair_id}", tab=tab, q=q, page=page if page > 1 else None)
 
 
-@router.post("/pary/{pair_id:int}/soubor", response_class=HTMLResponse)
-def toggle_file(
+@router.post("/pary/{pair_id:int}/vybrane", response_class=HTMLResponse)
+def toggle_selected(
     request: Request, pair_id: int,
-    key: str = Form(...), include: str = Form(""),
+    key: list[str] = Form([]), action: str = Form("skip"),
     tab: str = Form("copy"), q: str = Form(""), page: int = Form(1),
 ):
-    pairs_db.set_skips(pair_id, [key], skipped=not include)
+    """Označené soubory vyřadit z plánu (action=skip), nebo je do něj vrátit (unskip)."""
+    pairs_db.set_skips(pair_id, key, skipped=(action == "skip"))
     return _after_change(request, pair_id, tab, q, page)
 
 
@@ -176,6 +177,17 @@ def export_csv(pair_id: int, tab: str = "copy", q: str = ""):
         "\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{quote(filename)}"},
     )
+
+
+@router.get("/skeny/{scan_id:int}/log", response_class=HTMLResponse)
+def scan_log(request: Request, scan_id: int):
+    """Obsah rozbalovacího řádku skenu v detailu páru (načte se až při rozbalení)."""
+    scan = pairs_db.get_scan(scan_id)
+    job = runner.active(scan_id) if scan else None
+    return templates.TemplateResponse(request, "pairs/_scan_log.html", {
+        "request": request, "scan": scan, "job": job,
+        "live_log": job.progress.log_text() if job else None,
+    })
 
 
 @router.get("/skeny/{scan_id:int}", response_class=HTMLResponse)

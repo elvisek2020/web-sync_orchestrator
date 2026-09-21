@@ -84,21 +84,26 @@
 
   <section class="card">
     <div class="card-header"><h2 class="card-title">Skeny</h2></div>
-    <ul class="list-rows">
+    <ul class="scan-rows mt-2">
       {% for scan in scans %}
-      <li><a class="list-row" href="/skeny/{{ scan.id }}">
-        <span class="link-icon">{{ icon('file', 18) }}</span>
-        <span class="list-row-main">
-          <span class="list-row-title">{{ 'Zdroj' if scan.side == 'source' else 'Cíl' }} · sken #{{ scan.id }}</span>
-          <span class="list-row-meta">{{ (scan.finished_at or scan.started_at or scan.created_at)|cz_datetime }} · {{ scan.total_files|number }} souborů · {{ scan.total_size|filesize }}</span>
-        </span>
-        {% if scan.status == 'done' %}<span class="badge badge--success">Platný</span>
-        {% elif scan.status == 'running' %}<span class="badge badge--accent">Běží</span>
-        {% elif scan.status == 'queued' %}<span class="badge">Ve frontě</span>
-        {% elif scan.status == 'cancelled' %}<span class="badge badge--warn">Zrušen</span>
-        {% else %}<span class="badge badge--error">Selhal</span>{% endif %}
-        {{ icon('chevron-right', 18) }}
-      </a></li>
+      <li>
+        <details class="scan-row" hx-get="/skeny/{{ scan.id }}/log" hx-trigger="toggle once" hx-target="find .scan-row-body" hx-swap="innerHTML">
+          <summary>
+            <span class="link-icon">{{ icon('file', 18) }}</span>
+            <span class="list-row-main">
+              <span class="list-row-title">{{ 'Zdroj' if scan.side == 'source' else 'Cíl' }} · sken #{{ scan.id }}</span>
+              <span class="list-row-meta">{{ (scan.finished_at or scan.started_at or scan.created_at)|cz_datetime }} · {{ scan.total_files|number }} souborů · {{ scan.total_size|filesize }}</span>
+            </span>
+            {% if scan.status == 'done' %}<span class="badge badge--success">Platný</span>
+            {% elif scan.status == 'running' %}<span class="badge badge--accent">Běží</span>
+            {% elif scan.status == 'queued' %}<span class="badge">Ve frontě</span>
+            {% elif scan.status == 'cancelled' %}<span class="badge badge--warn">Zrušen</span>
+            {% else %}<span class="badge badge--error">Selhal</span>{% endif %}
+            {{ icon('chevron-down', 18) }}
+          </summary>
+          <div class="scan-row-body"><p class="text-sm text-muted">Načítám log…</p></div>
+        </details>
+      </li>
       {% else %}
       <li class="list-row"><span class="text-muted">Pár ještě nebyl skenován.</span></li>
       {% endfor %}

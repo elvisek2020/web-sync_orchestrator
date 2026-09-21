@@ -19,7 +19,7 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 - **Jen poslední stav** — nový úspěšný sken nahradí starý; neúspěšný sken nechá platná předchozí data.
 - **Porovnání** — `chybí` (jen na NAS1), `konflikt` (liší se velikost), `přebývá` (jen na NAS2), `shodné`.
   Názvy se párují po normalizaci Unicode (NFC/NFD), čas změny se nepoužívá.
-- **Kapacita disku** — plán rozdělí zadanou kapacitu mezi páry zaškrtnuté *Na disk*; co se nevejde, je *odloženo* a po dalším přenosu a novém skenu se objeví samo.
+- **Kapacita disku** — plán rozdělí zadanou kapacitu mezi páry zaškrtnuté *Zahrnout do přenosu*; co se nevejde, je *odloženo* a po dalším přenosu a novém skenu se objeví samo.
 - **Ruční vyřazení souborů** — odškrtnutý soubor zůstane vyřazený i po dalších skenech.
 - **Vzory k vynechání** — výchozí (`@eaDir`, `.DS_Store`, `@Recycle`, `*.tmp`…) i vlastní pro pár; platí na obou stranách.
 - **Problémy** — názvy, které exFAT neuloží (`: * ? " < > |`, koncová tečka), kolize názvů a neplatné kódování se nepřenáší ani nemažou, jen se ukážou.
@@ -36,7 +36,7 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 ### Každý přenos
 
 1. **Přehled → Aktualizovat vše** (nebo *Aktualizovat* u jednoho páru) a počkat na dokončení skenů.
-2. Zkontrolovat čísla u párů, případně v **detailu páru** odškrtnout, co se přenášet nemá. Zaškrtnutím *Na disk* určit, které páry se tentokrát vezou na disku.
+2. Zkontrolovat čísla u párů, případně v **detailu páru** odškrtnout, co se přenášet nemá. Zaškrtnutím *Zahrnout do přenosu* určit, které páry se tentokrát vezou na disku.
 3. **Skript** u páru → stáhne `sync_<pár>.sh`.
 4. Na NAS1:
 

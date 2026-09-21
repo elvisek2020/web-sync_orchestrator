@@ -18,7 +18,7 @@
         <h2 class="card-title">Páry</h2>
         <p class="card-subtitle">Pořadí určuje, v jakém pořadí se páry plní na disk.</p>
       </div>
-      <a href="/nastaveni/pary/novy" class="btn btn-primary btn-sm">{{ icon('plus', 16) }}Přidat pár</a>
+      <a href="/nastaveni/pary/novy" class="btn btn-outline btn-wide">{{ icon('plus', 18) }}Přidat pár</a>
     </div>
     {% if pairs %}
     <ul class="list-rows">
@@ -53,7 +53,7 @@
         <h2 class="card-title">SSH hosté</h2>
         <p class="card-subtitle">Přístup k NASu, který není připojený přímo do kontejneru (NAS2).</p>
       </div>
-      <a href="/nastaveni/hosty/novy" class="btn btn-outline btn-sm">{{ icon('plus', 16) }}Přidat hosta</a>
+      <a href="/nastaveni/hosty/novy" class="btn btn-outline btn-wide">{{ icon('plus', 18) }}Přidat hosta</a>
     </div>
     {% if hosts %}
     <ul class="list-rows">
@@ -77,7 +77,7 @@
     <div class="card-header">
       <div>
         <h2 class="card-title">Disk pro přenos</h2>
-        <p class="card-subtitle">Plán rozdělí kapacitu mezi páry zaškrtnuté „Na disk“ v jejich pořadí; co se nevejde, je odloženo na další přenos.</p>
+        <p class="card-subtitle">Plán rozdělí kapacitu mezi páry zahrnuté do přenosu v jejich pořadí; co se nevejde, je odloženo na další přenos.</p>
       </div>
     </div>
     <div class="card-body stack">
@@ -89,7 +89,7 @@
           {% if disk.suspicious %}<br><span class="text-sm text-muted">Celková velikost je podezřele malá — není disk odpojený? Pak ukazuje místo na systémovém oddílu NASu.</span>{% endif %}
         </div>
         <form method="post" action="/nastaveni/disk/nacist">
-          <button type="submit" class="btn btn-secondary">{{ icon('hard-drive', 18) }}Načíst volné místo</button>
+          <button type="submit" class="btn btn-outline btn-wide">{{ icon('hard-drive', 18) }}Načíst volné místo</button>
         </form>
       </div>
       {% else %}
@@ -99,7 +99,7 @@
         <label class="form-label" for="capacity_gb">Kapacita pro plán (GB)</label>
         <div class="input-group">
           <input class="input" id="capacity_gb" name="capacity_gb" inputmode="decimal" value="{{ capacity_gb }}" placeholder="např. 3900">
-          <button type="submit" class="btn btn-primary">Uložit</button>
+          <button type="submit" class="btn btn-primary btn-wide">Uložit kapacitu</button>
         </div>
         <p class="form-hint">1 TB = 1000 GB. Prázdné = bez omezení. Skript před kopírováním ještě sám ověří skutečné volné místo.</p>
       </form>
@@ -120,8 +120,8 @@
         <p class="form-hint">Vzor bez „/“ vyřadí soubor i celou složku s tímto názvem (<code>@eaDir</code>, <code>*.tmp</code>), vzor s „/“ se porovná s celou cestou. Velikost písmen nehraje roli. Složky podle vzorů se vynechají už při skenu — odebraný vzor se projeví po novém skenu.</p>
       </div>
       <div class="form-actions">
-        <button type="submit" name="reset" value="1" class="btn btn-ghost">Obnovit výchozí</button>
-        <button type="submit" class="btn btn-primary">Uložit vzory</button>
+        <button type="submit" name="reset" value="1" class="btn btn-outline btn-wide">Obnovit výchozí</button>
+        <button type="submit" class="btn btn-primary btn-wide">Uložit vzory</button>
       </div>
     </form>
   </section>

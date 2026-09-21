@@ -594,3 +594,33 @@ document.addEventListener('click', function (e) {
         }
     }
 });
+
+// ---------------------------------------------------------------------------
+// Výběr řádků tabulky: kontejner [data-selection], řádky input[name="key"],
+// „označit vše“ [data-check-all], počet [data-selected-count],
+// tlačítka aktivní jen s výběrem [data-needs-selection].
+// ---------------------------------------------------------------------------
+
+function updateSelection(scope) {
+    var boxes = scope.querySelectorAll('input[type="checkbox"][name="key"]');
+    var count = 0;
+    boxes.forEach(function (b) { if (b.checked) count++; });
+    scope.querySelectorAll('[data-selected-count]').forEach(function (el) { el.textContent = '(' + count + ')'; });
+    scope.querySelectorAll('[data-needs-selection]').forEach(function (el) { el.disabled = count === 0; });
+    var all = scope.querySelector('[data-check-all]');
+    if (all) {
+        all.checked = count > 0 && count === boxes.length;
+        all.indeterminate = count > 0 && count < boxes.length;
+    }
+}
+
+document.addEventListener('change', function (e) {
+    var target = e.target;
+    if (!target.closest) return;
+    var scope = target.closest('[data-selection]');
+    if (!scope) return;
+    if (target.hasAttribute('data-check-all')) {
+        scope.querySelectorAll('input[type="checkbox"][name="key"]').forEach(function (b) { b.checked = target.checked; });
+    }
+    updateSelection(scope);
+});

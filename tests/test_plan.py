@@ -115,7 +115,7 @@ def test_allocation_first_fit_across_pairs_in_order():
     assert [i.size for i in a.deferred] == [70]
     assert [i.size for i in b.selected] == [30]
     assert [i.size for i in b.deferred] == [25]
-    assert c.selected == [] and c.deferred == []       # není „Na disk“
+    assert c.selected == [] and c.deferred == []       # není zahrnutý do přenosu
     assert remaining == 20
 
 
