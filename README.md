@@ -54,7 +54,12 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
    Před mazáním přebývajících souborů se skript zeptá (výchozí odpověď je *ne*).
 6. Po přenosu znovu **Aktualizovat** — odložené soubory se objeví v dalším plánu.
 
-Volby skriptu: `--dry-run` (jen ukáže, co by se stalo), `--yes` (na dotazy odpoví „ano“). Skript potřebuje `bash`, `rsync` ≥ 3.0 a `base64`.
+Volby skriptu: `--dry-run` (jen ukáže, co by se stalo), `--yes` (na dotazy odpoví „ano“). Skript potřebuje `bash`, `rsync` a `base64`; ověřeno na Linuxu (NAS) i na macOS (bash 3.2, openrsync).
+
+- Pro `to-nas` lze místo kořene disku zadat i přímo složku páru na disku (`<kořen disku>/<pár>`).
+- Když se u páru jen maže (není co kopírovat), `to-nas` disk nepotřebuje — pusťte ho přímo na NAS2.
+- Mazání spouštějte ideálně **přímo na NAS2** (přes SSH). Přes síťové připojení z Macu se názvy s diakritikou
+  nemusí najít (jiný zápis NFC/NFD); skript nenalezené soubory vždy vypíše a skončí nenulovým kódem.
 
 ## 🚀 Deployment
 

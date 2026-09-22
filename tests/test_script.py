@@ -61,7 +61,8 @@ def _script(tmp_path: Path, plan: PairPlan, slug="test") -> Path:
 
 
 def _run(script: Path, *args: str, cwd: Path) -> subprocess.CompletedProcess:
-    return subprocess.run(["bash", str(script), *args], cwd=cwd, capture_output=True, text=True,
+    # errors="replace": openrsync na macOS vypisuje v průběhu názvy s diakritikou rozbitě (\#231)
+    return subprocess.run(["bash", str(script), *args], cwd=cwd, capture_output=True, text=True, errors="replace",
                           stdin=subprocess.DEVNULL, timeout=60, start_new_session=True)
 
 
@@ -186,3 +187,48 @@ def test_usage_errors(dirs, tmp_path):
     assert _run(script, "to-mars", "a", "b", cwd=dirs["work"]).returncode == 2
     r = _run(script, "to-disk", str(dirs["nas1"] / "neni"), str(dirs["disk"]), cwd=dirs["work"])
     assert r.returncode == 1 and "neexistuje" in r.stderr
+
+
+def test_delete_finds_other_unicode_spelling(dirs, tmp_path):
+    # plán má cestu složeně (NFC), na cíli je soubor zapsaný rozloženě (NFD) — typicky soubory z Macu
+    nfc = "Pohádky/Krtek a paraplíčko.avi"
+    _write(dirs["nas2"], unicodedata.normalize("NFD", nfc), b"x")
+    _write(dirs["nas2"], "zustava.avi", b"k")
+    script = _script(tmp_path, _plan([], delete=[nfc]))
+    r = _run(script, "to-nas", str(dirs["disk"]), str(dirs["nas2"]), "--yes", cwd=dirs["work"])
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "Smazáno na cíli:       1 (chyby: 0, nenalezeno: 0)" in r.stdout
+    assert os.listdir(dirs["nas2"]) == ["zustava.avi"]       # prázdná složka Pohádky uklizena
+
+
+def test_delete_reports_files_it_cannot_find(dirs, tmp_path):
+    _write(dirs["nas2"], "a.avi", b"x")
+    script = _script(tmp_path, _plan([], delete=["a.avi", "uz-neni.avi"]))
+    r = _run(script, "to-nas", str(dirs["disk"]), str(dirs["nas2"]), "--yes", cwd=dirs["work"])
+    assert r.returncode == 1                                   # plán neproběhl celý → nenulový kód
+    assert "POZOR: 1 z 2 přebývajících souborů se na cíli nepodařilo najít" in r.stdout
+    assert "uz-neni.avi" in r.stdout and "nenalezeno: 1" in r.stdout
+    assert not (dirs["nas2"] / "a.avi").exists()
+
+
+def test_delete_only_plan_does_not_need_the_disk(dirs, tmp_path):
+    _write(dirs["nas2"], "navic.avi", b"x")
+    script = _script(tmp_path, _plan([], delete=["navic.avi"]))
+    missing_disk = str(tmp_path / "disk-neni-pripojeny")
+    r = _run(script, "to-nas", missing_disk, str(dirs["nas2"]), "--dry-run", cwd=dirs["work"])
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "není potřeba — jen mazání" in r.stdout and "Smazalo by se na cíli: 1" in r.stdout
+    r = _run(script, "to-nas", missing_disk, str(dirs["nas2"]), "--yes", cwd=dirs["work"])
+    assert r.returncode == 0 and not (dirs["nas2"] / "navic.avi").exists()
+    # kopírovací plán disk potřebuje dál
+    script2 = _script(tmp_path / "work", _plan(["a.mkv"]))
+    assert _run(script2, "to-nas", missing_disk, str(dirs["nas2"]), cwd=dirs["work"]).returncode == 1
+
+
+def test_to_nas_accepts_the_pair_folder_directly(dirs, tmp_path):
+    _write(dirs["nas1"], "a.mkv", b"a")
+    script = _script(tmp_path, _plan(["a.mkv"]))
+    assert _run(script, "to-disk", str(dirs["nas1"]), str(dirs["disk"]), cwd=dirs["work"]).returncode == 0
+    r = _run(script, "to-nas", str(dirs["disk"] / "test"), str(dirs["nas2"]), cwd=dirs["work"])
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (dirs["nas2"] / "a.mkv").read_bytes() == b"a"

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import re
+import unicodedata
 from datetime import datetime
 
 from .plan import CONFLICT, PairPlan
@@ -23,6 +24,11 @@ SLUG_RE = re.compile(r"^[a-z0-9-]+$")
 def _b64_list(paths: list[bytes]) -> str:
     data = b"".join(p + b"\0" for p in paths)
     return base64.encodebytes(data).decode("ascii").rstrip("\n")
+
+
+def _variant(path: bytes, form: str) -> bytes:
+    """Stejná cesta s diakritikou v jiném zápisu (NFC složeně / NFD rozloženě)."""
+    return unicodedata.normalize(form, path.decode("utf-8", "surrogateescape")).encode("utf-8", "surrogateescape")
 
 
 def _comment(text: str) -> str:
@@ -61,6 +67,10 @@ def generate_script(*, pair_name: str, slug: str, plan: PairPlan, source_desc: s
         "copy": copy_paths,
         "replace": replace_paths,
         "delete": delete_paths,
+        # Cíl připojený přes síť (např. SMB na Macu) může diakritiku při hledání převést
+        # na jiný zápis — mazání proto zkouší i NFC a NFD variantu téže cesty.
+        "delete_nfc": [_variant(p, "NFC") for p in delete_paths],
+        "delete_nfd": [_variant(p, "NFD") for p in delete_paths],
         "sample_src": [s for s, _ in sample],
         "sample_tgt": [t for _, t in sample],
     }
@@ -84,13 +94,15 @@ def generate_script(*, pair_name: str, slug: str, plan: PairPlan, source_desc: s
 # Použití:
 #   1) na NAS1:  bash {script_filename(slug)} to-disk <složka na NAS1> <kořen disku>
 #   2) na NAS2:  bash {script_filename(slug)} to-nas  <kořen disku> <složka na NAS2>
-# Na disku se soubory ukládají do <kořen disku>/{slug}/.
+# Na disku se soubory ukládají do <kořen disku>/{slug}/ (pro to-nas lze zadat i přímo tuto složku).
+# Když se jen maže (není co kopírovat), to-nas disk nepotřebuje — pusťte ho přímo na NAS2.
 # Volby: --dry-run  jen ukáže, co by se stalo
 #        --yes      na všechny dotazy odpoví „ano“
 # ============================================================
 
 SLUG='{slug}'
 PLAN='{plan_hash}'
+COPY_COUNT={len(copy_paths)}
 COPY_BYTES={copy_bytes}
 DELETE_BYTES={delete_bytes}
 """
@@ -159,8 +171,17 @@ if [ "$MODE" = to-disk ]; then
   SRC_ROOT="$SRC"; DST_ROOT="${DST%/}/$SLUG"
 else
   SRC_ROOT="${SRC%/}/$SLUG"; DST_ROOT="$DST"
+  # zadaná rovnou složka páru na disku (obsahuje .sync-plan)?
+  if [ ! -d "$SRC_ROOT" ] && [ -f "${SRC%/}/.sync-plan" ]; then SRC_ROOT="${SRC%/}"; fi
 fi
-[ -d "$SRC_ROOT" ] || die "Zdrojová složka neexistuje: $SRC_ROOT"
+SRC_NEEDED=1
+if [ ! -d "$SRC_ROOT" ]; then
+  if [ "$MODE" = to-nas ] && [ "$COPY_COUNT" = 0 ]; then
+    SRC_NEEDED=0   # jen mazání na cíli — data z disku nejsou potřeba
+  else
+    die "Zdrojová složka neexistuje: $SRC_ROOT"
+  fi
+fi
 [ -d "$DST" ] || die "Cílová složka neexistuje: $DST"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/sync_${SLUG}.XXXXXX")" || die "Nelze vytvořit dočasnou složku."
@@ -171,7 +192,7 @@ trap 'rm -rf "$TMP"' EXIT
 _BODY_AFTER_LISTS = r'''
 echo "========================================"
 echo "  Pár: $SLUG   plán: $PLAN   režim: $MODE"
-echo "  Zdroj: $SRC_ROOT"
+if [ "$SRC_NEEDED" = 1 ]; then echo "  Zdroj: $SRC_ROOT"; else echo "  Zdroj: (není potřeba — jen mazání na cíli)"; fi
 echo "  Cíl:   $DST_ROOT"
 [ "$DRY_RUN" = 1 ] && echo "  (zkouška nanečisto — nic se nemění)"
 echo "========================================"
@@ -194,7 +215,9 @@ if [ "$MODE" = to-disk ]; then
   check_sample "$TMP/sample_src" "$SRC_ROOT" "zdrojové složce"
 else
   check_sample "$TMP/sample_tgt" "$DST_ROOT" "cílové složce"
-  if [ -f "$SRC_ROOT/.sync-plan" ]; then
+  if [ "$SRC_NEEDED" = 0 ]; then
+    :   # bez disku není co porovnávat s plánem na disku
+  elif [ -f "$SRC_ROOT/.sync-plan" ]; then
     DISK_PLAN="$(sed -n 's/^PLAN=//p' "$SRC_ROOT/.sync-plan" | head -n 1)"
     if [ "$DISK_PLAN" != "$PLAN" ]; then
       echo "VAROVÁNÍ: Data na disku jsou z jiného plánu ($DISK_PLAN), tento skript je pro plán $PLAN."
@@ -281,31 +304,62 @@ if [ "$MODE" = to-disk ] && [ "$DRY_RUN" = 0 ] && [ "$COPY_OK" = 1 ]; then
 fi
 
 # ---- mazání přebývajících souborů na NAS2 ----
-DELETED=0; DELETE_FAILED=0
+DELETED=0; DELETE_FAILED=0; NOT_FOUND=0
+: > "$TMP/notfound"
 DEL_COUNT="$(count0 "$TMP/delete")"
+
+# find_target <cesta> <cesta NFC> <cesta NFD> → FOUND = skutečná cesta na cíli
+find_target() {
+  local cand
+  for cand in "$1" "$2" "$3"; do
+    if [ -f "$DST_ROOT/$cand" ] || [ -L "$DST_ROOT/$cand" ]; then FOUND="$DST_ROOT/$cand"; return 0; fi
+  done
+  FOUND=""
+  return 1
+}
+
 if [ "$MODE" = to-nas ] && [ "$DEL_COUNT" -gt 0 ]; then
   echo ""
   echo "Na cíli je $DEL_COUNT přebývajících souborů ($(human "$DELETE_BYTES")), které ve zdroji nejsou."
+  DO_DELETE=0
   if [ "$COPY_OK" != 1 ] && [ "$OK_COUNT" -gt 0 ]; then
     echo "Kopírování neproběhlo bez chyb — mazání přeskočeno."
   elif [ "$DRY_RUN" = 1 ]; then
-    tr '\000' '\n' < "$TMP/delete" | head -n 20 | sed 's/^/  smazal by se: /'
+    DO_DELETE=1   # jen projde a spočítá, nic nesmaže
   elif ask "Smazat je z $DST_ROOT?" n; then
-    while IFS= read -r -d '' f; do
-      p="$DST_ROOT/$f"
-      [ -f "$p" ] || [ -L "$p" ] || continue
-      if rm -f -- "$p"; then
+    DO_DELETE=1
+  else
+    echo "Mazání přeskočeno."
+  fi
+  if [ "$DO_DELETE" = 1 ]; then
+    while IFS= read -r -d '' f <&3 && IFS= read -r -d '' f_nfc <&4 && IFS= read -r -d '' f_nfd <&5; do
+      if ! find_target "$f" "$f_nfc" "$f_nfd"; then
+        NOT_FOUND=$((NOT_FOUND + 1))
+        printf '%s\n' "$f" >> "$TMP/notfound"
+        continue
+      fi
+      if [ "$DRY_RUN" = 1 ]; then
         DELETED=$((DELETED + 1))
-        d="$(dirname -- "$p")"
+        [ "$DELETED" -le 20 ] && echo "  smazal by se: $f"
+        continue
+      fi
+      if rm -f -- "$FOUND"; then
+        DELETED=$((DELETED + 1))
+        d="$(dirname -- "$FOUND")"
         while [ "$d" != "$DST_ROOT" ] && [ "${d#"$DST_ROOT"/}" != "$d" ] && rmdir -- "$d" 2>/dev/null; do
           d="$(dirname -- "$d")"
         done
       else
         DELETE_FAILED=$((DELETE_FAILED + 1))
       fi
-    done < "$TMP/delete"
-  else
-    echo "Mazání přeskočeno."
+    done 3<"$TMP/delete" 4<"$TMP/delete_nfc" 5<"$TMP/delete_nfd"
+    if [ "$NOT_FOUND" -gt 0 ]; then
+      echo ""
+      echo "POZOR: $NOT_FOUND z $DEL_COUNT přebývajících souborů se na cíli nepodařilo najít, např.:"
+      head -n 10 "$TMP/notfound" | sed 's/^/  - /'
+      echo "  Buď už byly smazané, nebo je cíl připojený tak, že cesty nesedí"
+      echo "  (typicky síťový disk na Macu). Pak skript pusťte přímo na NAS2."
+    fi
   fi
 fi
 
@@ -315,10 +369,14 @@ echo "  Hotovo ($MODE)"
 echo "    Zkopírováno (rsync):   $OK_COUNT souborů, kód $RC"
 echo "    Chybí ve zdroji:       $MISSING_SRC"
 [ "$MODE" = to-nas ] && echo "    Nahrazeno (NFC/NFD):   $REPLACED"
-[ "$MODE" = to-nas ] && echo "    Smazáno na cíli:       $DELETED (chyby: $DELETE_FAILED)"
+if [ "$MODE" = to-nas ]; then
+  if [ "$DRY_RUN" = 1 ]; then LABEL="Smazalo by se na cíli:"; else LABEL="Smazáno na cíli:      "; fi
+  echo "    $LABEL $DELETED (chyby: $DELETE_FAILED, nenalezeno: $NOT_FOUND)"
+fi
 echo "========================================"
 
 if [ "$RC" != 0 ] && [ "$RC" != 24 ] && [ "$RC" != -1 ]; then exit 1; fi
 [ "$DELETE_FAILED" -eq 0 ] || exit 1
+if [ "$DRY_RUN" = 0 ] && [ "$NOT_FOUND" -gt 0 ]; then exit 1; fi
 exit 0
 '''
