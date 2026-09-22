@@ -95,6 +95,10 @@ def test_full_cycle_local(client, temp_db):
     r = client.get("/pary/1/skript", follow_redirects=False)
     assert r.status_code == 302 and "not_on_disk" in r.headers["location"]
 
+    # Volby páru jsou vždy sbalené (bez open i bez zapamatování stavu)
+    detail = client.get("/pary/1").text
+    assert '<details class="card" id="pair-options">' in detail and "data-remember-open" not in detail
+
     scan_id = client.get("/pary/1").text.split("/skeny/")[1].split("/")[0]
     assert client.get(f"/skeny/{scan_id}").status_code == 200
     assert "Hotovo" in client.get(f"/skeny/{scan_id}/log").text
