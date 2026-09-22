@@ -2593,7 +2593,7 @@ code {
 /* Řádek karty páru: čísla + sloupec tlačítek (vypadá jako další „boxík“) */
 .pair-row {
     display: flex;
-    align-items: flex-start;   /* boxíky drží svou výšku, vyšší může být jen sloupec tlačítek */
+    align-items: flex-end;     /* spodní hrany boxíků a tlačítek lícují; vyšší sloupec tlačítek roste nahoru */
     gap: var(--space-3);
     margin-top: var(--space-4);
 }
@@ -2611,7 +2611,7 @@ code {
 .pair-actions {
     display: flex;
     flex-direction: column;
-    justify-content: flex-start;
+    justify-content: flex-end;
     gap: var(--space-2);
     flex: 0 0 11rem;
 }
