@@ -129,3 +129,11 @@ def test_options_autosave_and_cancel_pair(client, temp_db):
     wait_for_scans()
     statuses = {s["status"] for s in pairs_db.scans_for_pair(1)}
     assert statuses <= {"done", "cancelled"}
+
+
+def test_disk_capacity_keeps_reserve():
+    from app.apps.settings.routers import usable_capacity
+
+    assert usable_capacity(513_054_605_312) == 507 * 10**9     # 1 % rezerva
+    assert usable_capacity(50 * 10**9) == 49 * 10**9            # nejméně 1 GB
+    assert usable_capacity(500 * 10**6) == 0

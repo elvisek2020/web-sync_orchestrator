@@ -85,7 +85,7 @@
       <div class="disk-facts">
         <div>
           <strong>Připojený disk</strong> <span class="text-sm text-muted mono">{{ disk.path }}</span><br>
-          <span class="text-sm">volno <strong>{{ disk.free|filesize }}</strong> z {{ disk.total|filesize }}</span>
+          <span class="text-sm">volno <strong>{{ disk.free|filesize }}</strong> z {{ disk.total|filesize }} · pro plán {{ disk.usable|filesize }} (rezerva 1 %, nejméně 1 GB)</span>
           {% if disk.suspicious %}<br><span class="text-sm text-muted">Celková velikost je podezřele malá — není disk odpojený? Pak ukazuje místo na systémovém oddílu NASu.</span>{% endif %}
         </div>
         <form method="post" action="/nastaveni/disk/nacist">

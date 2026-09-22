@@ -32,10 +32,20 @@ def _default_excludes_text() -> str:
 DISK_MIN_PLAUSIBLE = 20 * 10**9  # menší „disk“ je nejspíš prázdná složka na systémovém oddílu NASu
 
 
+DISK_RESERVE_RATIO = 0.01          # rezerva: exFAT zabírá víc než součet velikostí, Synology zapisuje @eaDir
+DISK_RESERVE_MIN = 10**9            # nejméně 1 GB
+
+
+def usable_capacity(free: int) -> int:
+    """Kapacita pro plán = volné místo minus rezerva, zaokrouhleno dolů na celé GB."""
+    reserve = max(int(free * DISK_RESERVE_RATIO), DISK_RESERVE_MIN)
+    return max(free - reserve, 0) // 10**9 * 10**9
+
+
 def disk_info() -> dict:
     """Volné místo na přenosovém disku připojeném do kontejneru (DISK_PATH)."""
     path = settings.disk_path
-    info = {"path": str(path), "mounted": False, "free": 0, "total": 0, "suspicious": False}
+    info = {"path": str(path), "mounted": False, "free": 0, "total": 0, "usable": 0, "suspicious": False}
     if not path.is_dir():
         return info
     try:
@@ -43,6 +53,7 @@ def disk_info() -> dict:
     except OSError:
         return info
     info.update(mounted=True, free=st.f_bavail * st.f_frsize, total=st.f_blocks * st.f_frsize)
+    info["usable"] = usable_capacity(info["free"])
     info["suspicious"] = info["total"] < DISK_MIN_PLAUSIBLE
     return info
 
@@ -66,8 +77,8 @@ def read_disk_capacity():
     info = disk_info()
     if not info["mounted"]:
         return redirect("/nastaveni", "disk_missing")
-    # Celé GB dolů — skript před kopírováním ještě sám ověří skutečné volné místo.
-    db.set_setting("disk_capacity", str(info["free"] // 10**9 * 10**9))
+    # S rezervou — skript před kopírováním ještě sám ověří skutečné volné místo.
+    db.set_setting("disk_capacity", str(info["usable"]))
     return redirect("/nastaveni", "disk_read")
 
 

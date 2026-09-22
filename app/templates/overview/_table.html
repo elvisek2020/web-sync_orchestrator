@@ -60,40 +60,40 @@
           <a class="stat {{ 'stat--warn' if plan.selected else 'stat--ok' }}" href="/pary/{{ pair.id }}?tab=copy">
             <span class="stat-label">Kopírovat</span>
             <span class="stat-value">{{ plan.selected|length|number }}</span>
-            <span class="stat-meta">{{ plan.selected_size|filesize }}</span>
+            <span class="stat-meta" title="{{ plan.selected_size|filesize }}">{{ plan.selected_size|filesize }}</span>
           </a>
           <a class="stat {{ 'stat--warn' if plan.deferred else 'stat--ok' }}" href="/pary/{{ pair.id }}?tab=deferred">
             <span class="stat-label">Odloženo</span>
             <span class="stat-value">{{ plan.deferred|length|number }}</span>
-            <span class="stat-meta">{{ plan.deferred_size|filesize }}</span>
+            <span class="stat-meta" title="{{ plan.deferred_size|filesize }}">{{ plan.deferred_size|filesize }}</span>
           </a>
           {% else %}
           <a class="stat {{ 'stat--warn' if plan.transfer else 'stat--ok' }}" href="/pary/{{ pair.id }}?tab=copy">
             <span class="stat-label">K přenosu</span>
             <span class="stat-value">{{ plan.transfer|length|number }}</span>
-            <span class="stat-meta">{{ plan.transfer_size|filesize }} · není zahrnuto do přenosu</span>
+            <span class="stat-meta" title="{{ plan.transfer_size|filesize }} · není zahrnuto do přenosu">{{ plan.transfer_size|filesize }} · není zahrnuto do přenosu</span>
           </a>
           {% endif %}
           <a class="stat {{ 'stat--warn' if cmp.conflict else 'stat--ok' }}" href="/pary/{{ pair.id }}?tab=conflict">
             <span class="stat-label">Konflikty</span>
             <span class="stat-value">{{ cmp.conflict|length|number }}</span>
-            <span class="stat-meta">{% if pair.include_conflicts %}přepíšou se{% else %}nepřenáší se{% endif %}</span>
+            <span class="stat-meta" title="{% if pair.include_conflicts %}přepíšou se{% else %}nepřenáší se{% endif %}">{% if pair.include_conflicts %}přepíšou se{% else %}nepřenáší se{% endif %}</span>
           </a>
           <a class="stat {{ 'stat--warn' if cmp.extra else 'stat--ok' }}" href="/pary/{{ pair.id }}?tab=extra">
             <span class="stat-label">Přebývá</span>
             <span class="stat-value">{{ cmp.extra|length|number }}</span>
-            <span class="stat-meta">{{ cmp.extra|sum(attribute='size')|filesize }} · {% if pair.include_extra and not plan.deletion_blocked %}smažou se{% else %}nemažou se{% endif %}</span>
+            <span class="stat-meta" title="{{ cmp.extra|sum(attribute='size')|filesize }} · {% if pair.include_extra and not plan.deletion_blocked %}smažou se{% else %}nemažou se{% endif %}">{{ cmp.extra|sum(attribute='size')|filesize }} · {% if pair.include_extra and not plan.deletion_blocked %}smažou se{% else %}nemažou se{% endif %}</span>
           </a>
           <div class="stat {{ 'stat--ok' if cmp.same_count else '' }}">
             <span class="stat-label">Shodné</span>
             <span class="stat-value">{{ cmp.same_count|number }}</span>
-            <span class="stat-meta">{{ cmp.same_size|filesize }}</span>
+            <span class="stat-meta" title="{{ cmp.same_size|filesize }}">{{ cmp.same_size|filesize }}</span>
           </div>
           {% if cmp.problems %}
           <a class="stat stat--error" href="/pary/{{ pair.id }}?tab=problems">
             <span class="stat-label">Problémy</span>
             <span class="stat-value">{{ cmp.problems|length|number }}</span>
-            <span class="stat-meta">nepřenáší se</span>
+            <span class="stat-meta" title="nepřenáší se">nepřenáší se</span>
           </a>
           {% endif %}
         </div>
