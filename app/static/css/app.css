@@ -2989,3 +2989,94 @@ details.card[open] > .summary-toggle {
 :root {
     --container-wide: max(1460px, calc(100vw - 352px));
 }
+
+/* ------------------------------------------------------------------------
+   Probíhající sken na přehledu: boxíky zešednou (čísla jsou ze starého skenu),
+   zleva se plní podle odhadu průběhu a přebíhá přes ně vlna. Po doběhnutí se
+   čísla postupně „vynoří“ zpět (třída pair-card--revealed z app.js).
+   ------------------------------------------------------------------------ */
+.pair-row--scanning .stat {
+    position: relative;
+    overflow: hidden;
+    border-color: var(--color-border);
+    background: var(--color-surface-2);
+}
+
+.pair-row--scanning .stat > * {
+    position: relative;
+    z-index: 1;
+}
+
+.pair-row--scanning .stat-value {
+    color: var(--color-text-light);
+    opacity: 0.55;
+}
+
+.pair-row--scanning .stat::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--scan-progress, 0%);
+    border-right: 2px solid color-mix(in srgb, var(--color-primary) 55%, transparent);
+    background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+    transition: width 1.9s linear;   /* plynule mezi obnovami přehledu (každé 2 s) */
+}
+
+.pair-row--scanning .stat::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--color-primary) 14%, transparent) 50%, transparent 70%);
+    background-size: 250% 100%;
+    animation: scan-shimmer 2s linear infinite;
+}
+
+.pair-row--scanning .stat:nth-child(2)::after { animation-delay: 0.12s; }
+.pair-row--scanning .stat:nth-child(3)::after { animation-delay: 0.24s; }
+.pair-row--scanning .stat:nth-child(4)::after { animation-delay: 0.36s; }
+.pair-row--scanning .stat:nth-child(5)::after { animation-delay: 0.48s; }
+.pair-row--scanning .stat:nth-child(6)::after { animation-delay: 0.6s; }
+
+@keyframes scan-shimmer {
+    from { background-position: 150% 0; }
+    to { background-position: -100% 0; }
+}
+
+/* Průběh nejde odhadnout (první sken): místo plnění pohyblivý pruh */
+.pair-row--indeterminate .stat::before {
+    width: 40%;
+    border-right: 0;
+    transition: none;
+    animation: scan-indeterminate 1.6s var(--ease) infinite;
+}
+
+@keyframes scan-indeterminate {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(250%); }
+}
+
+.scan-caption {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    color: var(--color-text-light);
+    font-size: 0.82rem;
+}
+
+.pair-card--revealed .stat {
+    animation: stat-reveal 0.55s var(--ease) both;
+}
+
+.pair-card--revealed .stat:nth-child(2) { animation-delay: 0.07s; }
+.pair-card--revealed .stat:nth-child(3) { animation-delay: 0.14s; }
+.pair-card--revealed .stat:nth-child(4) { animation-delay: 0.21s; }
+.pair-card--revealed .stat:nth-child(5) { animation-delay: 0.28s; }
+.pair-card--revealed .stat:nth-child(6) { animation-delay: 0.35s; }
+
+@keyframes stat-reveal {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+    to { opacity: 1; transform: none; }
+}

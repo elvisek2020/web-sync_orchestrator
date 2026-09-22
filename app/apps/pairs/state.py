@@ -38,6 +38,25 @@ class PairState:
     def busy(self) -> bool:
         return bool(self.source.running or self.target.running)
 
+    @property
+    def scan_progress(self) -> float | None:
+        """Odhad průběhu běžícího skenu 0–0,99 podle počtu souborů z minulého skenu.
+
+        None = nelze odhadnout (strana ještě nikdy nebyla naskenovaná).
+        """
+        done = expected = 0
+        for side in (self.source, self.target):
+            if not side.running:
+                continue
+            previous = side.current["total_files"] if side.current else 0
+            if not previous:
+                return None
+            expected += previous
+            done += side.progress.files if side.progress else 0
+        if not expected:
+            return None
+        return min(done / expected, 0.99)
+
 
 @dataclass
 class Overview:

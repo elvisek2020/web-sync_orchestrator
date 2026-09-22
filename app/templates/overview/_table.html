@@ -26,7 +26,9 @@
   {% for st in ov.pairs %}
   {% set pair = st.pair %}
   {% set plan = st.plan %}
-  <section class="card pair-card{% if not pair.on_disk %} pair-card--off{% endif %}">
+  {% set progress = st.scan_progress if st.busy else none %}
+  <section class="card pair-card{% if not pair.on_disk %} pair-card--off{% endif %}" id="pair-card-{{ pair.id }}"
+           data-pair-id="{{ pair.id }}"{% if st.busy %} data-scanning{% endif %}>
     <div class="card-header">
       <div>
         <h2 class="card-title">{{ pair.name }}</h2>
@@ -52,7 +54,9 @@
         </div>
       </div>
 
-      <div class="pair-row">
+      <div id="pair-row-{{ pair.id }}"
+           class="pair-row{% if st.busy %} pair-row--scanning{% if progress is none %} pair-row--indeterminate{% endif %}{% endif %}"
+           {% if progress is not none %}style="--scan-progress: {{ '%.1f'|format(progress * 100) }}%"{% endif %}>
         {% if plan %}
         {% set cmp = plan.comparison %}
         <div class="stat-grid">
@@ -97,8 +101,19 @@
           </a>
           {% endif %}
         </div>
+        {% elif st.busy %}
+        {# první sken páru: prázdné boxíky, které se „plní“ #}
+        <div class="stat-grid" aria-hidden="true">
+          {% for label in ['Kopírovat', 'Odloženo', 'Konflikty', 'Přebývá', 'Shodné'] %}
+          <div class="stat">
+            <span class="stat-label">{{ label }}</span>
+            <span class="stat-value">…</span>
+            <span class="stat-meta">&nbsp;</span>
+          </div>
+          {% endfor %}
+        </div>
         {% else %}
-        <p class="pair-row-empty text-sm text-muted">{% if st.busy %}Probíhá sken…{% else %}Porovnání se ukáže po úspěšném skenu obou stran — klikni na Aktualizovat.{% endif %}</p>
+        <p class="pair-row-empty text-sm text-muted">Porovnání se ukáže po úspěšném skenu obou stran — klikni na Aktualizovat.</p>
         {% endif %}
 
         <div class="pair-actions">
@@ -119,6 +134,13 @@
           {% endif %}
         </div>
       </div>
+
+      {% if st.busy %}
+      <p class="scan-caption" aria-live="polite">
+        <span class="pulse-dot" aria-hidden="true"></span>
+        {% if progress is not none %}Skenuje se · odhad {{ (progress * 100)|round|int }} % (podle minulého skenu){% else %}Skenuje se — první sken, průběh nejde odhadnout{% endif %}
+      </p>
+      {% endif %}
 
       {% for w in st.warnings %}
         <div class="mt-4">{{ alert('warn', w) }}</div>

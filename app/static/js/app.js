@@ -633,3 +633,26 @@ document.addEventListener('notify', function (e) {
     var detail = e.detail || {};
     if (detail.message) showNotification(detail.message, detail.type || 'success');
 });
+
+// ---------------------------------------------------------------------------
+// Přehled: když pár přestane skenovat ([data-scanning] zmizí po obnově přes
+// HTMX), dostane jeho karta třídu pair-card--revealed → čísla se „vynoří“.
+// ---------------------------------------------------------------------------
+
+var scanningBeforeSwap = {};
+
+document.addEventListener('htmx:beforeSwap', function () {
+    scanningBeforeSwap = {};
+    document.querySelectorAll('[data-pair-id][data-scanning]').forEach(function (el) {
+        scanningBeforeSwap[el.getAttribute('data-pair-id')] = true;
+    });
+});
+
+document.addEventListener('htmx:afterSettle', function () {
+    document.querySelectorAll('[data-pair-id]').forEach(function (el) {
+        if (scanningBeforeSwap[el.getAttribute('data-pair-id')] && !el.hasAttribute('data-scanning')) {
+            el.classList.add('pair-card--revealed');
+        }
+    });
+    scanningBeforeSwap = {};
+});

@@ -184,3 +184,19 @@ def test_readonly_database_dir_gives_clear_error(tmp_path):
             check_database(ro / "sync_orchestrator.db")
     finally:
         ro.chmod(0o755)
+
+
+def test_scan_progress_estimate():
+    from app.apps.pairs.state import PairState, SideState
+    from app.scan.common import Progress
+
+    running = Progress()
+    running.files = 50
+    src = SideState("source", current={"total_files": 200}, running={"status": "running"}, progress=running)
+    tgt = SideState("target", current={"total_files": 100})
+    assert PairState({}, src, tgt).scan_progress == 0.25          # jen běžící strana, 50 z 200
+    running.files = 500
+    assert PairState({}, src, tgt).scan_progress == 0.99          # víc než minule → nikdy 100 % před koncem
+    first = SideState("target", running={"status": "queued"}, progress=Progress())
+    assert PairState({}, src, first).scan_progress is None        # první sken → nejde odhadnout
+    assert PairState({}, SideState("source"), tgt).scan_progress is None
