@@ -8,6 +8,7 @@ from app.apps.pairs import db as pairs_db
 from app.apps.pairs.state import load_overview
 from app.common import page_ctx, redirect, safe_next
 from app.scan.runner import runner
+from app.transfer.runner import transfer_runner
 from app.templates_engine import templates
 
 router = APIRouter(tags=["overview"])
@@ -33,6 +34,8 @@ def refresh_all():
 
 @router.post("/pary/{pair_id:int}/aktualizovat")
 def refresh_pair(pair_id: int, next: str = Form("/")):
+    if transfer_runner.active(pair_id):
+        return redirect(safe_next(next), "transfer_running")
     started = runner.start_pair(pair_id)
     return redirect(safe_next(next), "scan_started" if started else "scan_running")
 

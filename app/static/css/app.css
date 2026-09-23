@@ -3080,3 +3080,68 @@ details.card[open] > .summary-toggle {
     from { opacity: 0; transform: translateY(8px) scale(0.97); }
     to { opacity: 1; transform: none; }
 }
+
+/* ------------------------------------------------------------------------
+   Přímý přenos: panel průběhu v detailu páru
+   ------------------------------------------------------------------------ */
+.transfer-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.transfer-pct {
+    font-size: 1.5rem;
+    line-height: 1.2;
+}
+
+.transfer-file-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.progress--lg {
+    height: 14px;
+    border-radius: 7px;
+}
+
+.transfer-card .progress-bar {
+    background: var(--color-primary);
+    transition: width 0.95s linear;   /* plynule mezi obnovami panelu (každou sekundu) */
+}
+
+.transfer-card .progress-bar--file {
+    background: color-mix(in srgb, var(--color-primary) 60%, var(--color-surface-3));
+}
+
+.transfer-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: var(--space-3);
+}
+
+.transfer-stats > div {
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2);
+}
+
+.transfer-stats dt {
+    color: var(--color-text-light);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.transfer-stats dd {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+}

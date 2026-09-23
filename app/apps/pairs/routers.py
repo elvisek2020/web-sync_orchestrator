@@ -15,6 +15,7 @@ from app.core.excludes import parse_patterns
 from app.core.plan import Item, PairPlan
 from app.core.script import generate_script, script_filename
 from app.scan.runner import runner
+from app.transfer.runner import split_items, transfer_runner
 from app.templates_engine import templates
 
 from . import db as pairs_db
@@ -29,6 +30,7 @@ TABS = [
     ("extra", "Přebývá"),
     ("deferred", "Odloženo"),
     ("skipped", "Vyřazené"),
+    ("direct", "Přímý přenos"),
     ("problems", "Problémy"),
 ]
 TAB_KEYS = {k for k, _ in TABS}
@@ -42,8 +44,26 @@ def tab_items(plan: PairPlan, tab: str) -> list[Item]:
         "extra": cmp.extra,
         "deferred": plan.deferred,
         "skipped": cmp.skipped,
+        "direct": cmp.direct,
         "problems": cmp.problems,
     }[tab]
+
+
+def apply_action(pair_id: int, keys: list[str], action: str) -> None:
+    """Akce nad označenými soubory: vyřadit / vrátit, přidat k přímému přenosu / odebrat."""
+    if action in ("skip", "unskip"):
+        pairs_db.set_skips(pair_id, keys, skipped=(action == "skip"))
+    elif action in ("direct", "undirect"):
+        pairs_db.set_direct(pair_id, keys, marked=(action == "direct"))
+
+
+def direct_summary(plan: PairPlan | None) -> dict:
+    """Co udělá přímý přenos: počet a velikost souborů k nahrání, počet ke smazání."""
+    if not plan:
+        return {"count": 0, "uploads": 0, "upload_bytes": 0, "deletions": 0}
+    uploads, deletions = split_items(plan.comparison.direct)
+    return {"count": len(uploads) + len(deletions), "uploads": len(uploads),
+            "upload_bytes": sum(i.src.size for i in uploads), "deletions": len(deletions)}
 
 
 def _filter(items: list[Item], q: str) -> list[Item]:
@@ -73,6 +93,8 @@ def _detail_ctx(request: Request, st: PairState, tab: str, q: str, page: int) ->
         total_size=sum(i.size for i in items),
         scans=pairs_db.scans_for_pair(st.pair["id"]),
         source_desc=side_desc(st.pair, "source"), target_desc=side_desc(st.pair, "target"),
+        direct=direct_summary(st.plan), job=st.transfer,
+        last_transfer=None if st.transfer else pairs_db.last_transfer(st.pair["id"]),
     )
 
 
@@ -103,7 +125,8 @@ def _after_change(request: Request, pair_id: int, tab: str, q: str, page: int):
     if request.headers.get("HX-Request"):
         st = _load_state(pair_id)
         if st:
-            return templates.TemplateResponse(request, "pairs/_body.html", _detail_ctx(request, st, tab, q, page))
+            ctx = dict(_detail_ctx(request, st, tab, q, page), header_oob=True)   # i počet u tlačítka Přímý přenos
+            return templates.TemplateResponse(request, "pairs/_body.html", ctx)
     return redirect(f"/pary/{pair_id}", tab=tab, q=q, page=page if page > 1 else None)
 
 
@@ -113,8 +136,8 @@ def toggle_selected(
     key: list[str] = Form([]), action: str = Form("skip"),
     tab: str = Form("copy"), q: str = Form(""), page: int = Form(1),
 ):
-    """Označené soubory vyřadit z plánu (action=skip), nebo je do něj vrátit (unskip)."""
-    pairs_db.set_skips(pair_id, key, skipped=(action == "skip"))
+    """Akce nad označenými soubory (vyřadit, vrátit, k přímému přenosu, odebrat z něj)."""
+    apply_action(pair_id, key, action)
     return _after_change(request, pair_id, tab, q, page)
 
 
@@ -126,8 +149,46 @@ def bulk_toggle(
     st = _load_state(pair_id)
     if st and st.plan and tab in TAB_KEYS and tab != "problems":
         keys = [item.key for item in _filter(tab_items(st.plan, tab), q.strip())]
-        pairs_db.set_skips(pair_id, keys, skipped=(action == "skip"))
+        apply_action(pair_id, keys, action)
     return _after_change(request, pair_id, tab, q, 1)
+
+
+# --- přímý přenos NAS → NAS ---
+
+@router.post("/pary/{pair_id:int}/primy-prenos")
+def start_direct(pair_id: int):
+    st = _load_state(pair_id)
+    if not st or not st.plan:
+        return redirect(f"/pary/{pair_id}", "no_plan")
+    if not st.direct_supported:
+        return redirect(f"/pary/{pair_id}", "direct_local_only")
+    if st.busy or st.transferring:
+        return redirect(f"/pary/{pair_id}", "direct_busy")
+    items = st.plan.comparison.direct
+    if not items:
+        return redirect(f"/pary/{pair_id}", "direct_none")
+    started = transfer_runner.start(st.pair, items, st.target.current["id"])
+    return redirect(f"/pary/{pair_id}", "direct_started" if started else "direct_busy")
+
+
+@router.post("/pary/{pair_id:int}/primy-prenos/zrusit")
+def cancel_direct(pair_id: int):
+    transfer_runner.cancel(pair_id)
+    return redirect(f"/pary/{pair_id}", "direct_cancelled")
+
+
+@router.get("/pary/{pair_id:int}/prenos", response_class=HTMLResponse)
+def transfer_panel(request: Request, pair_id: int):
+    """Panel průběhu (HTMX se ptá každou sekundu, dokud přenos běží)."""
+    job = transfer_runner.active(pair_id)
+    if request.headers.get("HX-Request") and job is None:
+        # přenos doběhl → celá stránka znovu (seznamy a čísla se změnily)
+        return Response(status_code=204, headers={"HX-Refresh": "true"})
+    pair = pairs_db.get_pair(pair_id)
+    return templates.TemplateResponse(request, "pairs/_transfer.html", {
+        "request": request, "pair": pair, "job": job,
+        "last_transfer": None if job else pairs_db.last_transfer(pair_id),
+    })
 
 
 @router.post("/pary/{pair_id:int}/volby", response_class=HTMLResponse)

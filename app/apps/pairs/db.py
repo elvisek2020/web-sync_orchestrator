@@ -6,6 +6,8 @@ import threading
 import unicodedata
 from collections import OrderedDict
 
+from sqlalchemy import text
+
 from app import db
 from app.core.keys import FileRec
 
@@ -145,6 +147,89 @@ def set_skips(pair_id: int, keys: list[str], skipped: bool) -> None:
     now = db.now_iso()
     rows = [{"p": pair_id, "k": k, "now": now} for k in keys]
     if skipped:
-        db.execute_many("INSERT OR IGNORE INTO pair_skips (pair_id, key, created_at) VALUES (:p, :k, :now)", rows)
+        with db.write_tx() as conn:  # vyřazený soubor nemůže být zároveň k přímému přenosu
+            conn.execute(text("DELETE FROM pair_direct WHERE pair_id = :p AND key = :k"), rows)
+            conn.execute(text("INSERT OR IGNORE INTO pair_skips (pair_id, key, created_at) VALUES (:p, :k, :now)"), rows)
     else:
         db.execute_many("DELETE FROM pair_skips WHERE pair_id = :p AND key = :k", rows)
+
+
+# --- soubory označené k přímému přenosu (NAS → NAS přes SFTP) ---
+
+def direct_for_pair(pair_id: int) -> set[str]:
+    return {r["key"] for r in db.query_all("SELECT key FROM pair_direct WHERE pair_id = :p", {"p": pair_id})}
+
+
+def set_direct(pair_id: int, keys: list[str], marked: bool) -> None:
+    if not keys:
+        return
+    now = db.now_iso()
+    rows = [{"p": pair_id, "k": k, "now": now} for k in keys]
+    if marked:
+        with db.write_tx() as conn:  # označení k přenosu ruší vyřazení
+            conn.execute(text("DELETE FROM pair_skips WHERE pair_id = :p AND key = :k"), rows)
+            conn.execute(text("INSERT OR IGNORE INTO pair_direct (pair_id, key, created_at) VALUES (:p, :k, :now)"), rows)
+    else:
+        db.execute_many("DELETE FROM pair_direct WHERE pair_id = :p AND key = :k", rows)
+
+
+# --- přímé přenosy (drží se jen poslední záznam pro pár) ---
+
+def create_transfer(pair_id: int, *, files_total: int, bytes_total: int, delete_total: int) -> int:
+    with db.write_tx() as conn:
+        conn.execute(text("DELETE FROM transfers WHERE pair_id = :p"), {"p": pair_id})
+        result = conn.execute(
+            text(
+                "INSERT INTO transfers (pair_id, status, created_at, files_total, bytes_total, delete_total) "
+                "VALUES (:p, 'running', :now, :f, :b, :d)"
+            ),
+            {"p": pair_id, "now": db.now_iso(), "f": files_total, "b": bytes_total, "d": delete_total},
+        )
+        return int(result.lastrowid)
+
+
+def finish_transfer(transfer_id: int, *, status: str, files_done: int, bytes_done: int, deleted: int,
+                    failed: int, error: str | None, log: str) -> None:
+    db.execute(
+        "UPDATE transfers SET status = :st, finished_at = :now, files_done = :fd, bytes_done = :bd, "
+        "deleted = :del, failed = :fail, error = :err, log = :log WHERE id = :id",
+        {"st": status, "now": db.now_iso(), "fd": files_done, "bd": bytes_done, "del": deleted,
+         "fail": failed, "err": error, "log": log, "id": transfer_id},
+    )
+
+
+def last_transfer(pair_id: int) -> dict | None:
+    return db.query_one("SELECT * FROM transfers WHERE pair_id = :p ORDER BY id DESC LIMIT 1", {"p": pair_id})
+
+
+def recover_interrupted_transfers() -> int:
+    return db.execute(
+        "UPDATE transfers SET status = 'failed', finished_at = :now, error = 'Přerušeno restartem aplikace.' "
+        "WHERE status = 'running'",
+        {"now": db.now_iso()},
+    )
+
+
+def patch_scan(scan_id: int, *, added: list[FileRec], removed_keys: list[str]) -> None:
+    """Promítne výsledek přímého přenosu do posledního skenu cíle (bez nového skenu)."""
+    with db.write_tx() as conn:
+        exists = conn.execute(text("SELECT 1 FROM scans WHERE id = :s AND status = 'done'"), {"s": scan_id}).first()
+        if not exists:
+            return
+        keys = removed_keys + [r.key for r in added]
+        if keys:
+            conn.execute(text("DELETE FROM files WHERE scan_id = :s AND key = :k"), [{"s": scan_id, "k": k} for k in keys])
+        if added:
+            conn.execute(
+                text("INSERT INTO files (scan_id, path, key, size, mtime) VALUES (:s, :p, :k, :z, :m)"),
+                [{"s": scan_id, "p": r.path, "k": r.key, "z": r.size, "m": r.mtime} for r in added],
+            )
+        conn.execute(
+            text(
+                "UPDATE scans SET total_files = (SELECT COUNT(*) FROM files WHERE scan_id = :s), "
+                "total_size = (SELECT COALESCE(SUM(size), 0) FROM files WHERE scan_id = :s) WHERE id = :s"
+            ),
+            {"s": scan_id},
+        )
+    with _files_lock:
+        _files_cache.pop(scan_id, None)

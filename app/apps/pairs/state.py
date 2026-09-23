@@ -11,6 +11,7 @@ from app.core.excludes import Excluder
 from app.core.plan import Comparison, PairPlan, allocate, build_plan, compare
 from app.scan.common import Progress
 from app.scan.runner import pair_excluder, runner
+from app.transfer.runner import ActiveTransfer, transfer_runner
 
 from . import db as pairs_db
 
@@ -33,10 +34,21 @@ class PairState:
     target: SideState
     plan: PairPlan | None = None
     warnings: list[str] = field(default_factory=list)
+    transfer: ActiveTransfer | None = None   # běžící přímý přenos
 
     @property
     def busy(self) -> bool:
+        """Běží sken (pro přímý přenos viz `transferring`)."""
         return bool(self.source.running or self.target.running)
+
+    @property
+    def transferring(self) -> bool:
+        return self.transfer is not None
+
+    @property
+    def direct_supported(self) -> bool:
+        """Přímý přenos jde jen z lokálně připojeného zdroje (aplikace běží na zdrojovém NASu)."""
+        return self.pair.get("source_host_id") is None
 
     @property
     def scan_progress(self) -> float | None:
@@ -67,7 +79,7 @@ class Overview:
 
     @property
     def busy(self) -> bool:
-        return any(p.busy for p in self.pairs)
+        return any(p.busy or p.transferring for p in self.pairs)
 
     def get(self, pair_id: int) -> PairState | None:
         return next((p for p in self.pairs if p.pair["id"] == pair_id), None)
@@ -109,18 +121,25 @@ _compare_lock = threading.Lock()
 _COMPARE_CACHE_SIZE = 16
 
 
-def _cached_compare(src_id: int, tgt_id: int, excluder: Excluder, skips: set[str]) -> Comparison:
-    key = (src_id, tgt_id, tuple(excluder.patterns), frozenset(skips))
+def _cached_compare(src_id: int, tgt_id: int, excluder: Excluder, skips: set[str], direct: set[str]) -> Comparison:
+    key = (src_id, tgt_id, tuple(excluder.patterns), frozenset(skips), frozenset(direct))
     with _compare_lock:
         if key in _compare_cache:
             _compare_cache.move_to_end(key)
             return _compare_cache[key]
-    result = compare(pairs_db.load_files(src_id), pairs_db.load_files(tgt_id), excluder, skips)
+    result = compare(pairs_db.load_files(src_id), pairs_db.load_files(tgt_id), excluder, skips, direct)
     with _compare_lock:
         _compare_cache[key] = result
         while len(_compare_cache) > _COMPARE_CACHE_SIZE:
             _compare_cache.popitem(last=False)
     return result
+
+
+def invalidate_scan(scan_id: int) -> None:
+    """Data skenu se změnila (přímý přenos) → zahodit porovnání, která z něj vycházela."""
+    with _compare_lock:
+        for key in [k for k in _compare_cache if scan_id in (k[0], k[1])]:
+            del _compare_cache[key]
 
 
 def _hours_between(a: str, b: str) -> float:
@@ -132,9 +151,13 @@ def load_overview() -> Overview:
     for pair in pairs_db.list_pairs():
         scans = pairs_db.scans_for_pair(pair["id"])
         st = PairState(pair, _side_state("source", scans), _side_state("target", scans))
+        st.transfer = transfer_runner.active(pair["id"])
         src, tgt = st.source.current, st.target.current
         if src and tgt:
-            comparison = _cached_compare(src["id"], tgt["id"], pair_excluder(pair), pairs_db.skips_for_pair(pair["id"]))
+            comparison = _cached_compare(
+                src["id"], tgt["id"], pair_excluder(pair),
+                pairs_db.skips_for_pair(pair["id"]), pairs_db.direct_for_pair(pair["id"]),
+            )
             st.plan = build_plan(
                 pair["id"], comparison, on_disk=bool(pair["on_disk"]),
                 include_conflicts=bool(pair["include_conflicts"]), include_extra=bool(pair["include_extra"]),

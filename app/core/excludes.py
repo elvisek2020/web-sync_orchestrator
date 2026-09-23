@@ -42,6 +42,10 @@ DEFAULT_EXCLUDE_PATTERNS = [
 ]
 
 
+# Vždy vynechané (nejde vypnout v nastavení): rozpracované soubory přímého přenosu.
+INTERNAL_EXCLUDE_PATTERNS = [".*.syncpart"]
+
+
 def parse_patterns(text: str | None) -> list[str]:
     """Jeden vzor na řádek (čárky se také berou jako oddělovač)."""
     if not text:

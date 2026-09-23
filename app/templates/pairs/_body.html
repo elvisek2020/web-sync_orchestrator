@@ -29,6 +29,8 @@
         Nevešlo se na disk — objeví se znovu po dalším skenu.
       {% elif tab == 'skipped' %}
         Ručně vyřazené soubory. Označené můžeš vrátit do plánu.
+      {% elif tab == 'direct' %}
+        Soubory označené k přímému přenosu — tlačítkem <strong>Přímý přenos</strong> nahoře se nahrají rovnou na NAS2 (přebývající se tam smažou). Na disk se nekopírují.
       {% else %}
         Tyto soubory se nepřenáší ani nemažou — vyřeš je ručně (přejmenováním na NAS1).
       {% endif %}
@@ -51,3 +53,4 @@
   </div>
 </section>
 {% if options_oob %}{% with oob = true %}{% include "pairs/_options_summary.html" %}{% endwith %}{% endif %}
+{% if header_oob %}{% with oob = true %}{% include "pairs/_direct_button.html" %}{% endwith %}{% endif %}

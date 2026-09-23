@@ -19,9 +19,10 @@
     {% else %}
     <form method="post" action="/pary/{{ pair.id }}/aktualizovat">
       <input type="hidden" name="next" value="{{ back }}">
-      <button type="submit" class="btn btn-outline">{{ icon('refresh', 18) }}Aktualizovat</button>
+      <button type="submit" class="btn btn-outline" {% if st.transferring %}disabled title="Během přímého přenosu se pár neskenuje"{% endif %}>{{ icon('refresh', 18) }}Aktualizovat</button>
     </form>
     {% endif %}
+    {% with oob = false %}{% include "pairs/_direct_button.html" %}{% endwith %}
     {% if plan and pair.on_disk %}
       <a href="/pary/{{ pair.id }}/skript" class="btn btn-primary" download>{{ icon('download', 18) }}Stáhnout skript</a>
     {% endif %}
@@ -41,6 +42,10 @@
       </div>
     </div>
   </section>
+
+  {% if job or last_transfer %}
+    {% include "pairs/_transfer.html" %}
+  {% endif %}
 
   {% if plan %}
     {% include "pairs/_body.html" %}

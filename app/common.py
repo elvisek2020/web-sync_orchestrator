@@ -18,6 +18,12 @@ FLASH_MESSAGES = {
     "no_plan": ("error", "Pár zatím nemá úspěšný sken obou stran."),
     "disk_read": ("success", "Kapacita nastavena podle volného místa na disku."),
     "disk_missing": ("error", "Disk není do kontejneru připojený — zadej kapacitu ručně."),
+    "direct_started": ("success", "Přímý přenos spuštěn."),
+    "direct_none": ("error", "K přímému přenosu není nic označeno."),
+    "direct_busy": ("error", "Pár se právě skenuje nebo přenáší — počkej na dokončení."),
+    "direct_local_only": ("error", "Přímý přenos jde jen z lokálně připojeného zdroje."),
+    "direct_cancelled": ("info", "Přenos se ruší — rozpracovaný soubor příště naváže."),
+    "transfer_running": ("info", "Probíhá přímý přenos — pár se teď neskenuje."),
     "host_in_use": ("error", "Host používá některý pár — nejdřív pár upravte nebo smažte."),
 }
 

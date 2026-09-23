@@ -123,6 +123,8 @@
             <input type="hidden" name="next" value="/">
             <button type="submit" class="btn btn-danger btn-sm">{{ icon('stop', 16) }}Zrušit aktualizaci</button>
           </form>
+          {% elif st.transferring %}
+          <a href="/pary/{{ pair.id }}" class="btn btn-secondary btn-sm">{{ icon('upload', 16) }}Přenos {{ st.transfer.progress.percent|round|int }} %</a>
           {% else %}
           <form method="post" action="/pary/{{ pair.id }}/aktualizovat">
             <input type="hidden" name="next" value="/">
@@ -139,6 +141,12 @@
       <p class="scan-caption" aria-live="polite">
         <span class="pulse-dot" aria-hidden="true"></span>
         {% if progress is not none %}Skenuje se · odhad {{ (progress * 100)|round|int }} % (podle minulého skenu){% else %}Skenuje se — první sken, průběh nejde odhadnout{% endif %}
+      </p>
+      {% elif st.transferring %}
+      {% set tp = st.transfer.progress %}
+      <p class="scan-caption" aria-live="polite">
+        <span class="pulse-dot" aria-hidden="true"></span>
+        Přímý přenos na NAS2 · {{ tp.percent|round|int }} % · {{ tp.files_done|number }} z {{ tp.files_total|number }} souborů{% if tp.speed %} · {{ tp.speed|filesize }}/s{% endif %}{% if tp.eta is not none %} · zbývá ~{{ tp.eta|duration }}{% endif %}
       </p>
       {% endif %}
 

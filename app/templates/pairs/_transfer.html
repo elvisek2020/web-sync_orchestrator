@@ -1,0 +1,84 @@
+{% from "_icons.html" import icon %}
+{% from "_macros.html" import alert %}
+{% if job %}
+{% set p = job.progress %}
+<section class="card transfer-card" id="transfer-panel"
+         hx-get="/pary/{{ pair.id }}/prenos" hx-trigger="every 1s" hx-swap="outerHTML">
+  <div class="card-header">
+    <div>
+      <h2 class="card-title">Přímý přenos na NAS2</h2>
+      <p class="card-subtitle">{{ p.phase }}{% if p.cancel.is_set() %} · ruší se…{% endif %}</p>
+    </div>
+    <span class="badge badge--accent"><span class="pulse-dot" aria-hidden="true"></span>Běží</span>
+  </div>
+  <div class="card-body stack">
+    <div>
+      <div class="transfer-row">
+        <strong class="transfer-pct">{{ '%.1f'|format(p.percent)|replace('.', ',') }} %</strong>
+        <span class="text-sm text-muted">
+          {{ p.files_done|number }} z {{ p.files_total|cz_plural('souboru', 'souborů', 'souborů') }} · {{ p.bytes_done|filesize }} z {{ p.bytes_total|filesize }}{% if p.delete_total %} · smazáno {{ p.deleted|number }} z {{ p.delete_total|number }}{% endif %}
+        </span>
+      </div>
+      <div class="progress progress--lg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ p.percent|round|int }}" aria-label="Celkový průběh">
+        <div class="progress-bar" id="transfer-bar-total" style="width: {{ '%.2f'|format(p.percent) }}%"></div>
+      </div>
+    </div>
+
+    <dl class="transfer-stats">
+      <div><dt>Rychlost</dt><dd>{% if p.speed %}{{ p.speed|filesize }}/s{% else %}—{% endif %}</dd></div>
+      <div><dt>Uplynulo</dt><dd>{{ p.elapsed|duration }}</dd></div>
+      <div><dt>Zbývá</dt><dd>{% if p.eta is not none %}~ {{ p.eta|duration }}{% else %}—{% endif %}</dd></div>
+      <div><dt>Chyby</dt><dd>{{ p.failed|number }}</dd></div>
+    </dl>
+
+    {% if p.current %}
+    <div>
+      <div class="transfer-row">
+        <span class="path transfer-file-name">{{ p.current }}</span>
+        <span class="text-sm text-muted">{% if p.current_size %}{{ p.file_percent|round|int }} % · {{ p.current_done|filesize }} z {{ p.current_size|filesize }}{% else %}{{ p.phase }}{% endif %}</span>
+      </div>
+      {% if p.current_size %}
+      <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ p.file_percent|round|int }}" aria-label="Průběh souboru">
+        <div class="progress-bar progress-bar--file" id="transfer-bar-file" style="width: {{ '%.2f'|format(p.file_percent) }}%"></div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if p.errors %}
+      {% call alert('warn') %}
+        <strong>{{ p.errors|length|cz_plural('položka se nepovedla', 'položky se nepovedly', 'položek se nepovedlo') }}</strong> — přenos pokračuje dál.
+        <pre class="log log--inline">{{ p.errors[-5:]|join('\n') }}</pre>
+      {% endcall %}
+    {% endif %}
+  </div>
+</section>
+{% elif last_transfer %}
+{% set t = last_transfer %}
+<details class="card" id="transfer-panel">
+  <summary class="card-header summary-toggle">
+    <div>
+      <h2 class="card-title">Poslední přímý přenos</h2>
+      <p class="card-subtitle">
+        {{ (t.finished_at or t.created_at)|cz_datetime }} ·
+        nahráno {{ t.files_done|number }} z {{ t.files_total|number }} ({{ t.bytes_done|filesize }}){% if t.delete_total %} · smazáno {{ t.deleted|number }} z {{ t.delete_total|number }}{% endif %}{% if t.failed %} · chyby {{ t.failed|number }}{% endif %}
+      </p>
+    </div>
+    <span class="cluster">
+      {% if t.status == 'done' and not t.failed %}<span class="badge badge--success">{{ icon('check', 12) }}Hotovo</span>
+      {% elif t.status == 'done' %}<span class="badge badge--warn">Hotovo s chybami</span>
+      {% elif t.status == 'cancelled' %}<span class="badge badge--warn">Zrušen</span>
+      {% else %}<span class="badge badge--error">Selhal</span>{% endif %}
+      {{ icon('chevron-down', 18) }}
+    </span>
+  </summary>
+  <div class="card-body stack">
+    {% if t.status == 'cancelled' %}
+      {{ alert('info', 'Přenos byl zrušen. Soubory, které se nestihly, zůstaly v záložce Přímý přenos — rozpracovaný soubor při dalším spuštění naváže.') }}
+    {% elif t.error %}
+      {% call alert('error' if t.status == 'failed' else 'warn') %}<pre class="log log--inline">{{ t.error }}</pre>{% endcall %}
+    {% endif %}
+    <pre class="log">{{ t.log or 'Log je prázdný.' }}</pre>
+  </div>
+</details>
+{% endif %}

@@ -18,7 +18,7 @@ from sqlalchemy import text
 
 from app import db
 from app.config import settings
-from app.core.excludes import DEFAULT_EXCLUDE_PATTERNS, Excluder, parse_patterns
+from app.core.excludes import DEFAULT_EXCLUDE_PATTERNS, INTERNAL_EXCLUDE_PATTERNS, Excluder, parse_patterns
 
 from .common import Progress, ScanCancelled, ScanError
 from .local import scan_local
@@ -40,7 +40,7 @@ class ActiveScan:
 
 def pair_excluder(pair: dict) -> Excluder:
     defaults = parse_patterns(db.get_setting("default_excludes", "\n".join(DEFAULT_EXCLUDE_PATTERNS)))
-    return Excluder(defaults + parse_patterns(pair.get("exclude_patterns")))
+    return Excluder(INTERNAL_EXCLUDE_PATTERNS + defaults + parse_patterns(pair.get("exclude_patterns")))
 
 
 class ScanRunner:
@@ -68,9 +68,11 @@ class ScanRunner:
         return [sid for side in ("source", "target") if (sid := self.start(pair_id, side))]
 
     def start(self, pair_id: int, side: str) -> int | None:
+        from app.transfer.runner import transfer_runner  # pozdní import (vzájemná závislost)
+
         pair = db.query_one("SELECT * FROM pairs WHERE id = :id", {"id": pair_id})
-        if not pair:
-            return None
+        if not pair or transfer_runner.active(pair_id):
+            return None  # během přímého přenosu se pár neskenuje
         with self._lock:
             if any(a.pair_id == pair_id and a.side == side for a in self._active.values()):
                 return None  # už běží nebo čeká ve frontě

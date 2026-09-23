@@ -168,6 +168,33 @@ SCHEMA_STATEMENTS = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_files_scan ON files(scan_id)",
+    "CREATE INDEX IF NOT EXISTS idx_files_scan_key ON files(scan_id, key)",
+    """
+    CREATE TABLE IF NOT EXISTS pair_direct (
+        pair_id    INTEGER NOT NULL REFERENCES pairs(id) ON DELETE CASCADE,
+        key        TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (pair_id, key)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS transfers (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        pair_id      INTEGER NOT NULL REFERENCES pairs(id) ON DELETE CASCADE,
+        status       TEXT NOT NULL,
+        created_at   TEXT NOT NULL,
+        finished_at  TEXT NULL,
+        files_total  INTEGER NOT NULL DEFAULT 0,
+        bytes_total  INTEGER NOT NULL DEFAULT 0,
+        delete_total INTEGER NOT NULL DEFAULT 0,
+        files_done   INTEGER NOT NULL DEFAULT 0,
+        bytes_done   INTEGER NOT NULL DEFAULT 0,
+        deleted      INTEGER NOT NULL DEFAULT 0,
+        failed       INTEGER NOT NULL DEFAULT 0,
+        error        TEXT NULL,
+        log          TEXT NULL
+    )
+    """,
     """
     CREATE TABLE IF NOT EXISTS pair_skips (
         pair_id    INTEGER NOT NULL REFERENCES pairs(id) ON DELETE CASCADE,

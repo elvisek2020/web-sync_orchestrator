@@ -10,7 +10,7 @@ Složky na NAS1 a NAS2 tvoří **páry** (Filmy, Seriály, Pohádky…). Tlačí
 2. disk se fyzicky přenese k NAS2,
 3. na NAS2 soubory z disku nahraje a po potvrzení smaže soubory, které na NAS1 už nejsou (`to-nas`).
 
-Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, NAS2 čte přes SSH/SFTP). **Sama nic nekopíruje ani nemaže** — jen skenuje a generuje skript.
+Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, NAS2 čte přes SSH/SFTP). Velké objemy jdou přes disk skriptem; menší věci (drobné soubory, konflikty, mazání přebývajících) umí aplikace přenést **přímo na NAS2** přes SFTP — jen na výslovný pokyn v detailu páru.
 
 ## ✨ Funkce
 
@@ -60,6 +60,21 @@ Volby skriptu: `--dry-run` (jen ukáže, co by se stalo), `--yes` (na dotazy odp
 - Když se u páru jen maže (není co kopírovat), `to-nas` disk nepotřebuje — pusťte ho přímo na NAS2.
 - Mazání spouštějte ideálně **přímo na NAS2** (přes SSH). Přes síťové připojení z Macu se názvy s diakritikou
   nemusí najít (jiný zápis NFC/NFD); skript nenalezené soubory vždy vypíše a skončí nenulovým kódem.
+
+### Přímý přenos (NAS → NAS)
+
+Pro menší objemy — drobné soubory, konflikty, mazání přebývajících — bez disku, přímo přes síť (SFTP):
+
+1. V **detailu páru** označ soubory (záložky Kopírovat, Konflikty, Odloženo, Přebývá) a zvol **Přidat k přímému přenosu**
+   (nebo *Hromadně → Vše k přímému přenosu*). Soubory se přesunou do záložky **Přímý přenos** a z plánu na disk vypadnou.
+2. Tlačítko **Přímý přenos (N)** v hlavičce detailu přenos po potvrzení spustí na pozadí: soubory z Kopírovat/Konflikty/
+   Odloženo se nahrají na NAS2, soubory z Přebývá se na NAS2 smažou.
+3. Panel ukazuje celkový průběh, rychlost, uplynulý a odhadovaný čas a průběh aktuálního souboru; přenos jde zrušit.
+
+Soubor se nahrává pod dočasným názvem `.jméno.syncpart` a přejmenuje se až celý — na NAS2 nikdy nezůstane napůl
+nahraný soubor a přerušený přenos příště **naváže**. Zachová se čas změny. Chyba jednoho souboru přenos nezastaví
+(soubor zůstane označený pro další pokus). Výsledek se hned promítne do čísel páru bez nového skenu.
+Přenos běží z lokálně připojeného zdroje (NAS1); během přenosu se pár neskenuje.
 
 ## 🚀 Deployment
 
@@ -201,6 +216,7 @@ Aplikace na `http://localhost:8090`, falešný NAS2: host `nas2`, port `2222`, u
 - ✅ **Skript pro exFAT**: jeden soubor pro `to-disk` i `to-nas`, bezpečné seznamy cest, `rsync -rt --files-from`, kontroly složek, místa a plánu
 - ✅ **UI na Jinja2 + HTMX** (bez Reactu a Node buildu), světlý i tmavý režim, mobil
 - ✅ **SSH heslo se nevrací do prohlížeče**
+- ✅ **Přímý přenos NAS → NAS** přes SFTP pro menší objemy a mazání přebývajících (průběh, rychlost, odhad času, navázání)
 - ❌ Odstraněno: kopírování z backendu, SAFE MODE, DB na USB, WebSocket, fáze, stránka Debug
 
 Starší historie viz git (`git log`).

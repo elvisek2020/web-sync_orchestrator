@@ -1,7 +1,18 @@
 {% from "_icons.html" import icon %}
 {% from "_macros.html" import empty_state %}
 {% set selectable = tab != 'problems' %}
-{% set restoring = tab == 'skipped' %}
+{% set can_direct = st.direct_supported and tab in ('copy', 'conflict', 'extra', 'deferred') %}
+{# akce nad označenými soubory podle záložky: (akce, text, ikona) #}
+{% if tab == 'skipped' %}
+  {% set sel_action, sel_label, sel_icon = 'unskip', 'Vrátit označené', 'check' %}
+  {% set bulk_action, bulk_label, bulk_text, bulk_title = 'unskip', 'Vrátit vše', 'se vrátí do plánu.', 'Vrátit do plánu?' %}
+{% elif tab == 'direct' %}
+  {% set sel_action, sel_label, sel_icon = 'undirect', 'Odebrat z přenosu', 'x' %}
+  {% set bulk_action, bulk_label, bulk_text, bulk_title = 'undirect', 'Odebrat vše', 'se odebere z přímého přenosu a vrátí do plánu.', 'Odebrat z přenosu?' %}
+{% else %}
+  {% set sel_action, sel_label, sel_icon = 'skip', 'Vyřadit označené', 'x' %}
+  {% set bulk_action, bulk_label, bulk_text, bulk_title = 'skip', 'Vyřadit vše', 'se vyřadí z plánu (i pro další skeny).', 'Vyřadit soubory?' %}
+{% endif %}
 <div id="pair-files" class="stack" data-selection>
   <div class="files-toolbar">
     <span class="text-sm">
@@ -9,19 +20,42 @@
     </span>
     <div class="cluster">
       {% if selectable and items %}
-      <button type="submit" form="files-selected" class="btn btn-outline btn-sm" data-needs-selection disabled>
-        {% if restoring %}{{ icon('check', 14) }}Vrátit označené{% else %}{{ icon('x', 14) }}Vyřadit označené{% endif %}
-        <span class="selected-count" data-selected-count>(0)</span>
+      <button type="button" class="btn btn-outline btn-sm" data-needs-selection disabled
+              hx-post="/pary/{{ pair.id }}/vybrane" hx-include="#files-selected" hx-vals='{"action": "{{ sel_action }}"}'
+              hx-target="#pair-body" hx-swap="outerHTML">
+        {{ icon(sel_icon, 14) }}{{ sel_label }} <span class="selected-count" data-selected-count>(0)</span>
       </button>
-      <form method="post" action="/pary/{{ pair.id }}/hromadne"
-            data-confirm="{% if restoring %}Všech {{ total }} souborů{% if q %} odpovídajících filtru{% endif %} se vrátí do plánu.{% else %}Všech {{ total }} souborů{% if q %} odpovídajících filtru{% endif %} se vyřadí z plánu (i pro další skeny).{% endif %}"
-            data-confirm-title="{% if restoring %}Vrátit do plánu?{% else %}Vyřadit soubory?{% endif %}"
-            data-confirm-ok="{% if restoring %}Vrátit{% else %}Vyřadit{% endif %}">
-        <input type="hidden" name="action" value="{{ 'unskip' if restoring else 'skip' }}">
-        <input type="hidden" name="tab" value="{{ tab }}">
-        <input type="hidden" name="q" value="{{ q }}">
-        <button type="submit" class="btn btn-ghost btn-sm">{% if restoring %}Vrátit vše ({{ total|number }}){% else %}Vyřadit vše ({{ total|number }}){% endif %}</button>
-      </form>
+      {% if can_direct %}
+      <button type="button" class="btn btn-outline btn-sm" data-needs-selection disabled
+              title="{% if tab == 'extra' %}Při přímém přenosu se označené soubory smažou na NAS2{% else %}Při přímém přenosu se označené soubory nahrají rovnou na NAS2{% endif %}"
+              hx-post="/pary/{{ pair.id }}/vybrane" hx-include="#files-selected" hx-vals='{"action": "direct"}'
+              hx-target="#pair-body" hx-swap="outerHTML">
+        {{ icon('upload', 14) }}Přidat k přímému přenosu <span class="selected-count" data-selected-count>(0)</span>
+      </button>
+      {% endif %}
+      <details class="dropdown">
+        <summary class="btn btn-ghost btn-sm">Hromadně {{ icon('chevron-down', 14) }}</summary>
+        <div class="dropdown-menu">
+          <form method="post" action="/pary/{{ pair.id }}/hromadne"
+                data-confirm="Všech {{ total }} souborů{% if q %} odpovídajících filtru{% endif %} {{ bulk_text }}"
+                data-confirm-title="{{ bulk_title }}" data-confirm-ok="{{ bulk_label }}">
+            <input type="hidden" name="action" value="{{ bulk_action }}">
+            <input type="hidden" name="tab" value="{{ tab }}">
+            <input type="hidden" name="q" value="{{ q }}">
+            <button type="submit" class="menu-item">{{ icon(sel_icon, 16) }}{{ bulk_label }} ({{ total|number }})</button>
+          </form>
+          {% if can_direct %}
+          <form method="post" action="/pary/{{ pair.id }}/hromadne"
+                data-confirm="Všech {{ total }} souborů{% if q %} odpovídajících filtru{% endif %} se přidá k přímému přenosu{% if tab == 'extra' %} (na NAS2 se smažou){% endif %}. Spustíš ho tlačítkem Přímý přenos nahoře."
+                data-confirm-title="Přidat k přímému přenosu?" data-confirm-ok="Přidat">
+            <input type="hidden" name="action" value="direct">
+            <input type="hidden" name="tab" value="{{ tab }}">
+            <input type="hidden" name="q" value="{{ q }}">
+            <button type="submit" class="menu-item">{{ icon('upload', 16) }}Vše k přímému přenosu ({{ total|number }})</button>
+          </form>
+          {% endif %}
+        </div>
+      </details>
       {% endif %}
       {% if total %}
       <a class="btn btn-ghost btn-sm" href="/pary/{{ pair.id }}/export.csv?tab={{ tab }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">{{ icon('download', 14) }}CSV</a>
@@ -30,9 +64,7 @@
   </div>
 
   {% if items %}
-  <form id="files-selected" method="post" action="/pary/{{ pair.id }}/vybrane"
-        hx-post="/pary/{{ pair.id }}/vybrane" hx-target="#pair-body" hx-swap="outerHTML">
-    <input type="hidden" name="action" value="{{ 'unskip' if restoring else 'skip' }}">
+  <form id="files-selected" method="post" action="/pary/{{ pair.id }}/vybrane">
     <input type="hidden" name="tab" value="{{ tab }}">
     <input type="hidden" name="q" value="{{ q }}">
     <input type="hidden" name="page" value="{{ page }}">
@@ -57,7 +89,7 @@
             {% endif %}
             <td class="path">
               {% if selectable %}<label for="sel-{{ loop.index }}">{{ item.display }}</label>{% else %}{{ item.display }}{% endif %}
-              {% if tab in ('skipped', 'deferred') %} <span class="badge badge--sm">{{ {'missing': 'chybí', 'conflict': 'konflikt', 'extra': 'přebývá'}[item.category] }}</span>{% endif %}
+              {% if tab in ('skipped', 'deferred', 'direct') %} <span class="badge badge--sm">{{ {'missing': 'chybí', 'conflict': 'konflikt', 'extra': 'přebývá'}[item.category] }}</span>{% endif %}
               {% if tab == 'problems' %}<div class="text-sm text-muted show-mobile">{{ item.problem }}</div>{% endif %}
             </td>
             <td class="num">{{ item.size|filesize }}</td>

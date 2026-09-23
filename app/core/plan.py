@@ -51,6 +51,7 @@ class Comparison:
     conflict: list[Item] = field(default_factory=list)
     extra: list[Item] = field(default_factory=list)
     skipped: list[Item] = field(default_factory=list)
+    direct: list[Item] = field(default_factory=list)     # označené k přímému přenosu (mimo plán na disk)
     problems: list[Item] = field(default_factory=list)
     same_count: int = 0
     same_size: int = 0
@@ -97,8 +98,10 @@ def _index(files: Iterable[FileRec], excluder: Excluder, side_label: str, proble
     return by_key, excluded
 
 
-def compare(source: Iterable[FileRec], target: Iterable[FileRec], excluder: Excluder, skips: set[str] | None = None) -> Comparison:
+def compare(source: Iterable[FileRec], target: Iterable[FileRec], excluder: Excluder,
+            skips: set[str] | None = None, direct: set[str] | None = None) -> Comparison:
     skips = skips or set()
+    direct = direct or set()
     cmp = Comparison()
     src, ex_s = _index(source, excluder, "zdroj", cmp.problems)
     tgt, ex_t = _index(target, excluder, "cíl", cmp.problems)
@@ -141,6 +144,8 @@ def compare(source: Iterable[FileRec], target: Iterable[FileRec], excluder: Excl
     for item in items:
         if item.problem:
             cmp.problems.append(item)
+        elif item.key in direct:
+            cmp.direct.append(item)
         elif item.key in skips:
             cmp.skipped.append(item)
         else:
