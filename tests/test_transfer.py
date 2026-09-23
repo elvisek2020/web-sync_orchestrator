@@ -161,6 +161,12 @@ def test_direct_flow_through_web(temp_db):
         r = client.post("/pary/1/primy-prenos", follow_redirects=False)
         assert "direct_none" in r.headers["location"]                        # už není co přenést
 
+        # Aktualizovat → nový sken cíle; stav páru ukazuje sken, karta posledního přenosu zmizí
+        time.sleep(1.1)                                                      # časy se ukládají po sekundách
+        client.post("/pary/1/aktualizovat", data={"next": "/pary/1"})
+        wait_for_scans()
+        assert "Poslední přímý přenos" not in client.get("/pary/1").text
+
 
 def test_pages_render_while_transfer_runs(temp_db):
     from app.transfer.runner import ActiveTransfer, TransferProgress

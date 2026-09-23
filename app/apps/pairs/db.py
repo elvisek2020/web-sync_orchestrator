@@ -199,7 +199,18 @@ def finish_transfer(transfer_id: int, *, status: str, files_done: int, bytes_don
 
 
 def last_transfer(pair_id: int) -> dict | None:
-    return db.query_one("SELECT * FROM transfers WHERE pair_id = :p ORDER BY id DESC LIMIT 1", {"p": pair_id})
+    """Poslední přímý přenos — jen dokud po něm nedoběhne nový sken cíle (Aktualizovat).
+
+    Pak už stav páru ukazuje sken a výsledek přenosu je jen historie; řádek zůstává v DB
+    do dalšího přenosu (create_transfer ho nahradí).
+    """
+    return db.query_one(
+        "SELECT t.* FROM transfers t WHERE t.pair_id = :p AND NOT EXISTS ("
+        " SELECT 1 FROM scans s WHERE s.pair_id = t.pair_id AND s.side = 'target' AND s.status = 'done'"
+        " AND s.finished_at > COALESCE(t.finished_at, t.created_at)) "
+        "ORDER BY t.id DESC LIMIT 1",
+        {"p": pair_id},
+    )
 
 
 def recover_interrupted_transfers() -> int:
