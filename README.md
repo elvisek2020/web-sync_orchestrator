@@ -23,7 +23,7 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 - **Ruční vyřazení souborů** — odškrtnutý soubor zůstane vyřazený i po dalších skenech.
 - **Vzory k vynechání** — výchozí (`@eaDir`, `.DS_Store`, `@Recycle`, `*.tmp`…) i vlastní pro pár; platí na obou stranách.
 - **Problémy** — názvy, které exFAT neuloží (`: * ? " < > |`, koncová tečka), kolize názvů a neplatné kódování se nepřenáší ani nemažou, jen se ukážou.
-- **Skript** — seznamy cest jsou uvnitř jako base64 (bezpečné pro jakékoli znaky v názvu), kopíruje jedno volání `rsync`, kontroluje volné místo, správnost složek a shodu plánu mezi `to-disk` a `to-nas`.
+- **Skript** — seznamy cest jsou uvnitř jako base64 (bezpečné pro jakékoli znaky v názvu), kopíruje `rsync` po souborech s celkovým průběhem a odhadem konce (přerušený běh naváže), kontroluje volné místo, správnost složek a shodu plánu mezi `to-disk` a `to-nas`.
 
 ## 📖 Použití
 
@@ -53,6 +53,18 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 
    Před mazáním přebývajících souborů se skript zeptá (výchozí odpověď je *ne*).
 6. Po přenosu znovu **Aktualizovat** — odložené soubory se objeví v dalším plánu.
+
+Během kopírování skript před každým souborem vypíše celkový stav, pod ním rsync ukazuje průběh souboru:
+
+```
+[7/753 · 1,6 % · 8,2 GB z 512,0 GB · 13,9 MB/s · zbývá ~ 10 h 04 min (kolem 06:12)] Daredevil (2015)/Season 03 (2018)/
+S03E07. Nasledky.mkv
+      497483776  48%   12,32MB/s   00:00:41
+```
+
+Po přerušení (Ctrl+C, odpojení) stačí skript spustit znovu — soubory, které už na cíli celé jsou, přeskočí.
+Soubor, který se nepovede zkopírovat, kopírování nezastaví (pět chyb za sebou ano); skript je nakonec vypíše
+a přebývající soubory v tom případě nemaže.
 
 Volby skriptu: `--dry-run` (jen ukáže, co by se stalo), `--yes` (na dotazy odpoví „ano“). Skript potřebuje `bash`, `rsync` a `base64`; ověřeno na Linuxu (NAS) i na macOS (bash 3.2, openrsync).
 
@@ -213,7 +225,7 @@ Aplikace na `http://localhost:8090`, falešný NAS2: host `nas2`, port `2222`, u
 - ✅ **Spolehlivé skeny**: jediný background job, zápis jednou transakcí, žádné zaseknuté `running`/`pending`, úklid po restartu, zrušení skenu
 - ✅ **Bezpečnost dat**: sken s nečitelnou složkou nebo prázdným zdrojem selže (dřív skončil „dokončeno“ a vedl k mazání na NAS2)
 - ✅ **Kapacita disku** zadaná ručně, rozdělená mezi páry; odložené soubory přijdou při dalším přenosu
-- ✅ **Skript pro exFAT**: jeden soubor pro `to-disk` i `to-nas`, bezpečné seznamy cest, `rsync -rt --files-from`, kontroly složek, místa a plánu
+- ✅ **Skript pro exFAT**: jeden soubor pro `to-disk` i `to-nas`, bezpečné seznamy cest, `rsync` po souborech s celkovým průběhem, kontroly složek, místa a plánu
 - ✅ **UI na Jinja2 + HTMX** (bez Reactu a Node buildu), světlý i tmavý režim, mobil
 - ✅ **SSH heslo se nevrací do prohlížeče**
 - ✅ **Přímý přenos NAS → NAS** přes SFTP pro menší objemy a mazání přebývajících (průběh, rychlost, odhad času, navázání)

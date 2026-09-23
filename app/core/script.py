@@ -6,8 +6,9 @@ Jeden soubor, dva režimy:
 
 Seznamy cest jsou ve skriptu jako base64 s položkami oddělenými znakem NUL — přesně na bajt,
 bez escapování a bez rizika, že by `$`, backtick, uvozovka nebo nový řádek v názvu souboru
-spustily příkaz nebo rozbily skript. Kopíruje jedno volání `rsync -rt --from0 --files-from`
-(bez vlastníků a práv — cílový disk je exFAT).
+spustily příkaz nebo rozbily skript. Kopíruje se po souborech (`rsync -t`, bez vlastníků a práv —
+cílový disk je exFAT): u každého souboru se vypíše celkový průběh a odhad konce, soubory, které už
+na cíli jsou (navázání po přerušení), se přeskočí. Funguje stejně s rsync 3.x i s openrsync na Macu.
 """
 from __future__ import annotations
 
@@ -79,6 +80,9 @@ def generate_script(*, pair_name: str, slug: str, plan: PairPlan, source_desc: s
         f"{_b64_list(paths)}\n__SYNC_LIST__"
         for name, paths in lists.items()
     )
+    # velikosti podle plánu, řádek po řádku ve stejném pořadí jako seznam copy (pro celkový průběh)
+    sizes = "".join(f"{i.src.size}\n" for i in plan.selected)
+    list_blocks += f"\ncat > \"$TMP/copy_sizes\" <<'__SYNC_SIZES__'\n{sizes}__SYNC_SIZES__"
 
     header = f"""#!/usr/bin/env bash
 # ============================================================
@@ -154,13 +158,37 @@ ask() {
   case "$answer" in a|A|ano|Ano|ANO|y|Y|yes) return 0 ;; *) return 1 ;; esac
 }
 
+# velikost čitelně, vždy s desetinnou čárkou (nezávisle na jazyku terminálu)
 human() {
-  awk -v b="$1" 'BEGIN { split("B kB MB GB TB", u, " "); i = 1
+  LC_ALL=C awk -v b="$1" 'BEGIN { split("B kB MB GB TB", u, " "); i = 1
     while (b >= 1000 && i < 5) { b /= 1000; i++ }
-    if (i == 1) printf "%d %s", b, u[i]; else printf "%.1f %s", b, u[i] }'
+    if (i == 1) { printf "%d %s", b, u[i]; exit }
+    s = sprintf("%.1f %s", b, u[i]); sub(/\./, ",", s); printf "%s", s }'
 }
 
 count0() { tr -cd '\000' < "$1" | wc -c | tr -d ' '; }
+
+# délka trvání: 41 s / 9 min 52 s / 2 h 05 min
+dur() {
+  local s="$1"
+  if [ "$s" -ge 3600 ]; then printf '%d h %02d min' $((s / 3600)) $((s % 3600 / 60))
+  elif [ "$s" -ge 60 ]; then printf '%d min %02d s' $((s / 60)) $((s % 60))
+  else printf '%d s' "$s"; fi
+}
+
+# procenta s jedním desetinným místem
+pct() {
+  local p=1000
+  [ "$2" -gt 0 ] && p=$(($1 * 1000 / $2))
+  printf '%d,%d %%' $((p / 10)) $((p % 10))
+}
+
+# velikost souboru a hodiny z unixového času — GNU (Synology) i BSD (Mac) varianta
+if stat -c %s -- / >/dev/null 2>&1; then fsize() { stat -c %s -- "$1" 2>/dev/null; }
+else fsize() { stat -f %z -- "$1" 2>/dev/null; }; fi
+if date -d @0 +%H:%M >/dev/null 2>&1; then at_time() { date -d "@$1" +%H:%M; }
+elif date -r 0 +%H:%M >/dev/null 2>&1; then at_time() { date -r "$1" +%H:%M; }
+else at_time() { :; }; fi
 
 command -v rsync >/dev/null 2>&1 || die "rsync není nainstalovaný."
 command -v base64 >/dev/null 2>&1 || die "base64 není k dispozici."
@@ -231,20 +259,22 @@ fi
 
 # ---- co opravdu existuje ve zdroji ----
 COPY_TOTAL="$(count0 "$TMP/copy")"
-MISSING_SRC=0
+MISSING_SRC=0; OK_COUNT=0; OK_BYTES=0
 : > "$TMP/ok"
+: > "$TMP/ok_sizes"
 : > "$TMP/missing"
-while IFS= read -r -d '' f; do
+while IFS= read -r -d '' f <&3 && read -r sz <&4; do
   if [ -f "$SRC_ROOT/$f" ]; then
     printf '%s\0' "$f" >> "$TMP/ok"
+    printf '%s\n' "$sz" >> "$TMP/ok_sizes"
+    OK_COUNT=$((OK_COUNT + 1)); OK_BYTES=$((OK_BYTES + sz))
   else
     MISSING_SRC=$((MISSING_SRC + 1))
     printf '%s\n' "$f" >> "$TMP/missing"
   fi
-done < "$TMP/copy"
-OK_COUNT="$(count0 "$TMP/ok")"
+done 3<"$TMP/copy" 4<"$TMP/copy_sizes"
 
-echo "Ke kopírování: $OK_COUNT z $COPY_TOTAL souborů ($(human "$COPY_BYTES") podle plánu)"
+echo "Ke kopírování: $OK_COUNT z $COPY_TOTAL souborů ($(human "$OK_BYTES"))"
 if [ "$MISSING_SRC" -gt 0 ]; then
   echo "Ve zdroji chybí $MISSING_SRC souborů (přeskočí se), např.:"
   head -n 10 "$TMP/missing" | sed 's/^/  - /'
@@ -271,33 +301,92 @@ if [ "$MODE" = to-nas ] && [ "$(count0 "$TMP/replace")" -gt 0 ]; then
   done < "$TMP/replace"
 fi
 
-# ---- kopírování ----
-RC=0
+# ---- kopírování: po souborech, u každého celkový průběh; průběh souboru ukazuje rsync ----
+COPIED=0; COPIED_BYTES=0; DONE_BYTES=0; ALREADY=0; FAILED=0; STOPPED=""; COPY_OK=1
+: > "$TMP/failed"
+
+# [7/753 · 1,6 % · 8,2 GB z 512,0 GB · 13,9 MB/s · zbývá ~ 10 h 04 min (kolem 06:12)] Složka/
+progress_line() {
+  local line el speed rest at
+  line="[$1/$OK_COUNT · $(pct "$DONE_BYTES" "$OK_BYTES") · $(human "$DONE_BYTES") z $(human "$OK_BYTES")"
+  el=$((SECONDS - COPY_START))
+  if [ "$COPIED_BYTES" -gt 0 ] && [ "$el" -gt 0 ]; then
+    speed=$((COPIED_BYTES / el))
+    rest=$(( (OK_BYTES - DONE_BYTES) * el / COPIED_BYTES ))
+    line="$line · $(human "$speed")/s · zbývá ~ $(dur "$rest")"
+    if [ "$rest" -lt 72000 ]; then
+      at="$(at_time $(( $(date +%s) + rest )))"
+      [ -n "$at" ] && line="$line (kolem $at)"
+    fi
+  fi
+  line="$line]"
+  case "$2" in */*) line="$line ${2%/*}/" ;; esac
+  printf '%s\n' "$line"
+}
+
 if [ "$OK_COUNT" -gt 0 ]; then
-  if ask "Spustit kopírování $OK_COUNT souborů?" a; then
-    OPTS=(-rt --modify-window=2 --partial --from0 "--files-from=$TMP/ok")
-    if rsync --help 2>&1 | grep -q -- '--info'; then OPTS+=(--info=progress2); else OPTS+=(--progress); fi
-    [ "$DRY_RUN" = 1 ] && OPTS+=(-n -v)
+  if ask "Spustit kopírování $OK_COUNT souborů ($(human "$OK_BYTES"))?" a; then
     [ "$DRY_RUN" = 1 ] || mkdir -p -- "$DST_ROOT" || die "Nelze vytvořit $DST_ROOT"
-    echo ">> rsync ${OPTS[*]} \"$SRC_ROOT/\" \"$DST_ROOT/\""
-    rsync "${OPTS[@]}" "$SRC_ROOT/" "$DST_ROOT/"
-    RC=$?
-    case "$RC" in
-      0) echo "Kopírování dokončeno." ;;
-      24) echo "Kopírování dokončeno; některé zdrojové soubory mezitím zmizely." ;;
-      23) echo "POZOR: Některé soubory se nepodařilo přenést (viz výpis rsync výše)." ;;
-      *) echo "CHYBA: rsync skončil s kódem $RC." ;;
-    esac
+    # relativní cesta s dvojtečkou by rsync považoval za vzdálený stroj
+    case "$SRC_ROOT" in /*) S="$SRC_ROOT" ;; *) S="./$SRC_ROOT" ;; esac
+    case "$DST_ROOT" in /*) D="$DST_ROOT" ;; *) D="./$DST_ROOT" ;; esac
+    INTERRUPTED=0
+    trap 'INTERRUPTED=1' INT
+    COPY_START=$SECONDS; N=0; IN_ROW=0
+    while IFS= read -r -d '' f <&3 && read -r sz <&4; do
+      N=$((N + 1))
+      if [ "$DRY_RUN" = 1 ]; then
+        echo "  zkopíroval by se: $f ($(human "$sz"))"
+        continue
+      fi
+      # už je na cíli celý (navázání po přerušení) → přeskočit
+      if [ -f "$D/$f" ] && [ "$(fsize "$D/$f")" = "$(fsize "$S/$f")" ]; then
+        ALREADY=$((ALREADY + 1)); DONE_BYTES=$((DONE_BYTES + sz))
+        continue
+      fi
+      progress_line "$N" "$f"
+      case "$f" in */*) [ -d "$D/${f%/*}" ] || mkdir -p -- "$D/${f%/*}" ;; esac
+      rsync -t --modify-window=2 --partial --progress -- "$S/$f" "$D/$f"
+      rc=$?
+      if [ "$INTERRUPTED" = 1 ] || [ "$rc" = 20 ]; then STOPPED="přerušeno"; break; fi
+      if [ "$rc" = 0 ]; then
+        COPIED=$((COPIED + 1)); COPIED_BYTES=$((COPIED_BYTES + sz)); DONE_BYTES=$((DONE_BYTES + sz)); IN_ROW=0
+      else
+        FAILED=$((FAILED + 1)); IN_ROW=$((IN_ROW + 1)); DONE_BYTES=$((DONE_BYTES + sz))
+        printf '%s (rsync kód %s)\n' "$f" "$rc" >> "$TMP/failed"
+        echo "  ! Soubor se nepodařilo zkopírovat (rsync kód $rc), pokračuji dalším."
+        if [ "$IN_ROW" -ge 5 ]; then STOPPED="5 chyb za sebou — není odpojený disk nebo síť?"; break; fi
+      fi
+    done 3<"$TMP/ok" 4<"$TMP/ok_sizes"
+    trap - INT
+    EL=$((SECONDS - COPY_START))
+
+    echo ""
+    if [ "$DRY_RUN" = 1 ]; then
+      echo "Zkopírovalo by se $OK_COUNT souborů ($(human "$OK_BYTES"))."
+    else
+      line="Zkopírováno $COPIED z $OK_COUNT souborů ($(human "$COPIED_BYTES")) za $(dur "$EL")"
+      if [ "$EL" -gt 0 ] && [ "$COPIED_BYTES" -gt 0 ]; then line="$line, průměrně $(human $((COPIED_BYTES / EL)))/s"; fi
+      echo "$line."
+      [ "$ALREADY" -gt 0 ] && echo "Už bylo na cíli (přeskočeno): $ALREADY"
+      if [ "$FAILED" -gt 0 ]; then
+        echo "POZOR: $FAILED souborů se nepodařilo zkopírovat, např.:"
+        head -n 10 "$TMP/failed" | sed 's/^/  - /'
+      fi
+      if [ -n "$STOPPED" ]; then
+        echo "Kopírování zastaveno ($STOPPED)."
+        echo "Při dalším spuštění naváže — hotové soubory se přeskočí."
+      fi
+      if [ "$FAILED" -gt 0 ] || [ -n "$STOPPED" ]; then COPY_OK=0; fi
+    fi
+    [ "$STOPPED" = "přerušeno" ] && exit 130
   else
     echo "Kopírování přeskočeno."
-    RC=-1
+    COPY_OK=0
   fi
 else
   echo "Není co kopírovat."
 fi
-
-COPY_OK=0
-case "$RC" in 0|24) COPY_OK=1 ;; esac
 
 if [ "$MODE" = to-disk ] && [ "$DRY_RUN" = 0 ] && [ "$COPY_OK" = 1 ]; then
   mkdir -p -- "$DST_ROOT" && printf 'PLAN=%s\nCREATED=%s\n' "$PLAN" "$(date '+%Y-%m-%d %H:%M:%S')" > "$DST_ROOT/.sync-plan"
@@ -366,7 +455,7 @@ fi
 echo ""
 echo "========================================"
 echo "  Hotovo ($MODE)"
-echo "    Zkopírováno (rsync):   $OK_COUNT souborů, kód $RC"
+echo "    Zkopírováno:           $COPIED z $OK_COUNT (už na cíli: $ALREADY, chyby: $FAILED)"
 echo "    Chybí ve zdroji:       $MISSING_SRC"
 [ "$MODE" = to-nas ] && echo "    Nahrazeno (NFC/NFD):   $REPLACED"
 if [ "$MODE" = to-nas ]; then
@@ -375,7 +464,7 @@ if [ "$MODE" = to-nas ]; then
 fi
 echo "========================================"
 
-if [ "$RC" != 0 ] && [ "$RC" != 24 ] && [ "$RC" != -1 ]; then exit 1; fi
+if [ "$FAILED" -gt 0 ] || [ -n "$STOPPED" ]; then exit 1; fi
 [ "$DELETE_FAILED" -eq 0 ] || exit 1
 if [ "$DRY_RUN" = 0 ] && [ "$NOT_FOUND" -gt 0 ]; then exit 1; fi
 exit 0

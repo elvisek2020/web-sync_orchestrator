@@ -232,3 +232,39 @@ def test_to_nas_accepts_the_pair_folder_directly(dirs, tmp_path):
     r = _run(script, "to-nas", str(dirs["disk"] / "test"), str(dirs["nas2"]), cwd=dirs["work"])
     assert r.returncode == 0, r.stdout + r.stderr
     assert (dirs["nas2"] / "a.mkv").read_bytes() == b"a"
+
+
+def test_progress_resume_and_failed_file(dirs, tmp_path):
+    names = [f"Seriál/Řada 1/díl {i}.mkv" for i in range(1, 5)]
+    for rel in names:
+        _write(dirs["nas1"], rel, rel.encode())
+    script = _script(tmp_path, _plan(names))
+
+    r = _run(script, "to-disk", str(dirs["nas1"]), str(dirs["disk"]), "--yes", cwd=dirs["work"])
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "[1/4 · 0,0 % · 0 B z " in r.stdout and "] Seriál/Řada 1/" in r.stdout   # celkový průběh u souboru
+    assert "Zkopírováno 4 z 4 souborů" in r.stdout
+
+    # navázání: celé soubory se přeskočí, nedokončený (kratší) se zkopíruje znovu
+    (dirs["disk"] / "test" / names[2]).write_bytes(b"zac")
+    r = _run(script, "to-disk", str(dirs["nas1"]), str(dirs["disk"]), "--yes", cwd=dirs["work"])
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "Zkopírováno 1 z 4 souborů" in r.stdout and "Už bylo na cíli (přeskočeno): 3" in r.stdout
+    assert (dirs["disk"] / "test" / names[2]).read_bytes() == names[2].encode()
+
+    # soubor, který nejde zapsat, nezastaví ostatní; skript skončí chybou a nemaže
+    blocked = dirs["nas2"] / "Seriál" / "Řada 1"
+    blocked.mkdir(parents=True)
+    blocked.chmod(0o555)
+    _write(dirs["nas2"], "navic.mkv", b"x")
+    script2 = _script(tmp_path / "work", _plan(names + ["jiny.mkv"], delete=["navic.mkv"]))
+    _write(dirs["disk"], "test/jiny.mkv", b"jiny.mkv")
+    (dirs["disk"] / "test/.sync-plan").unlink()
+    try:
+        r = _run(script2, "to-nas", str(dirs["disk"]), str(dirs["nas2"]), "--yes", cwd=dirs["work"])
+    finally:
+        blocked.chmod(0o755)
+    assert r.returncode == 1
+    assert "POZOR: 4 souborů se nepodařilo zkopírovat" in r.stdout
+    assert (dirs["nas2"] / "jiny.mkv").read_bytes() == b"jiny.mkv"
+    assert "mazání přeskočeno" in r.stdout and (dirs["nas2"] / "navic.mkv").exists()
