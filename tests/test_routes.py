@@ -141,3 +141,15 @@ def test_disk_capacity_keeps_reserve():
     assert usable_capacity(513_054_605_312) == 507 * 10**9     # 1 % rezerva
     assert usable_capacity(50 * 10**9) == 49 * 10**9            # nejméně 1 GB
     assert usable_capacity(500 * 10**6) == 0
+
+
+def test_stylesheet_braces_are_balanced():
+    """Přebytečná „}“ na nejvyšší úrovni tiše zahodí následující pravidlo (tak zmizel .progress)."""
+    from pathlib import Path
+
+    css = (Path(__file__).parent.parent / "app/static/css/app.css").read_text(encoding="utf-8")
+    depth = 0
+    for n, line in enumerate(css.splitlines(), 1):
+        depth += line.count("{") - line.count("}")
+        assert depth >= 0, f"přebytečná závorka na řádku {n}"
+    assert depth == 0

@@ -37,7 +37,7 @@
         <summary class="btn btn-ghost btn-sm">Hromadně {{ icon('chevron-down', 14) }}</summary>
         <div class="dropdown-menu">
           <form method="post" action="/pary/{{ pair.id }}/hromadne"
-                data-confirm="Všech {{ total }} souborů{% if q %} odpovídajících filtru{% endif %} {{ bulk_text }}"
+                data-confirm="{{ total|cz_plural('soubor', 'soubory', 'souborů') }}{% if q %} odpovídajících filtru{% endif %} {{ bulk_text }}"
                 data-confirm-title="{{ bulk_title }}" data-confirm-ok="{{ bulk_label }}">
             <input type="hidden" name="action" value="{{ bulk_action }}">
             <input type="hidden" name="tab" value="{{ tab }}">
@@ -46,7 +46,7 @@
           </form>
           {% if can_direct %}
           <form method="post" action="/pary/{{ pair.id }}/hromadne"
-                data-confirm="Všech {{ total }} souborů{% if q %} odpovídajících filtru{% endif %} se přidá k přímému přenosu{% if tab == 'extra' %} (na NAS2 se smažou){% endif %}. Spustíš ho tlačítkem Přímý přenos nahoře."
+                data-confirm="{{ total|cz_plural('soubor', 'soubory', 'souborů') }}{% if q %} odpovídajících filtru{% endif %} se přidá k přímému přenosu{% if tab == 'extra' %} (na NAS2 se smažou){% endif %}. Spustíš ho tlačítkem Přímý přenos nahoře."
                 data-confirm-title="Přidat k přímému přenosu?" data-confirm-ok="Přidat">
             <input type="hidden" name="action" value="direct">
             <input type="hidden" name="tab" value="{{ tab }}">

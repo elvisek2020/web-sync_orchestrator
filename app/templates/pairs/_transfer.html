@@ -2,21 +2,62 @@
 {% from "_macros.html" import alert %}
 {% if job %}
 {% set p = job.progress %}
+{% set deleting = p.phase == 'Mažu' %}
+{% set cancelling = p.cancel.is_set() %}
+{% set file_pct = ((p.current_no - 1) / p.delete_total * 100) if deleting and p.delete_total else p.file_percent %}
 <section class="card transfer-card" id="transfer-panel"
          hx-get="/pary/{{ pair.id }}/prenos" hx-trigger="every 1s" hx-swap="outerHTML">
   <div class="card-header">
     <div>
       <h2 class="card-title">Přímý přenos na NAS2</h2>
-      <p class="card-subtitle">{{ p.phase }}{% if p.cancel.is_set() %} · ruší se…{% endif %}</p>
+      <p class="card-subtitle">
+        {%- if cancelling %}Ruší se — rozpracovaný soubor příště naváže
+        {%- elif deleting %}Mažu přebývající soubory
+        {%- elif p.phase == 'Nahrávám' %}Nahrávám soubory
+        {%- else %}{{ p.phase }}{% endif -%}
+      </p>
     </div>
-    <span class="badge badge--accent"><span class="pulse-dot" aria-hidden="true"></span>Běží</span>
+    <span class="badge {{ 'badge--warn' if cancelling else 'badge--accent' }}"><span class="pulse-dot" aria-hidden="true"></span>{{ 'Ruší se' if cancelling else 'Běží' }}</span>
   </div>
-  <div class="card-body stack">
+  <div class="card-body transfer-body">
+    {# proměnlivé věci nahoře, souhrnné boxy vždy dole — nic neposkakuje #}
     <div>
       <div class="transfer-row">
-        <strong class="transfer-pct">{{ '%.1f'|format(p.percent)|replace('.', ',') }} %</strong>
-        <span class="text-sm text-muted">
-          {{ p.files_done|number }} z {{ p.files_total|cz_plural('souboru', 'souborů', 'souborů') }} · {{ p.bytes_done|filesize }} z {{ p.bytes_total|filesize }}{% if p.delete_total %} · smazáno {{ p.deleted|number }} z {{ p.delete_total|number }}{% endif %}
+        <div class="transfer-file">
+          {% if p.current %}
+            {% set fdir, sep, fname = p.current.rpartition('/') %}
+            <span class="transfer-count" title="{{ 'Mazání' if deleting else 'Soubor' }} {{ p.current_no }} z {{ p.delete_total if deleting else p.files_total }}">
+              {{- icon('trash' if deleting else 'upload', 12) }}{{ p.current_no|number }} z {{ (p.delete_total if deleting else p.files_total)|number -}}
+            </span>
+            <span class="transfer-path" title="{{ p.current }}">
+              {%- if fdir %}<span class="transfer-path-dir">{{ fdir }}/</span>{% endif -%}
+              <span class="transfer-path-name">{{ fname }}</span>
+            </span>
+          {% else %}
+            <span class="text-muted">{{ p.phase }}</span>
+          {% endif %}
+        </div>
+        <span class="transfer-meta">
+          {%- if deleting %}smazáno {{ p.deleted|number }} z {{ p.delete_total|number }}
+          {%- elif p.current_size %}<strong>{{ p.file_percent|round|int }} %</strong> · {{ p.current_done|filesize }} z {{ p.current_size|filesize }}{% endif -%}
+        </span>
+      </div>
+      <div class="progress progress--file" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ file_pct|round|int }}" aria-label="Aktuální soubor">
+        {# id podle položky: nový soubor začne od nuly bez animace zpět #}
+        <div class="progress-bar" id="transfer-bar-{{ 'd' if deleting else 'u' }}{{ p.current_no }}" style="width: {{ '%.2f'|format(file_pct) }}%"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="transfer-row">
+        <div class="transfer-total">
+          <span class="transfer-label">Celkem</span>
+          <strong class="transfer-pct">{{ '%.1f'|format(p.percent)|replace('.', ',') }} %</strong>
+        </div>
+        <span class="transfer-meta">
+          {%- if p.files_total %}{{ p.bytes_done|filesize }} z {{ p.bytes_total|filesize }}{% endif %}
+          {%- if p.files_total and p.delete_total %} · {% endif %}
+          {%- if p.delete_total %}smazáno {{ p.deleted|number }} z {{ p.delete_total|number }}{% endif -%}
         </span>
       </div>
       <div class="progress progress--lg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ p.percent|round|int }}" aria-label="Celkový průběh">
@@ -24,33 +65,19 @@
       </div>
     </div>
 
-    <dl class="transfer-stats">
-      <div><dt>Rychlost</dt><dd>{% if p.speed %}{{ p.speed|filesize }}/s{% else %}—{% endif %}</dd></div>
-      <div><dt>Uplynulo</dt><dd>{{ p.elapsed|duration }}</dd></div>
-      <div><dt>Zbývá</dt><dd>{% if p.eta is not none %}~ {{ p.eta|duration }}{% else %}—{% endif %}</dd></div>
-      <div><dt>Chyby</dt><dd>{{ p.failed|number }}</dd></div>
-    </dl>
-
-    {% if p.current %}
-    <div>
-      <div class="transfer-row">
-        <span class="path transfer-file-name">{{ p.current }}</span>
-        <span class="text-sm text-muted">{% if p.current_size %}{{ p.file_percent|round|int }} % · {{ p.current_done|filesize }} z {{ p.current_size|filesize }}{% else %}{{ p.phase }}{% endif %}</span>
-      </div>
-      {% if p.current_size %}
-      <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ p.file_percent|round|int }}" aria-label="Průběh souboru">
-        <div class="progress-bar progress-bar--file" id="transfer-bar-file" style="width: {{ '%.2f'|format(p.file_percent) }}%"></div>
-      </div>
-      {% endif %}
-    </div>
-    {% endif %}
-
     {% if p.errors %}
       {% call alert('warn') %}
         <strong>{{ p.errors|length|cz_plural('položka se nepovedla', 'položky se nepovedly', 'položek se nepovedlo') }}</strong> — přenos pokračuje dál.
         <pre class="log log--inline">{{ p.errors[-5:]|join('\n') }}</pre>
       {% endcall %}
     {% endif %}
+
+    <dl class="transfer-stats">
+      <div><dt>Rychlost</dt><dd>{% if p.speed %}{{ p.speed|filesize }}/s{% else %}—{% endif %}</dd></div>
+      <div><dt>Uplynulo</dt><dd>{{ p.elapsed|duration }}</dd></div>
+      <div><dt>Zbývá</dt><dd>{% if p.eta is not none %}~ {{ p.eta|duration }}{% else %}—{% endif %}</dd></div>
+      <div{% if p.failed %} class="is-error"{% endif %}><dt>Chyby</dt><dd>{{ p.failed|number }}</dd></div>
+    </dl>
   </div>
 </section>
 {% elif last_transfer %}

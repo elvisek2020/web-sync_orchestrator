@@ -28,14 +28,14 @@
       <span class="badge">{{ icon('clock', 12) }}Čeká ve frontě</span>
     {% else %}
       <span class="badge badge--accent"><span class="pulse-dot" aria-hidden="true"></span>Skenuje</span>
-      <span class="text-sm">{{ side.progress.files|number }} souborů · {{ side.progress.bytes|filesize }} · {{ side.progress.elapsed|duration }}</span>
+      <span class="text-sm">{{ side.progress.files|cz_plural('soubor', 'soubory', 'souborů') }} · {{ side.progress.bytes|filesize }} · {{ side.progress.elapsed|duration }}</span>
     {% endif %}
   </div>
   {% endif %}
   <div class="side-status-row">
     {% if side.current %}
       <span class="text-sm{% if side.running %} text-muted{% endif %}" title="{{ side.current.finished_at|cz_datetime }}">
-        {% if side.running %}naposledy {% endif %}{{ side.current.finished_at|age }} · {{ side.current.total_files|number }} souborů · {{ side.current.total_size|filesize }}
+        {% if side.running %}naposledy {% endif %}{{ side.current.finished_at|age }} · {{ side.current.total_files|cz_plural('soubor', 'soubory', 'souborů') }} · {{ side.current.total_size|filesize }}
       </span>
     {% elif not side.running %}
       <span class="text-sm text-muted">Zatím nenaskenováno</span>

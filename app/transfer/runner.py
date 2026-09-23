@@ -47,6 +47,7 @@ class TransferProgress:
     deleted: int = 0
     failed: int = 0
     current: str = ""
+    current_no: int = 0           # pořadí právě zpracovávané položky (1…) v aktuální fázi
     current_size: int = 0
     current_done: int = 0
     phase: str = "Připojuji se…"
@@ -193,8 +194,9 @@ class TransferRunner:
             target.connect()
             failures_in_row = 0
 
-            for item in deletions:                       # nejdřív mazání — je rychlé a uvolní místo
+            for no, item in enumerate(deletions, 1):     # nejdřív mazání — je rychlé a uvolní místo
                 progress.check_cancel()
+                progress.current_no = no
                 rel = as_str(item.tgt.path)
                 progress.phase, progress.current, progress.current_size, progress.current_done = "Mažu", rel, 0, 0
                 try:
@@ -216,8 +218,9 @@ class TransferRunner:
                     if failures_in_row >= MAX_FAILURES_IN_ROW:
                         raise RuntimeError(f"{failures_in_row} chyb za sebou — přenos ukončen: {e}")
 
-            for item in uploads:
+            for no, item in enumerate(uploads, 1):
                 progress.check_cancel()
+                progress.current_no = no
                 rel = as_str(item.src.path)
                 try:
                     rec = self._upload(target, source_root, item, rel, progress)

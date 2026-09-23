@@ -146,7 +146,7 @@
       {% set tp = st.transfer.progress %}
       <p class="scan-caption" aria-live="polite">
         <span class="pulse-dot" aria-hidden="true"></span>
-        Přímý přenos na NAS2 · {{ tp.percent|round|int }} % · {{ tp.files_done|number }} z {{ tp.files_total|number }} souborů{% if tp.speed %} · {{ tp.speed|filesize }}/s{% endif %}{% if tp.eta is not none %} · zbývá ~{{ tp.eta|duration }}{% endif %}
+        Přímý přenos na NAS2 · {{ tp.percent|round|int }} % · {{ tp.files_done|number }} z {{ tp.files_total|cz_plural('souboru', 'souborů', 'souborů') }}{% if tp.speed %} · {{ tp.speed|filesize }}/s{% endif %}{% if tp.eta is not none %} · zbývá ~{{ tp.eta|duration }}{% endif %}
       </p>
       {% endif %}
 

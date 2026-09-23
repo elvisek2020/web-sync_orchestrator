@@ -174,15 +174,18 @@ def test_pages_render_while_transfer_runs(temp_db):
         client.post("/pary/1/aktualizovat", data={"next": "/"})
         wait_for_scans()
         progress = TransferProgress(files_total=3, bytes_total=1000, delete_total=2, files_done=1, bytes_done=400,
-                                    current="Seriál/díl 2.mkv", current_size=500, current_done=100, phase="Nahrávám")
+                                    current="Seriál/díl 2.mkv", current_no=2, current_size=500, current_done=100,
+                                    phase="Nahrávám")
         progress.samples.extend([(time.monotonic() - 2, 0), (time.monotonic(), 400)])
         transfer_runner._active[1] = ActiveTransfer(99, 1, progress)          # simulace běžícího přenosu
         try:
             overview = client.get("/").text
             assert "Přímý přenos na NAS2 · 40 %" in overview and "Přenos 40 %" in overview
             detail = client.get("/pary/1").text
-            assert "Zrušit přenos" in detail and "40,0 %" in detail and "Seriál/díl 2.mkv" in detail
-            assert "20 % · 100 B z 500 B" in detail and "Rychlost" in detail
+            assert "Zrušit přenos" in detail and "40,0 %" in detail and 'title="Seriál/díl 2.mkv"' in detail
+            assert "2 z 3" in detail and "<strong>20 %</strong> · 100 B z 500 B" in detail
+            # aktuální soubor, pak celkový průběh, souhrnné boxy až dole
+            assert detail.index("transfer-bar-u2") < detail.index("transfer-bar-total") < detail.index("Rychlost")
             panel = client.get("/pary/1/prenos", headers={"HX-Request": "true"})
             assert panel.status_code == 200 and 'hx-trigger="every 1s"' in panel.text
             r = client.post("/pary/1/aktualizovat", data={"next": "/pary/1"}, follow_redirects=False)

@@ -98,7 +98,7 @@
             <span class="link-icon">{{ icon('file', 18) }}</span>
             <span class="list-row-main">
               <span class="list-row-title">{{ 'Zdroj' if scan.side == 'source' else 'Cíl' }} · sken #{{ scan.id }}</span>
-              <span class="list-row-meta">{{ (scan.finished_at or scan.started_at or scan.created_at)|cz_datetime }} · {{ scan.total_files|number }} souborů · {{ scan.total_size|filesize }}</span>
+              <span class="list-row-meta">{{ (scan.finished_at or scan.started_at or scan.created_at)|cz_datetime }} · {{ scan.total_files|cz_plural('soubor', 'soubory', 'souborů') }} · {{ scan.total_size|filesize }}</span>
             </span>
             {% if scan.status == 'done' %}<span class="badge badge--success">Platný</span>
             {% elif scan.status == 'running' %}<span class="badge badge--accent">Běží</span>

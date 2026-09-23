@@ -23,7 +23,7 @@ from .state import PairState, load_overview
 
 router = APIRouter(tags=["pairs"])
 
-PAGE_SIZE = 200
+PAGE_SIZE = 50
 TABS = [
     ("copy", "Kopírovat"),
     ("conflict", "Konflikty"),

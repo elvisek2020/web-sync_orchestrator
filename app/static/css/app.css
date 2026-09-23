@@ -2033,8 +2033,6 @@ a.tag:hover {
     color: var(--color-error);
 }
 
-}
-
 .progress {
     flex: 1;
     height: 8px;
@@ -3084,26 +3082,99 @@ details.card[open] > .summary-toggle {
 /* ------------------------------------------------------------------------
    Přímý přenos: panel průběhu v detailu páru
    ------------------------------------------------------------------------ */
+.transfer-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+}
+
 .transfer-row {
     display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
-    gap: var(--space-2);
+    gap: var(--space-3);
+    min-width: 0;
     margin-bottom: var(--space-2);
+}
+
+.transfer-file {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.transfer-count {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: var(--radius-pill);
+    background: var(--color-surface-2);
+    color: var(--color-text-2);
+    font-size: 0.8rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* cesta na jeden řádek: když se nevejde, zkracuje se nejdřív složka, název souboru zůstane */
+.transfer-path {
+    display: flex;
+    min-width: 0;
+}
+
+.transfer-path-dir,
+.transfer-path-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.transfer-path-dir {
+    min-width: 0;
+    color: var(--color-text-light);
+}
+
+.transfer-path-name {
+    flex: none;
+    max-width: 100%;
+    font-weight: 600;
+}
+
+.transfer-meta {
+    flex: none;
+    color: var(--color-text-light);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.transfer-meta strong {
+    color: var(--color-text);
+}
+
+.transfer-total {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+}
+
+.transfer-label,
+.transfer-stats dt {
+    color: var(--color-text-light);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 
 .transfer-pct {
     font-size: 1.5rem;
-    line-height: 1.2;
-}
-
-.transfer-file-name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
 }
 
 .progress--lg {
@@ -3116,8 +3187,18 @@ details.card[open] > .summary-toggle {
     transition: width 0.95s linear;   /* plynule mezi obnovami panelu (každou sekundu) */
 }
 
-.transfer-card .progress-bar--file {
-    background: color-mix(in srgb, var(--color-primary) 60%, var(--color-surface-3));
+.transfer-card .progress--file .progress-bar {
+    background: color-mix(in srgb, var(--color-primary) 55%, var(--color-surface-3));
+}
+
+@media (max-width: 640px) {
+    .transfer-row {
+        flex-wrap: wrap;
+    }
+
+    .transfer-file {
+        flex-basis: 100%;
+    }
 }
 
 .transfer-stats {
@@ -3132,16 +3213,13 @@ details.card[open] > .summary-toggle {
     background: var(--color-surface-2);
 }
 
-.transfer-stats dt {
-    color: var(--color-text-light);
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-
 .transfer-stats dd {
     margin: 0;
     font-size: 1.05rem;
     font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.transfer-stats .is-error dd {
+    color: var(--color-error);
 }

@@ -12,7 +12,7 @@
           {% else %}<span class="badge badge--error">Selhal</span>{% endif %}
         </dd></div>
         {% if job %}
-          <div class="meta-item"><dt>Průběh</dt><dd>{{ job.progress.files|number }} souborů · {{ job.progress.bytes|filesize }} · {{ job.progress.dirs|number }} složek</dd></div>
+          <div class="meta-item"><dt>Průběh</dt><dd>{{ job.progress.files|cz_plural('soubor', 'soubory', 'souborů') }} · {{ job.progress.bytes|filesize }} · {{ job.progress.dirs|cz_plural('složka', 'složky', 'složek') }}</dd></div>
           <div class="meta-item"><dt>Právě</dt><dd class="path">{{ job.progress.current }}</dd></div>
           <div class="meta-item"><dt>Běží</dt><dd>{{ job.progress.elapsed|duration }}</dd></div>
         {% else %}

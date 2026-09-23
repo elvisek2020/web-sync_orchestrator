@@ -4,7 +4,7 @@
 {% else %}
 <div class="stack">
   {% if job %}
-    <p class="text-sm">Sken právě běží — {{ job.progress.files|number }} souborů, {{ job.progress.elapsed|duration }}. <a href="/skeny/{{ scan.id }}">Sledovat průběh</a></p>
+    <p class="text-sm">Sken právě běží — {{ job.progress.files|cz_plural('soubor', 'soubory', 'souborů') }}, {{ job.progress.elapsed|duration }}. <a href="/skeny/{{ scan.id }}">Sledovat průběh</a></p>
   {% elif scan.error %}
     {% call alert('error') %}<pre class="log log--inline">{{ scan.error }}</pre>{% endcall %}
   {% endif %}
