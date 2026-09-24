@@ -2,27 +2,6 @@
 {% from "_macros.html" import alert, side_status %}
 <div id="overview" class="stack-lg" {% if ov.busy %}hx-get="/" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
 
-  <section class="card">
-    <div class="card-body disk-summary">
-      <span class="disk-summary-icon">{{ icon('hard-drive', 22) }}</span>
-      {% if ov.capacity %}
-        {% set used_pct = (ov.allocated * 100 / ov.capacity)|round(0, 'floor')|int %}
-        <div class="disk-summary-main">
-          <div class="cluster">
-            <strong>Disk {{ ov.capacity|filesize }}</strong>
-            <span class="text-sm text-muted">přiděleno {{ ov.allocated|filesize }} · volno {{ (ov.capacity - ov.allocated)|filesize }}{% if ov.deferred %} · odloženo {{ ov.deferred|filesize }}{% endif %}</span>
-          </div>
-          <div class="progress mt-2"><div class="progress-bar" style="width: {{ [used_pct, 100]|min }}%"></div></div>
-        </div>
-      {% else %}
-        <div class="disk-summary-main">
-          <strong>Kapacita disku není nastavená</strong>
-          <span class="text-sm text-muted">— plán vezme všechno. <a href="/nastaveni#disk">Nastavit kapacitu</a></span>
-        </div>
-      {% endif %}
-    </div>
-  </section>
-
   {% for st in ov.pairs %}
   {% set pair = st.pair %}
   {% set plan = st.plan %}
@@ -146,7 +125,7 @@
       {% set tp = st.transfer.progress %}
       <p class="scan-caption" aria-live="polite">
         <span class="pulse-dot" aria-hidden="true"></span>
-        Přímý přenos na NAS2 · {{ tp.percent|round|int }} % · {{ tp.files_done|number }} z {{ tp.files_total|cz_plural('souboru', 'souborů', 'souborů') }}{% if tp.speed %} · {{ tp.speed|filesize }}/s{% endif %}{% if tp.eta is not none %} · zbývá ~{{ tp.eta|duration }}{% endif %}
+        {{ st.transfer.label }}{% if st.transfer.kind == 'direct' %} na NAS2{% endif %} · {{ tp.percent|round|int }} % · {{ tp.files_done|number }} z {{ tp.files_total|cz_plural('souboru', 'souborů', 'souborů') }}{% if tp.speed %} · {{ tp.speed|filesize }}/s{% endif %}{% if tp.eta is not none %} · zbývá ~{{ tp.eta|duration }}{% endif %}
       </p>
       {% endif %}
 

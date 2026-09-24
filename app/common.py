@@ -23,7 +23,19 @@ FLASH_MESSAGES = {
     "direct_busy": ("error", "Pár se právě skenuje nebo přenáší — počkej na dokončení."),
     "direct_local_only": ("error", "Přímý přenos jde jen z lokálně připojeného zdroje."),
     "direct_cancelled": ("info", "Přenos se ruší — rozpracovaný soubor příště naváže."),
-    "transfer_running": ("info", "Probíhá přímý přenos — pár se teď neskenuje."),
+    "transfer_cancelled": ("info", "Přenos se ruší — rozpracovaný soubor příště naváže."),
+    "transfer_busy": ("error", "Pár se právě skenuje nebo přenáší — počkej na dokončení."),
+    "transfer_running": ("info", "Probíhá přenos — pár se teď neskenuje."),
+    "disk_started": ("success", "Přenos na disk spuštěn."),
+    "disk_nothing": ("error", "Na disk není co kopírovat."),
+    "disk_busy": ("error", "Na disk se právě kopíruje jiný pár — počkej na dokončení."),
+    "disk_not_mounted": ("error", "Disk není do kontejneru připojený (DISK_PATH) — přenos na disk nejde spustit."),
+    "disk_readonly": ("error", "Disk je do kontejneru připojený jen pro čtení — v docker-compose u /mnt/disk "
+                               "odeber „:ro“ a kontejner znovu vytvoř."),
+    "disk_suspicious": ("error", "Připojený „disk“ má méně než 20 GB — nejspíš to není přenosový disk. "
+                                 "Zkontroluj připojení."),
+    "disk_full": ("error", "Na disku není dost volného místa — uvolni ho (třeba data z minulého kola), "
+                           "nebo v Nastavení sniž kapacitu disku."),
     "host_in_use": ("error", "Host používá některý pár — nejdřív pár upravte nebo smažte."),
 }
 

@@ -1,5 +1,17 @@
 {% from "_icons.html" import icon %}
 {% from "_macros.html" import empty_state %}
+{#- Záhlaví sloupce s řazením: 1. klik vzestupně, 2. klik sestupně (celý seznam na serveru, ne jen stránka) -#}
+{% macro sort_th(key, label, pair, tab, q, sort, cls='') %}
+  {%- set asc = sort == key %}{% set desc = sort == '-' ~ key %}
+  {%- set url = '/pary/' ~ pair.id ~ '?tab=' ~ tab ~ ('&q=' ~ (q|urlencode) if q else '') ~ '&sort=' ~ ('-' ~ key if asc else key) %}
+  <th class="{{ cls }}" {% if asc %}aria-sort="ascending"{% elif desc %}aria-sort="descending"{% endif %}>
+    <a class="th-sort{% if asc or desc %} is-active{% endif %}" href="{{ url }}"
+       hx-get="{{ url }}" hx-target="#pair-files" hx-swap="outerHTML" hx-push-url="true"
+       title="Seřadit {{ 'sestupně' if asc else 'vzestupně' }}">
+      {{- label }}{{ icon('arrow-down' if desc else 'arrow-up', 12) -}}
+    </a>
+  </th>
+{%- endmacro %}
 {% set selectable = tab != 'problems' %}
 {% set can_direct = st.direct_supported and tab in ('copy', 'conflict', 'extra', 'deferred') %}
 {# akce nad označenými soubory podle záložky: (akce, text, ikona) #}
@@ -14,6 +26,8 @@
   {% set bulk_action, bulk_label, bulk_text, bulk_title = 'skip', 'Vyřadit vše', 'se vyřadí z plánu (i pro další skeny).', 'Vyřadit soubory?' %}
 {% endif %}
 <div id="pair-files" class="stack" data-selection>
+  {# aktuální řazení pro hledání a volby páru (hx-include="#files-sort") #}
+  <input type="hidden" id="files-sort" name="sort" value="{{ sort }}">
   <div class="files-toolbar">
     <span class="text-sm">
       <strong>{{ total|cz_plural('soubor', 'soubory', 'souborů') }}</strong> · {{ total_size|filesize }}{% if q %} · filtr „{{ q }}“{% endif %}
@@ -42,6 +56,7 @@
             <input type="hidden" name="action" value="{{ bulk_action }}">
             <input type="hidden" name="tab" value="{{ tab }}">
             <input type="hidden" name="q" value="{{ q }}">
+            <input type="hidden" name="sort" value="{{ sort }}">
             <button type="submit" class="menu-item">{{ icon(sel_icon, 16) }}{{ bulk_label }} ({{ total|number }})</button>
           </form>
           {% if can_direct %}
@@ -51,6 +66,7 @@
             <input type="hidden" name="action" value="direct">
             <input type="hidden" name="tab" value="{{ tab }}">
             <input type="hidden" name="q" value="{{ q }}">
+            <input type="hidden" name="sort" value="{{ sort }}">
             <button type="submit" class="menu-item">{{ icon('upload', 16) }}Vše k přímému přenosu ({{ total|number }})</button>
           </form>
           {% endif %}
@@ -58,7 +74,7 @@
       </details>
       {% endif %}
       {% if total %}
-      <a class="btn btn-ghost btn-sm" href="/pary/{{ pair.id }}/export.csv?tab={{ tab }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">{{ icon('download', 14) }}CSV</a>
+      <a class="btn btn-ghost btn-sm" href="/pary/{{ pair.id }}/export.csv?tab={{ tab }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}{% if sort %}&amp;sort={{ sort }}{% endif %}">{{ icon('download', 14) }}CSV</a>
       {% endif %}
     </div>
   </div>
@@ -68,13 +84,14 @@
     <input type="hidden" name="tab" value="{{ tab }}">
     <input type="hidden" name="q" value="{{ q }}">
     <input type="hidden" name="page" value="{{ page }}">
+    <input type="hidden" name="sort" value="{{ sort }}">
     <div class="table-wrap">
       <table class="table table--compact">
         <thead>
           <tr>
             {% if selectable %}<th class="col-check"><input type="checkbox" data-check-all aria-label="Označit vše na stránce" title="Označit vše na stránce"></th>{% endif %}
-            <th>Cesta</th>
-            <th class="num">Velikost</th>
+            {{ sort_th('path', 'Cesta', pair, tab, q, sort) }}
+            {{ sort_th('size', 'Velikost', pair, tab, q, sort, 'num') }}
             {% if tab == 'conflict' %}<th class="num hide-mobile">Na NAS2</th>{% endif %}
             {% if tab == 'problems' %}<th class="hide-mobile">Proč</th>{% endif %}
           </tr>
@@ -108,8 +125,8 @@
       {% if p == page %}
         <span class="chip chip--active" aria-current="page">{{ p }}</span>
       {% elif p <= 2 or p > pages - 2 or (p - page)|abs <= 2 %}
-        <a class="chip" href="/pary/{{ pair.id }}?tab={{ tab }}&amp;page={{ p }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}"
-           hx-get="/pary/{{ pair.id }}?tab={{ tab }}&amp;page={{ p }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}"
+        <a class="chip" href="/pary/{{ pair.id }}?tab={{ tab }}&amp;page={{ p }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}{% if sort %}&amp;sort={{ sort }}{% endif %}"
+           hx-get="/pary/{{ pair.id }}?tab={{ tab }}&amp;page={{ p }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}{% if sort %}&amp;sort={{ sort }}{% endif %}"
            hx-target="#pair-files" hx-swap="outerHTML" hx-push-url="true">{{ p }}</a>
       {% elif p == 3 or p == pages - 2 %}
         <span class="text-muted">…</span>

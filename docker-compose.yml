@@ -20,6 +20,8 @@ services:
       - ./data:/data
       # NAS1 — jen pro čtení. Uprav cestu podle svého systému (např. /share na QNAP).
       - /share:/mnt/nas1:ro
+      # Volitelně: přenosový disk (Přenos na disk, načtení volného místa) — pro zápis, bez :ro
+      # - /volumeUSB1/usbshare:/mnt/disk
     # Pokud uživatel UID 1000 nemá právo číst všechny složky NAS1, sken skončí chybou
     # „Nelze přečíst složku…“. Pak spusť kontejner jako root:
     # user: "0:0"

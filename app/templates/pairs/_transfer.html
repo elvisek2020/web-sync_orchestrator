@@ -9,11 +9,12 @@
          hx-get="/pary/{{ pair.id }}/prenos" hx-trigger="every 1s" hx-swap="outerHTML">
   <div class="card-header">
     <div>
-      <h2 class="card-title">Přímý přenos na NAS2</h2>
+      <h2 class="card-title">{{ job.label }}{% if job.kind == 'direct' %} na NAS2{% endif %}</h2>
       <p class="card-subtitle">
         {%- if cancelling %}Ruší se — rozpracovaný soubor příště naváže
         {%- elif deleting %}Mažu přebývající soubory
         {%- elif p.phase == 'Nahrávám' %}Nahrávám soubory
+        {%- elif p.phase == 'Kopíruji' %}Kopíruji na disk · {{ job.dest }}
         {%- else %}{{ p.phase }}{% endif -%}
       </p>
     </div>
@@ -27,7 +28,7 @@
           {% if p.current %}
             {% set fdir, sep, fname = p.current.rpartition('/') %}
             <span class="transfer-count" title="{{ 'Mazání' if deleting else 'Soubor' }} {{ p.current_no }} z {{ p.delete_total if deleting else p.files_total }}">
-              {{- icon('trash' if deleting else 'upload', 12) }}{{ p.current_no|number }} z {{ (p.delete_total if deleting else p.files_total)|number -}}
+              {{- icon('trash' if deleting else ('hard-drive' if job.kind == 'disk' else 'upload'), 12) }}{{ p.current_no|number }} z {{ (p.delete_total if deleting else p.files_total)|number -}}
             </span>
             <span class="transfer-path" title="{{ p.current }}">
               {%- if fdir %}<span class="transfer-path-dir">{{ fdir }}/</span>{% endif -%}
@@ -80,32 +81,85 @@
     </dl>
   </div>
 </section>
-{% elif last_transfer %}
-{% set t = last_transfer %}
-<details class="card" id="transfer-panel">
+{% else %}
+{% for t in last_transfers %}
+{% set is_disk = t.kind == 'disk' %}
+{% if t.status == 'done' and not t.failed %}{% set b_cls, b_text, b_ok = 'badge--success', 'Hotovo', true %}
+{% elif t.status == 'done' %}{% set b_cls, b_text, b_ok = 'badge--warn', 'Hotovo s chybami', false %}
+{% elif t.status == 'cancelled' %}{% set b_cls, b_text, b_ok = 'badge--warn', 'Zrušen', false %}
+{% else %}{% set b_cls, b_text, b_ok = 'badge--error', 'Selhal', false %}{% endif %}
+<details class="card" id="transfer-last-{{ t.kind }}">
   <summary class="card-header summary-toggle">
     <div>
-      <h2 class="card-title">Poslední přímý přenos</h2>
+      <h2 class="card-title">{{ 'Poslední přenos na disk' if is_disk else 'Poslední přímý přenos' }}</h2>
       <p class="card-subtitle">
         {{ (t.finished_at or t.created_at)|cz_datetime }} ·
-        nahráno {{ t.files_done|number }} z {{ t.files_total|number }} ({{ t.bytes_done|filesize }}){% if t.delete_total %} · smazáno {{ t.deleted|number }} z {{ t.delete_total|number }}{% endif %}{% if t.failed %} · chyby {{ t.failed|number }}{% endif %}
+        {{ 'zkopírováno' if is_disk else 'nahráno' }} {{ t.files_done|number }} z {{ t.files_total|number }} ({{ t.bytes_done|filesize }}){% if t.delete_total %} · smazáno {{ t.deleted|number }} z {{ t.delete_total|number }}{% endif %}{% if t.failed %} · chyby {{ t.failed|number }}{% endif %}
       </p>
     </div>
     <span class="cluster">
-      {% if t.status == 'done' and not t.failed %}<span class="badge badge--success">{{ icon('check', 12) }}Hotovo</span>
-      {% elif t.status == 'done' %}<span class="badge badge--warn">Hotovo s chybami</span>
-      {% elif t.status == 'cancelled' %}<span class="badge badge--warn">Zrušen</span>
-      {% else %}<span class="badge badge--error">Selhal</span>{% endif %}
+      {# stav je zároveň tlačítko: kliknutím se karta odebere; šipka ji rozbalí #}
+      <form method="post" action="/pary/{{ pair.id }}/prenosy/{{ t.id }}/odebrat"
+            hx-post="/pary/{{ pair.id }}/prenosy/{{ t.id }}/odebrat" hx-target="#transfer-last-{{ t.kind }}" hx-swap="outerHTML">
+        <button type="submit" class="badge {{ b_cls }} badge-dismiss" title="Odebrat kartu — přenos už nebude vidět"
+                aria-label="{{ b_text }} — odebrat kartu">
+          {% if b_ok %}{{ icon('check', 12) }}{% endif %}{{ b_text }}{{ icon('x', 12) }}
+        </button>
+      </form>
       {{ icon('chevron-down', 18) }}
     </span>
   </summary>
   <div class="card-body stack">
-    {% if t.status == 'cancelled' %}
-      {{ alert('info', 'Přenos byl zrušen. Soubory, které se nestihly, zůstaly v záložce Přímý přenos — rozpracovaný soubor při dalším spuštění naváže.') }}
+    {% if is_disk and t.status == 'done' and not t.failed %}
+      {% call alert('success') %}
+        Disk je připravený. Je na něm i skript <strong>{{ script_name }}</strong> — disk připoj k NAS2 (nebo k Macu) a spusť:
+        <pre class="log log--inline">bash {{ script_name }} to-nas &lt;kořen disku&gt; &lt;složka na NAS2&gt;</pre>
+      {% endcall %}
+    {% elif t.status == 'cancelled' %}
+      {% if is_disk %}
+        {{ alert('info', 'Přenos byl zrušen. Při dalším spuštění naváže — soubory, které už na disku jsou, se přeskočí. Manifest .sync-plan se zapíše až po dokončení.') }}
+      {% else %}
+        {{ alert('info', 'Přenos byl zrušen. Soubory, které se nestihly, zůstaly v záložce Přímý přenos — rozpracovaný soubor při dalším spuštění naváže.') }}
+      {% endif %}
     {% elif t.error %}
       {% call alert('error' if t.status == 'failed' else 'warn') %}<pre class="log log--inline">{{ t.error }}</pre>{% endcall %}
     {% endif %}
+
+    {% if t['items'] %}
+    {% set ok_label = 'Zkopírováno' if is_disk else 'Nahráno' %}
+    <div class="table-wrap transfer-results">
+      <table class="table table--compact">
+        <thead>
+          <tr><th>Datum a čas</th><th>Soubor</th><th>Stav</th></tr>
+        </thead>
+        <tbody>
+          {% for ts, path, status, detail in t['items'][:1000] %}
+          <tr>
+            <td class="transfer-results-time">{{ ts|cz_datetime(true) }}</td>
+            <td class="path">{{ path }}{% if detail %}<div class="transfer-results-detail">{{ detail }}</div>{% endif %}</td>
+            <td>
+              {%- if status == 'ok' %}<span class="badge badge--success">{{ icon('check', 12) }}{{ ok_label }}</span>
+              {%- elif status == 'deleted' %}<span class="badge badge--success">{{ icon('check', 12) }}Smazáno</span>
+              {%- elif status == 'skipped' %}<span class="badge" title="Soubor už na cíli celý byl — nekopíroval se znovu">Už na cíli</span>
+              {%- elif status == 'gone' %}<span class="badge" title="Soubor ke smazání už na cíli nebyl">Už neexistoval</span>
+              {%- else %}<span class="badge badge--error">{{ icon('alert', 12) }}Chyba</span>{% endif -%}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if t['items']|length > 1000 %}<p class="text-sm text-muted">Zobrazeno prvních 1 000 z {{ t['items']|length|number }} položek.</p>{% endif %}
+    {% if t.log %}
+    <details class="transfer-log">
+      <summary class="text-sm text-muted">Podrobný log</summary>
+      <pre class="log">{{ t.log }}</pre>
+    </details>
+    {% endif %}
+    {% else %}
     <pre class="log">{{ t.log or 'Log je prázdný.' }}</pre>
+    {% endif %}
   </div>
 </details>
+{% endfor %}
 {% endif %}

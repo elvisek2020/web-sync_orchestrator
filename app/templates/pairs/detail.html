@@ -19,12 +19,13 @@
     {% else %}
     <form method="post" action="/pary/{{ pair.id }}/aktualizovat">
       <input type="hidden" name="next" value="{{ back }}">
-      <button type="submit" class="btn btn-outline" {% if st.transferring %}disabled title="Během přímého přenosu se pár neskenuje"{% endif %}>{{ icon('refresh', 18) }}Aktualizovat</button>
+      <button type="submit" class="btn btn-outline" {% if st.transferring %}disabled title="Během přenosu se pár neskenuje"{% endif %}>{{ icon('refresh', 18) }}Aktualizovat</button>
     </form>
     {% endif %}
-    {% with oob = false %}{% include "pairs/_direct_button.html" %}{% endwith %}
+    {% with oob = false %}{% include "pairs/_transfer_buttons.html" %}{% endwith %}
     {% if plan and pair.on_disk %}
-      <a href="/pary/{{ pair.id }}/skript" class="btn btn-primary" download>{{ icon('download', 18) }}Stáhnout skript</a>
+      {# s připojeným diskem je hlavní cesta Přenos na disk (skript se uloží na disk), jinak skript #}
+      <a href="/pary/{{ pair.id }}/skript" class="btn {{ 'btn-outline' if disk_available else 'btn-primary' }}" download>{{ icon('download', 18) }}Stáhnout skript</a>
     {% endif %}
   </div>
 </div>
@@ -43,7 +44,7 @@
     </div>
   </section>
 
-  {% if job or last_transfer %}
+  {% if job or last_transfers %}
     {% include "pairs/_transfer.html" %}
   {% endif %}
 
@@ -66,7 +67,8 @@
       {{ icon('chevron-down', 18) }}
     </summary>
     <form method="post" action="/pary/{{ pair.id }}/volby" class="card-body stack"
-          hx-post="/pary/{{ pair.id }}/volby" hx-trigger="change" hx-target="#pair-body" hx-swap="outerHTML">
+          hx-post="/pary/{{ pair.id }}/volby" hx-trigger="change" hx-target="#pair-body" hx-swap="outerHTML"
+          hx-include="#files-sort">
       <input type="hidden" name="tab" value="{{ tab }}">
       <div class="check-list">
         <label class="check-row">

@@ -18,6 +18,7 @@ from app.core.excludes import DEFAULT_EXCLUDE_PATTERNS, parse_patterns
 from app.scan.common import ScanError, cz_items
 from app.scan.sftp import SftpSession, test_connection
 from app.templates_engine import templates
+from app.transfer.disk import disk_info, usable_capacity  # noqa: F401 — usable_capacity i pro testy
 
 from . import db as settings_db
 
@@ -27,35 +28,6 @@ router = APIRouter(tags=["settings"])
 
 def _default_excludes_text() -> str:
     return db.get_setting("default_excludes", "\n".join(DEFAULT_EXCLUDE_PATTERNS))
-
-
-DISK_MIN_PLAUSIBLE = 20 * 10**9  # menší „disk“ je nejspíš prázdná složka na systémovém oddílu NASu
-
-
-DISK_RESERVE_RATIO = 0.01          # rezerva: exFAT zabírá víc než součet velikostí, Synology zapisuje @eaDir
-DISK_RESERVE_MIN = 10**9            # nejméně 1 GB
-
-
-def usable_capacity(free: int) -> int:
-    """Kapacita pro plán = volné místo minus rezerva, zaokrouhleno dolů na celé GB."""
-    reserve = max(int(free * DISK_RESERVE_RATIO), DISK_RESERVE_MIN)
-    return max(free - reserve, 0) // 10**9 * 10**9
-
-
-def disk_info() -> dict:
-    """Volné místo na přenosovém disku připojeném do kontejneru (DISK_PATH)."""
-    path = settings.disk_path
-    info = {"path": str(path), "mounted": False, "free": 0, "total": 0, "usable": 0, "suspicious": False}
-    if not path.is_dir():
-        return info
-    try:
-        st = os.statvfs(path)
-    except OSError:
-        return info
-    info.update(mounted=True, free=st.f_bavail * st.f_frsize, total=st.f_blocks * st.f_frsize)
-    info["usable"] = usable_capacity(info["free"])
-    info["suspicious"] = info["total"] < DISK_MIN_PLAUSIBLE
-    return info
 
 
 @router.get("/nastaveni", response_class=HTMLResponse)

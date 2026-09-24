@@ -181,6 +181,7 @@ SCHEMA_STATEMENTS = [
     CREATE TABLE IF NOT EXISTS transfers (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
         pair_id      INTEGER NOT NULL REFERENCES pairs(id) ON DELETE CASCADE,
+        kind         TEXT NOT NULL DEFAULT 'direct',   -- direct = NAS → NAS, disk = NAS → disk
         status       TEXT NOT NULL,
         created_at   TEXT NOT NULL,
         finished_at  TEXT NULL,
@@ -192,7 +193,8 @@ SCHEMA_STATEMENTS = [
         deleted      INTEGER NOT NULL DEFAULT 0,
         failed       INTEGER NOT NULL DEFAULT 0,
         error        TEXT NULL,
-        log          TEXT NULL
+        log          TEXT NULL,
+        results      TEXT NULL                          -- JSON: jak dopadl každý soubor
     )
     """,
     """
@@ -245,7 +247,23 @@ def init_db() -> None:
     with write_tx() as conn:
         for stmt in SCHEMA_STATEMENTS:
             conn.execute(text(stmt))
+        _add_missing_columns(conn)
     logger.info("Databáze připravena: %s", get_engine().url.database)
+
+
+# Sloupce přidané po prvním nasazení: (tabulka, sloupec, definice).
+ADDED_COLUMNS = [
+    ("transfers", "kind", "TEXT NOT NULL DEFAULT 'direct'"),
+    ("transfers", "results", "TEXT NULL"),
+]
+
+
+def _add_missing_columns(conn) -> None:
+    for table, column, definition in ADDED_COLUMNS:
+        existing = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
+        if column not in existing:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
+            logger.info("Databáze: přidán sloupec %s.%s", table, column)
 
 
 # --- Nastavení (key/value) ---

@@ -136,7 +136,7 @@ def test_options_autosave_and_cancel_pair(client, temp_db):
 
 
 def test_disk_capacity_keeps_reserve():
-    from app.apps.settings.routers import usable_capacity
+    from app.transfer.disk import usable_capacity
 
     assert usable_capacity(513_054_605_312) == 507 * 10**9     # 1 % rezerva
     assert usable_capacity(50 * 10**9) == 49 * 10**9            # nejméně 1 GB
@@ -153,3 +153,36 @@ def test_stylesheet_braces_are_balanced():
         depth += line.count("{") - line.count("}")
         assert depth >= 0, f"přebytečná závorka na řádku {n}"
     assert depth == 0
+
+
+def test_file_list_sorting(temp_db):
+    root = temp_db
+    write_file(root, "src/Čtyřlístek.mkv", b"x" * 30)
+    write_file(root, "src/cheers.mkv", b"x" * 10)
+    write_file(root, "src/Zorro.mkv", b"x" * 20)
+    (root / "tgt").mkdir()
+    with TestClient(app) as client:
+        client.post("/nastaveni/pary", data={"name": "P", "source_host_id": "", "source_path": "src",
+                                             "target_host_id": "", "target_path": "tgt"})
+        client.post("/pary/1/aktualizovat", data={"next": "/"})
+        wait_for_scans()
+
+        def order(sort: str) -> list[str]:
+            html = client.get(f"/pary/1?tab=copy&sort={sort}").text
+            names = ["cheers.mkv", "Čtyřlístek.mkv", "Zorro.mkv"]
+            return sorted(names, key=lambda n: html.index(f'value="{n}"'))
+
+        assert order("path") == ["cheers.mkv", "Čtyřlístek.mkv", "Zorro.mkv"]   # bez ohledu na velikost písmen a háčky
+        assert order("-path") == ["Zorro.mkv", "Čtyřlístek.mkv", "cheers.mkv"]
+        assert order("size") == ["cheers.mkv", "Zorro.mkv", "Čtyřlístek.mkv"]
+        assert order("-size") == ["Čtyřlístek.mkv", "Zorro.mkv", "cheers.mkv"]
+        html = client.get("/pary/1?tab=copy&sort=size").text
+        assert 'aria-sort="ascending"' in html and "sort=-size" in html            # druhý klik = sestupně
+        assert client.get("/pary/1?tab=copy&sort=nesmysl").status_code == 200    # neznámé řazení = výchozí
+
+        # akce nad výběrem řazení zachová, CSV také řadí
+        r = client.post("/pary/1/vybrane", data={"key": ["Zorro.mkv"], "action": "skip", "tab": "copy",
+                                                 "sort": "-size"}, follow_redirects=False)
+        assert "sort=-size" in r.headers["location"]
+        csv_lines = client.get("/pary/1/export.csv?tab=copy&sort=-path").text.splitlines()[1:]
+        assert [line.split(";")[0] for line in csv_lines] == ["Čtyřlístek.mkv", "cheers.mkv"]

@@ -1,11 +1,14 @@
-"""Přímý přenos NAS → NAS: nahrání označených souborů a smazání označených přebývajících.
+"""Přenosy na pozadí: přímý přenos NAS → NAS (nahrání označených souborů a smazání označených
+přebývajících) a přenos na disk (plán páru do <disk>/<slug>/ místo kroku to-disk skriptu).
 
 Zásady:
 - běží na pozadí ve vlákně; průběh je v paměti (UI se ptá každou sekundu);
 - soubor se nahrává pod dočasným názvem (.jmeno.syncpart) a přejmenuje se až celý —
   na cíli nikdy nezůstane napůl nahraný soubor; přerušené nahrávání příště naváže;
 - chyba jednoho souboru přenos nezastaví, výpadek spojení se zkusí znovu (navázáním);
-- výsledek se promítne do posledního skenu cíle, takže čísla u páru sedí hned.
+- soubor, který už na cíli celý je (navázání po přerušení), se přeskočí;
+- přímý přenos promítne výsledek do posledního skenu cíle, takže čísla u páru sedí hned;
+  přenos na disk uloží na disk i skript a po úplném dokončení manifest .sync-plan.
 """
 from __future__ import annotations
 
@@ -17,12 +20,14 @@ import time
 import traceback
 from collections import deque
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from app import db
 from app.config import settings
 from app.core.keys import FileRec
 from app.core.plan import EXTRA, Item
 
+from . import disk
 from .targets import LocalTarget, SftpTarget, as_str, part_name
 
 logger = logging.getLogger("sync.transfer")
@@ -46,6 +51,7 @@ class TransferProgress:
     bytes_done: int = 0
     deleted: int = 0
     failed: int = 0
+    skipped: int = 0              # už byly na cíli celé (navázání)
     current: str = ""
     current_no: int = 0           # pořadí právě zpracovávané položky (1…) v aktuální fázi
     current_size: int = 0
@@ -56,9 +62,15 @@ class TransferProgress:
     samples: deque = field(default_factory=lambda: deque(maxlen=200))
     log_lines: deque = field(default_factory=lambda: deque(maxlen=2000))
     errors: list = field(default_factory=list)
+    results: list = field(default_factory=list)   # po souborech: [čas ISO, cesta, stav, podrobnost]
 
     def log(self, message: str) -> None:
-        self.log_lines.append(f"{time.strftime('%H:%M:%S')} {message}")
+        now = datetime.now()
+        self.log_lines.append(f"{now.day}. {now.month}. {now:%H:%M:%S} {message}")
+
+    def result(self, path: str, status: str, detail: str = "") -> None:
+        """Jak dopadl soubor: ok | skipped (už na cíli) | deleted | gone (už neexistoval) | error."""
+        self.results.append([datetime.now().isoformat(timespec="seconds"), path, status, detail])
 
     def check_cancel(self) -> None:
         if self.cancel.is_set():
@@ -107,12 +119,21 @@ class TransferProgress:
         return "\n".join(self.log_lines)
 
 
+KIND_LABELS = {"direct": "Přímý přenos", "disk": "Přenos na disk"}
+
+
 @dataclass
 class ActiveTransfer:
     transfer_id: int
     pair_id: int
     progress: TransferProgress
+    kind: str = "direct"                     # direct = NAS → NAS, disk = NAS → přenosový disk
+    dest: str = ""                           # kam se kopíruje (zobrazí se v panelu)
     thread: threading.Thread | None = None
+
+    @property
+    def label(self) -> str:
+        return KIND_LABELS.get(self.kind, "Přenos")
 
 
 def split_items(items: list[Item]) -> tuple[list[Item], list[Item]]:
@@ -134,6 +155,11 @@ class TransferRunner:
         with self._lock:
             return bool(self._active)
 
+    def disk_running(self) -> ActiveTransfer | None:
+        """Přenos na disk, který právě běží (u kteréhokoli páru)."""
+        with self._lock:
+            return next((j for j in self._active.values() if j.kind == "disk"), None)
+
     def cancel(self, pair_id: int) -> bool:
         job = self.active(pair_id)
         if job:
@@ -142,29 +168,74 @@ class TransferRunner:
         return False
 
     def start(self, pair: dict, items: list[Item], target_scan_id: int) -> int | None:
-        """Spustí přenos pro položky páru. None = už běží."""
+        """Přímý přenos NAS → NAS pro označené položky. None = u páru už něco běží."""
         from app.apps.pairs import db as pairs_db
+        from app.apps.pairs.state import invalidate_scan
 
         uploads, deletions = split_items(items)
+
+        def finish(job: ActiveTransfer, status: str, added: list[FileRec], removed_keys: list[str],
+                   done_keys: list[str]) -> None:
+            # co se povedlo, platí i při zrušení / chybě
+            pairs_db.patch_scan(target_scan_id, added=added, removed_keys=removed_keys)
+            pairs_db.set_direct(pair["id"], done_keys, marked=False)
+            invalidate_scan(target_scan_id)
+
+        return self._launch(pair, "direct", uploads, deletions, dest="NAS2",
+                            make_target=lambda: self._make_target(pair), prepare=None, finish=finish)
+
+    def start_disk(self, pair: dict, items: list[Item], *, script_name: str, script_text: str,
+                   plan_hash: str) -> int | None:
+        """Přenos na disk: soubory do <disk>/<slug>/, skript do kořene disku, po úplném dokončení
+        manifest .sync-plan (krok to-nas skriptu ho kontroluje). None = u páru už něco běží,
+        nebo se na disk právě kopíruje jiný pár."""
+        uploads = [i for i in items if i.src is not None]
+        root = disk.pair_dir(pair)
+        manifest = root / disk.MANIFEST
+
+        def prepare(job: ActiveTransfer) -> None:
+            root.mkdir(parents=True, exist_ok=True)
+            script = settings.disk_path / script_name
+            script.write_text(script_text, encoding="utf-8")
+            job.progress.log(f"Skript uložen: {script}")
+            # manifest platí až po úplném přenosu — do té doby to-nas upozorní, že to-disk nedoběhl
+            manifest.unlink(missing_ok=True)
+
+        def finish(job: ActiveTransfer, status: str, added: list[FileRec], removed_keys: list[str],
+                   done_keys: list[str]) -> None:
+            if status == "done" and not job.progress.failed:
+                manifest.write_text(f"PLAN={plan_hash}\nCREATED={time.strftime('%Y-%m-%d %H:%M:%S')}\n",
+                                    encoding="utf-8")
+                job.progress.log(f"Manifest {disk.MANIFEST} zapsán (plán {plan_hash}) — disk je připravený pro to-nas.")
+
+        return self._launch(pair, "disk", uploads, [], dest=str(root),
+                            make_target=lambda: LocalTarget(str(root)), prepare=prepare, finish=finish)
+
+    def _launch(self, pair: dict, kind: str, uploads: list[Item], deletions: list[Item], *, dest: str,
+                make_target, prepare, finish) -> int | None:
+        from app.apps.pairs import db as pairs_db
+
+        bytes_total = sum(i.src.size for i in uploads)
         with self._lock:
             if pair["id"] in self._active:
                 return None
+            if kind == "disk" and any(j.kind == "disk" for j in self._active.values()):
+                return None                          # na disk vždy jen jeden přenos
             transfer_id = pairs_db.create_transfer(
-                pair["id"], files_total=len(uploads), bytes_total=sum(i.src.size for i in uploads),
+                pair["id"], kind=kind, files_total=len(uploads), bytes_total=bytes_total,
                 delete_total=len(deletions),
             )
-            progress = TransferProgress(
-                files_total=len(uploads), bytes_total=sum(i.src.size for i in uploads), delete_total=len(deletions),
-            )
-            job = ActiveTransfer(transfer_id, pair["id"], progress)
+            progress = TransferProgress(files_total=len(uploads), bytes_total=bytes_total,
+                                        delete_total=len(deletions))
+            job = ActiveTransfer(transfer_id, pair["id"], progress, kind=kind, dest=dest)
             job.thread = threading.Thread(
-                target=self._run, args=(job, pair, uploads, deletions, target_scan_id),
+                target=self._run, args=(job, pair, uploads, deletions, make_target, prepare, finish),
                 daemon=True, name=f"transfer-{transfer_id}",
             )
             self._active[pair["id"]] = job
         job.thread.start()
-        logger.info("Přímý přenos #%d (pár %d): %d souborů k nahrání, %d ke smazání",
-                    transfer_id, pair["id"], len(uploads), len(deletions))
+        logger.info("%s #%d (pár %d): %d souborů, %d ke smazání",
+                    job.label, transfer_id, pair["id"], len(uploads), len(deletions))
         return transfer_id
 
     # --- běh ---
@@ -178,9 +249,9 @@ class TransferRunner:
             return SftpTarget(host, pair["target_path"])
         return LocalTarget(str(settings.local_root / pair["target_path"].strip("/")))
 
-    def _run(self, job: ActiveTransfer, pair: dict, uploads: list[Item], deletions: list[Item], scan_id: int) -> None:
+    def _run(self, job: ActiveTransfer, pair: dict, uploads: list[Item], deletions: list[Item],
+             make_target, prepare, finish) -> None:
         from app.apps.pairs import db as pairs_db
-        from app.apps.pairs.state import invalidate_scan
 
         progress = job.progress
         status, error = "failed", None
@@ -190,7 +261,9 @@ class TransferRunner:
         target = None
         source_root = settings.local_root / pair["source_path"].strip("/")
         try:
-            target = self._make_target(pair)
+            if prepare:
+                prepare(job)
+            target = make_target()
             target.connect()
             failures_in_row = 0
 
@@ -201,11 +274,11 @@ class TransferRunner:
                 progress.phase, progress.current, progress.current_size, progress.current_done = "Mažu", rel, 0, 0
                 try:
                     if target.size(rel) is None:
-                        progress.log(f"Už neexistuje: {rel}")
+                        progress.result(rel, "gone")
                     else:
                         target.remove(rel)
                         target.remove_empty_dirs(posixpath.dirname(rel))
-                        progress.log(f"Smazáno: {rel}")
+                        progress.result(rel, "deleted")
                     progress.deleted += 1
                     removed_keys.append(item.key)
                     done_keys.append(item.key)
@@ -214,7 +287,7 @@ class TransferRunner:
                     progress.failed += 1
                     failures_in_row += 1
                     progress.errors.append(f"{rel}: {e}")
-                    progress.log(f"CHYBA mazání {rel}: {e}")
+                    progress.result(rel, "error", f"mazání: {e}")
                     if failures_in_row >= MAX_FAILURES_IN_ROW:
                         raise RuntimeError(f"{failures_in_row} chyb za sebou — přenos ukončen: {e}")
 
@@ -223,9 +296,9 @@ class TransferRunner:
                 progress.current_no = no
                 rel = as_str(item.src.path)
                 try:
-                    rec = self._upload(target, source_root, item, rel, progress)
+                    rec = self._upload(job, target, source_root, item, rel)
                     added.append(rec)
-                    if item.tgt is not None and item.tgt.path != item.src.path:
+                    if job.kind == "direct" and item.tgt is not None and item.tgt.path != item.src.path:
                         # konflikt s jinak zapsaným názvem na cíli (NFC/NFD) — starou verzi odstranit
                         try:
                             target.remove(as_str(item.tgt.path))
@@ -241,7 +314,7 @@ class TransferRunner:
                     progress.failed += 1
                     failures_in_row += 1
                     progress.errors.append(f"{rel}: {e}")
-                    progress.log(f"CHYBA {rel}: {e}")
+                    progress.result(rel, "error", str(e))
                     progress.bytes_done -= progress.current_done          # nezapočítávat nedokončený soubor
                     if failures_in_row >= MAX_FAILURES_IN_ROW:
                         raise RuntimeError(f"{failures_in_row} chyb za sebou — přenos ukončen: {e}")
@@ -257,34 +330,46 @@ class TransferRunner:
                     target.close()
                 except Exception:
                     pass
+            if progress.skipped:
+                progress.log(f"Už bylo na cíli (přeskočeno): {progress.skipped}")
             try:
-                # co se povedlo, platí i při zrušení / chybě
-                pairs_db.patch_scan(scan_id, added=added, removed_keys=removed_keys)
-                pairs_db.set_direct(pair["id"], done_keys, marked=False)
-                invalidate_scan(scan_id)
-            except Exception:
-                logger.exception("Přímý přenos #%d: nepodařilo se promítnout výsledek", job.transfer_id)
+                finish(job, status, added, removed_keys, done_keys)
+            except Exception as e:  # noqa: BLE001
+                logger.exception("%s #%d: nepodařilo se dokončit", job.label, job.transfer_id)
+                progress.log(f"CHYBA při dokončení: {e}")
+                if status == "done":
+                    status, error = "failed", f"Přenos doběhl, ale nepodařilo se ho dokončit: {e}"
             if status == "done" and progress.failed:
                 error = f"{progress.failed} položek se nepodařilo přenést:\n" + "\n".join(progress.errors[:50])
             try:
                 pairs_db.finish_transfer(
                     job.transfer_id, status=status, files_done=progress.files_done, bytes_done=progress.bytes_done,
                     deleted=progress.deleted, failed=progress.failed, error=error, log=progress.log_text(),
+                    results=progress.results,
                 )
             except Exception:
-                logger.exception("Přímý přenos #%d: nepodařilo se zapsat stav", job.transfer_id)
+                logger.exception("%s #%d: nepodařilo se zapsat stav", job.label, job.transfer_id)
             with self._lock:
                 self._active.pop(job.pair_id, None)
-            logger.info("Přímý přenos #%d skončil: %s, nahráno %d, smazáno %d, chyb %d, %.0f s",
-                        job.transfer_id, status, progress.files_done, progress.deleted, progress.failed,
+            logger.info("%s #%d skončil: %s, přeneseno %d, smazáno %d, chyb %d, %.0f s",
+                        job.label, job.transfer_id, status, progress.files_done, progress.deleted, progress.failed,
                         progress.elapsed)
 
-    def _upload(self, target, source_root, item: Item, rel: str, progress: TransferProgress) -> FileRec:
+    def _upload(self, job: ActiveTransfer, target, source_root, item: Item, rel: str) -> FileRec:
+        progress = job.progress
         local = os.path.join(source_root, rel)
         st = os.stat(local)
         size, mtime = st.st_size, st.st_mtime
         part = part_name(rel)
-        progress.phase, progress.current, progress.current_size, progress.current_done = "Nahrávám", rel, size, 0
+        phase = "Kopíruji" if job.kind == "disk" else "Nahrávám"
+        progress.phase, progress.current, progress.current_size, progress.current_done = phase, rel, size, 0
+        if target.size(rel) == size:
+            # už je na cíli celý (navázání po přerušení) — nekopírovat znovu
+            progress.skipped += 1
+            progress.result(rel, "skipped")
+            progress.bytes_done += size
+            progress.samples.clear()                   # skok o přeskočená data nemá zkreslit rychlost
+            return FileRec(rel.encode("utf-8", "surrogateescape"), item.key, size, mtime)
         target.makedirs(posixpath.dirname(rel))
 
         last_error: Exception | None = None
@@ -308,11 +393,12 @@ class TransferRunner:
                             break
                         dst.write(chunk)
                         progress.add_bytes(len(chunk))
+                    target.finish_write(dst)
                 if target.size(part) != size:
                     raise OSError(f"velikost po nahrání nesedí ({target.size(part)} ≠ {size})")
                 target.replace(part, rel)
                 target.set_mtime(rel, mtime)
-                progress.log(f"Nahráno: {rel}")
+                progress.result(rel, "ok")
                 return FileRec(rel.encode("utf-8", "surrogateescape"), item.key, size, mtime)
             except TransferCancelled:
                 raise

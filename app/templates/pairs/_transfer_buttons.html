@@ -1,0 +1,30 @@
+{% from "_icons.html" import icon %}
+{# Tlačítka přenosů v hlavičce detailu; po změně výběru se překreslí out-of-band (počty). #}
+<div id="transfer-buttons" class="transfer-buttons"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% if st.transferring %}
+    <form method="post" action="/pary/{{ pair.id }}/prenos/zrusit">
+      <button type="submit" class="btn btn-danger">{{ icon('stop', 18) }}Zrušit přenos</button>
+    </form>
+  {% elif plan %}
+    {% if st.direct_supported %}
+    <form method="post" action="/pary/{{ pair.id }}/primy-prenos"
+          data-confirm="{% if direct.uploads %}Nahrát {{ direct.uploads|cz_plural('soubor', 'soubory', 'souborů') }} ({{ direct.upload_bytes|filesize }}) přímo na NAS2{% endif %}{% if direct.uploads and direct.deletions %} a {% endif %}{% if direct.deletions %}smazat na NAS2 {{ direct.deletions|cz_plural('přebývající soubor', 'přebývající soubory', 'přebývajících souborů') }}{% endif %}. Přenos běží na pozadí a jde kdykoli zrušit; rozpracovaný soubor příště naváže."
+          data-confirm-title="Spustit přímý přenos?" data-confirm-ok="Spustit přenos">
+      <button type="submit" class="btn {{ 'btn-secondary' if direct.count else 'btn-outline' }}" {% if not direct.count or st.busy %}disabled{% endif %}
+              title="{% if direct.count %}Nahrát / smazat soubory označené k přímému přenosu{% else %}Nejdřív označ soubory a zvol „Přidat k přímému přenosu“{% endif %}">
+        {{ icon('upload', 18) }}Přímý přenos{% if direct.count %} ({{ direct.count|number }}){% endif %}
+      </button>
+    </form>
+    {% endif %}
+    {% if pair.on_disk and disk_available %}
+    <form method="post" action="/pary/{{ pair.id }}/prenos-na-disk"
+          data-confirm="Zkopírovat {{ disk_plan.count|cz_plural('soubor', 'soubory', 'souborů') }} ({{ disk_plan.bytes|filesize }}) na disk do {{ disk_dest }}. Na disk se uloží i skript {{ script_name }} pro krok to-nas na NAS2. Přenos běží na pozadí a jde kdykoli zrušit; při dalším spuštění naváže."
+          data-confirm-title="Spustit přenos na disk?" data-confirm-ok="Kopírovat na disk">
+      <button type="submit" class="btn {{ 'btn-primary' if disk_plan.count else 'btn-outline' }}" {% if not disk_plan.count or st.busy %}disabled{% endif %}
+              title="{% if disk_plan.count %}Zkopírovat soubory ze záložky Kopírovat na připojený disk{% else %}Na disk není co kopírovat{% endif %}">
+        {{ icon('hard-drive', 18) }}Přenos na disk
+      </button>
+    </form>
+    {% endif %}
+  {% endif %}
+</div>

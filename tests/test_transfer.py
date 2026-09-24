@@ -68,6 +68,8 @@ def test_direct_upload_replace_delete_and_patch(temp_db):
 
     t = pairs_db.last_transfer(pid)
     assert t["status"] == "done" and t["files_done"] == 2 and t["deleted"] == 1 and t["failed"] == 0
+    states = {path: status for _, path, status, _ in t["items"]}              # jak dopadl každý soubor
+    assert states == {"Nové/Film.mkv": "ok", "konflikt.mkv": "ok", "stare/navic.avi": "deleted"}
     assert pairs_db.direct_for_pair(pid) == set()                            # hotové se odznačí
     cmp = load_overview().get(pid).plan.comparison                           # výsledek promítnut bez skenu
     assert not cmp.missing and not cmp.conflict and not cmp.extra and not cmp.direct
@@ -115,6 +117,8 @@ def test_missing_source_file_fails_only_that_item(temp_db):
     wait_for_transfer()
     t = pairs_db.last_transfer(pid)
     assert t["status"] == "done" and t["files_done"] == 1 and t["failed"] == 1
+    failed = [(path, detail) for _, path, status, detail in t["items"] if status == "error"]
+    assert len(failed) == 1 and failed[0][0] == "a.mkv" and failed[0][1]           # s důvodem chyby
     assert (root / "tgt/b.mkv").exists()
     assert pairs_db.direct_for_pair(pid) == {"a.mkv"}
 
@@ -157,9 +161,16 @@ def test_direct_flow_through_web(temp_db):
 
         panel = client.get("/pary/1/prenos")
         assert "Poslední přímý přenos" in panel.text and "nahráno 1 z 1" in panel.text
+        assert "Datum a čas" in panel.text and "Nahráno" in panel.text and "Smazáno" in panel.text
         assert client.get("/pary/1/prenos", headers={"HX-Request": "true"}).headers.get("HX-Refresh") == "true"
         r = client.post("/pary/1/primy-prenos", follow_redirects=False)
         assert "direct_none" in r.headers["location"]                        # už není co přenést
+
+        # kartu jde odebrat (stav „Hotovo“ je zároveň tlačítko)
+        tid = pairs_db.last_transfer(1)["id"]
+        r = client.post(f"/pary/1/prenosy/{tid}/odebrat", headers={"HX-Request": "true"})
+        assert r.status_code == 200 and r.text == ""
+        assert "Poslední přímý přenos" not in client.get("/pary/1").text
 
         # Aktualizovat → nový sken cíle; stav páru ukazuje sken, karta posledního přenosu zmizí
         time.sleep(1.1)                                                      # časy se ukládají po sekundách

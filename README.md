@@ -4,11 +4,11 @@ Plánovač přenosu velkých objemů dat z NAS1 na NAS2 přes fyzicky přenáše
 
 ## 📋 Popis
 
-Složky na NAS1 a NAS2 tvoří **páry** (Filmy, Seriály, Pohádky…). Tlačítkem **Aktualizovat** aplikace přeskenuje obě strany, sama je porovná a spočítá plán. Výstupem je **bash skript** pro daný pár:
+Složky na NAS1 a NAS2 tvoří **páry** (Filmy, Seriály, Pohádky…). Tlačítkem **Aktualizovat** aplikace přeskenuje obě strany, sama je porovná a spočítá plán. Přenos pak probíhá ve třech krocích:
 
-1. na NAS1 zkopíruje chybějící a změněné soubory na disk (`to-disk`),
+1. chybějící a změněné soubory se zkopírují na disk — **tlačítkem Přenos na disk** v aplikaci (disk připojený k NAS1), nebo skriptem (`to-disk`),
 2. disk se fyzicky přenese k NAS2,
-3. na NAS2 soubory z disku nahraje a po potvrzení smaže soubory, které na NAS1 už nejsou (`to-nas`).
+3. na NAS2 **bash skript** (aplikace ho uloží i na disk) soubory z disku nahraje a po potvrzení smaže soubory, které na NAS1 už nejsou (`to-nas`).
 
 Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, NAS2 čte přes SSH/SFTP). Velké objemy jdou přes disk skriptem; menší věci (drobné soubory, konflikty, mazání přebývajících) umí aplikace přenést **přímo na NAS2** přes SFTP — jen na výslovný pokyn v detailu páru.
 
@@ -23,6 +23,7 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 - **Ruční vyřazení souborů** — odškrtnutý soubor zůstane vyřazený i po dalších skenech.
 - **Vzory k vynechání** — výchozí (`@eaDir`, `.DS_Store`, `@Recycle`, `*.tmp`…) i vlastní pro pár; platí na obou stranách.
 - **Problémy** — názvy, které exFAT neuloží (`: * ? " < > |`, koncová tečka), kolize názvů a neplatné kódování se nepřenáší ani nemažou, jen se ukážou.
+- **Přenos na disk** — aplikace zkopíruje plán páru na připojený disk sama (průběh, zrušení, navázání) a uloží tam i skript pro `to-nas`.
 - **Skript** — seznamy cest jsou uvnitř jako base64 (bezpečné pro jakékoli znaky v názvu), kopíruje `rsync` po souborech s celkovým průběhem a odhadem konce (přerušený běh naváže), kontroluje volné místo, správnost složek a shodu plánu mezi `to-disk` a `to-nas`.
 
 ## 📖 Použití
@@ -37,22 +38,25 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 
 1. **Přehled → Aktualizovat vše** (nebo *Aktualizovat* u jednoho páru) a počkat na dokončení skenů.
 2. Zkontrolovat čísla u párů, případně v **detailu páru** odškrtnout, co se přenášet nemá. Zaškrtnutím *Zahrnout do přenosu* určit, které páry se tentokrát vezou na disku.
-3. **Skript** u páru → stáhne `sync_<pár>.sh`.
-4. Na NAS1:
+3. V detailu páru **Přenos na disk** (disk připojený k NAS1 a do kontejneru jako `DISK_PATH`, viz Deployment).
+   Aplikace zkopíruje soubory ze záložky *Kopírovat* do `<kořen disku>/<pár>/`, do kořene disku uloží skript
+   `sync_<pár>.sh` a po úplném dokončení manifest `.sync-plan`. Panel ukazuje průběh jako u přímého přenosu;
+   přenos jde zrušit a příště naváže (soubory, které už na disku celé jsou, přeskočí).
+
+   Bez disku v kontejneru: **Stáhnout skript** a na NAS1 spustit
 
    ```bash
    bash sync_filmy.sh to-disk /share/NAS-FILMY /share/external/USBDisk1
    ```
 
-   Soubory se uloží do `<kořen disku>/filmy/`.
-5. Disk přenést a připojit k NAS2, **stejný skript** spustit tam:
+4. Disk přenést a připojit k NAS2, **skript z disku** spustit tam:
 
    ```bash
    bash sync_filmy.sh to-nas /share/external/USBDisk1 /share/Filmy
    ```
 
    Před mazáním přebývajících souborů se skript zeptá (výchozí odpověď je *ne*).
-6. Po přenosu znovu **Aktualizovat** — odložené soubory se objeví v dalším plánu.
+5. Po přenosu znovu **Aktualizovat** — odložené soubory se objeví v dalším plánu.
 
 Během kopírování skript před každým souborem vypíše celkový stav, pod ním rsync ukazuje průběh souboru:
 
@@ -115,7 +119,7 @@ services:
     volumes:
       - ./data:/data              # databáze (lokální disk, vlastník UID 1000)
       - /share:/mnt/nas1:ro       # NAS1 — upravit podle systému
-      - /volumeUSB1/usbshare:/mnt/disk:ro   # volitelně: přenosový disk (jen pro načtení volného místa)
+      - /volumeUSB1/usbshare:/mnt/disk      # volitelně: přenosový disk (Přenos na disk, volné místo) — bez :ro
     # user: "0:0"                 # jen pokud UID 1000 nemá právo číst všechny složky NAS1
 ```
 
@@ -133,6 +137,8 @@ Aplikace bude na `http://<nas1>:8080`.
 - Kontejner běží jako UID 1000. Pokud sken NAS1 skončí chybou *„Nelze přečíst složku…“*, nemá tento uživatel práva — odkomentuj `user: "0:0"`.
 - **Synology:** sdílené složky mají ACL (`drwxrwxrwx+`), které UID 1000 nepustí ani při zobrazených právech 777. Spusť kontejner pod svým uživatelem DSM (`id <uživatel>`), např. `user: "1026:100"` + `group_add: ["101"]` (administrators), a `./data` mu předej (`chown -R 1026:100 data`).
 - Uvicorn běží s jedním workerem (stav běžících skenů je v paměti procesu).
+- **Přenos na disk** potřebuje disk připojený **pro zápis** (bez `:ro`). Aplikace před spuštěním ověří, že disk je
+  připojený, zapisovatelný, že to není prázdná složka na systémovém oddílu (méně než 20 GB) a že je na něm dost místa.
 
 ### Přechod ze staré verze (v1)
 
@@ -149,7 +155,7 @@ v2 používá **novou databázi** — stará (`/mnt/usb/sync_orchestrator.db`) s
 |---|---|---|
 | `DATABASE_PATH` | `/data/sync_orchestrator.db` | soubor databáze |
 | `LOCAL_ROOT` | `/mnt/nas1` | kořen NAS1 v kontejneru; lokální cesty párů jsou relativní k němu |
-| `DISK_PATH` | `/mnt/disk` | přenosový disk v kontejneru (volitelné) — tlačítko *Načíst volné místo* v Nastavení |
+| `DISK_PATH` | `/mnt/disk` | přenosový disk v kontejneru (volitelné) — *Přenos na disk* v detailu páru a *Načíst volné místo* v Nastavení |
 | `LOG_LEVEL` | `INFO` | úroveň logování (průběh skenů je vidět v `docker compose logs`) |
 | `APP_NAME` | `Sync Orchestrator` | název v hlavičce |
 
@@ -228,6 +234,7 @@ Aplikace na `http://localhost:8090`, falešný NAS2: host `nas2`, port `2222`, u
 - ✅ **Skript pro exFAT**: jeden soubor pro `to-disk` i `to-nas`, bezpečné seznamy cest, `rsync` po souborech s celkovým průběhem, kontroly složek, místa a plánu
 - ✅ **UI na Jinja2 + HTMX** (bez Reactu a Node buildu), světlý i tmavý režim, mobil
 - ✅ **SSH heslo se nevrací do prohlížeče**
+- ✅ **Přenos na disk z aplikace** místo kroku `to-disk` — průběh, zrušení, navázání, skript a `.sync-plan` na disku
 - ✅ **Přímý přenos NAS → NAS** přes SFTP pro menší objemy a mazání přebývajících (průběh, rychlost, odhad času, navázání)
 - ❌ Odstraněno: kopírování z backendu, SAFE MODE, DB na USB, WebSocket, fáze, stránka Debug
 

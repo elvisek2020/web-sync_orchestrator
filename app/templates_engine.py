@@ -44,8 +44,8 @@ def number(value: Any) -> str:
         return str(value or "")
 
 
-def cz_datetime(value: Any) -> str:
-    """ISO čas → „21. 9. 14:05“ (rok jen když není letošní)."""
+def cz_datetime(value: Any, seconds: bool = False) -> str:
+    """ISO čas → „21. 9. 14:05“ (rok jen když není letošní; se seconds=True „21. 9. 14:05:07“)."""
     if not value:
         return ""
     try:
@@ -54,7 +54,7 @@ def cz_datetime(value: Any) -> str:
         return str(value)
     now = datetime.now()
     date = f"{dt.day}. {dt.month}." if dt.year == now.year else f"{dt.day}. {dt.month}. {dt.year}"
-    return f"{date} {dt.strftime('%H:%M')}"
+    return f"{date} {dt.strftime('%H:%M:%S' if seconds else '%H:%M')}"
 
 
 def age(value: Any) -> str:

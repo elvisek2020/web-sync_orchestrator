@@ -2516,23 +2516,6 @@ code {
     background: var(--color-surface-2);
 }
 
-/* Souhrn disku na přehledu */
-.disk-summary {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-}
-
-.disk-summary-icon {
-    display: inline-flex;
-    color: var(--color-primary);
-}
-
-.disk-summary-main {
-    flex: 1;
-    min-width: 0;
-}
-
 /* Karta páru */
 .pair-card--off .stat-grid {
     opacity: 0.75;
@@ -3082,6 +3065,95 @@ details.card[open] > .summary-toggle {
 /* ------------------------------------------------------------------------
    Přímý přenos: panel průběhu v detailu páru
    ------------------------------------------------------------------------ */
+/* Poslední přenos: stav je zároveň tlačítko pro odebrání karty */
+.badge-dismiss {
+    border: 0;
+    font-family: inherit;
+    cursor: pointer;
+    transition: box-shadow 0.15s var(--ease);
+}
+
+.badge-dismiss:hover,
+.badge-dismiss:focus-visible {
+    box-shadow: inset 0 0 0 1px currentColor;
+}
+
+/* Výsledky po souborech: datum a čas, soubor, stav; dlouhý seznam se posouvá uvnitř karty */
+.transfer-results {
+    max-height: 28rem;
+    overflow: auto;
+}
+
+.transfer-results thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-surface);
+}
+
+.transfer-results-time {
+    color: var(--color-text-light);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.transfer-results-detail {
+    margin-top: 0.15rem;
+    color: var(--color-error);
+    font-family: var(--font-ui);
+    font-size: 0.8rem;
+}
+
+.transfer-log > summary {
+    cursor: pointer;
+}
+
+.transfer-log > .log {
+    margin-top: var(--space-2);
+}
+
+/* Řazení seznamu souborů kliknutím na záhlaví sloupce */
+.th-sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: inherit;
+    text-decoration: none;
+}
+
+.th-sort:hover {
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+.th-sort .icon {
+    opacity: 0;
+    transition: opacity 0.15s var(--ease);
+}
+
+.th-sort:hover .icon,
+.th-sort:focus-visible .icon {
+    opacity: 0.5;
+}
+
+.th-sort.is-active {
+    color: var(--color-primary);
+}
+
+.th-sort.is-active .icon {
+    opacity: 1;
+}
+
+th.num .th-sort {
+    flex-direction: row-reverse;      /* šipka vlevo od „Velikost“, text zůstane zarovnaný vpravo */
+}
+
+/* Tlačítka přenosů v hlavičce detailu: obal kvůli out-of-band překreslení, v řádku se neprojeví */
+.transfer-buttons {
+    display: contents;
+}
+
 .transfer-body {
     display: flex;
     flex-direction: column;

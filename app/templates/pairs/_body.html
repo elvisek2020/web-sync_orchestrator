@@ -37,7 +37,7 @@
     </p>
 
     <form class="toolbar" role="search" method="get" action="/pary/{{ pair.id }}"
-          hx-get="/pary/{{ pair.id }}" hx-target="#pair-files" hx-swap="outerHTML"
+          hx-get="/pary/{{ pair.id }}" hx-target="#pair-files" hx-swap="outerHTML" hx-include="#files-sort"
           hx-trigger="input changed delay:300ms from:find input[name='q'], search from:find input[name='q']"
           hx-push-url="true">
       <input type="hidden" name="tab" value="{{ tab }}">
@@ -53,4 +53,4 @@
   </div>
 </section>
 {% if options_oob %}{% with oob = true %}{% include "pairs/_options_summary.html" %}{% endwith %}{% endif %}
-{% if header_oob %}{% with oob = true %}{% include "pairs/_direct_button.html" %}{% endwith %}{% endif %}
+{% if header_oob %}{% with oob = true %}{% include "pairs/_transfer_buttons.html" %}{% endwith %}{% endif %}

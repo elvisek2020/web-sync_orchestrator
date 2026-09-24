@@ -1,4 +1,4 @@
-"""Cíl přímého přenosu: vzdálený NAS přes SFTP, nebo lokální složka (testy, lokální pár).
+"""Cíl přenosu: vzdálený NAS přes SFTP, nebo lokální složka (přenosový disk, lokální pár, testy).
 
 Obě třídy mají stejné rozhraní; cesty jsou relativní k rootu cíle (bajty jako ze skenu).
 """
@@ -34,6 +34,7 @@ class Target(Protocol):
     def size(self, rel: str) -> int | None: ...
     def makedirs(self, rel_dir: str) -> None: ...
     def open_write(self, rel: str, offset: int) -> BinaryIO: ...
+    def finish_write(self, f: BinaryIO) -> None: ...
     def replace(self, src_rel: str, dst_rel: str) -> None: ...
     def set_mtime(self, rel: str, mtime: float) -> None: ...
     def remove(self, rel: str) -> None: ...
@@ -84,6 +85,9 @@ class SftpTarget:
             f = self.sftp.open(self._abs(rel), "w")
         f.set_pipelined(True)
         return f
+
+    def finish_write(self, f) -> None:
+        pass                                   # SFTP zápis potvrzuje server
 
     def replace(self, src_rel: str, dst_rel: str) -> None:
         src, dst = self._abs(src_rel), self._abs(dst_rel)
@@ -138,6 +142,11 @@ class LocalTarget:
             f.seek(offset)
             return f
         return open(self._abs(rel), "wb")
+
+    def finish_write(self, f) -> None:
+        # data opravdu na disku dřív, než se soubor přejmenuje (USB disk se může odpojit)
+        f.flush()
+        os.fsync(f.fileno())
 
     def replace(self, src_rel: str, dst_rel: str) -> None:
         os.replace(self._abs(src_rel), self._abs(dst_rel))
