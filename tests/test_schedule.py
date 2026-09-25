@@ -121,10 +121,10 @@ def test_schedule_through_web(temp_db):
         assert "schedule_no_window" in r.headers["location"]                  # bez okna naplánovat nejde
         assert 'data-confirm-alt="Naplánovat"' not in client.get("/pary/1").text
 
-        r = client.post("/nastaveni/okno", data={"window_from": "22:00", "window_to": "22:00"}, follow_redirects=False)
+        r = client.post("/nastaveni/planovani", data={"window_from": "22:00", "window_to": "22:00"}, follow_redirects=False)
         assert "window_invalid" in r.headers["location"]
-        client.post("/nastaveni/okno", data={"window_from": "22:00", "window_to": "06:00"})
-        assert "Teď: <strong>22:00–06:00</strong>" in client.get("/nastaveni").text
+        client.post("/nastaveni/planovani", data={"window_from": "22:00", "window_to": "06:00"})
+        assert 'name="window_from" aria-label="Okno od" value="22:00"' in client.get("/nastaveni").text
 
         page = client.get("/pary/1").text
         assert 'data-confirm-alt="Naplánovat"' in page and "/primy-prenos/naplanovat" in page
@@ -187,11 +187,17 @@ def test_auto_refresh_runs_once_a_day(temp_db, monkeypatch):
 
 
 def test_auto_refresh_settings_page(temp_db):
+    (temp_db / "src").mkdir()
+    pairs_db.save_pair(None, {"name": "A", "source_host_id": None, "source_path": "src",
+                              "target_host_id": None, "target_path": "t"})    # bez párů není ani tlačítko
     with TestClient(app) as client:
-        r = client.post("/nastaveni/aktualizace", data={"refresh_time": "nesmysl"}, follow_redirects=False)
+        r = client.post("/nastaveni/planovani", data={"refresh_time": "nesmysl", "window_from": "22:00",
+                                                      "window_to": "06:00"}, follow_redirects=False)
         assert "refresh_invalid" in r.headers["location"]
-        client.post("/nastaveni/aktualizace", data={"refresh_time": "21:30"})
-        assert "každý den v 21:30" in client.get("/nastaveni").text
-        assert "Automatická aktualizace každý den v 21:30" in client.get("/").text
-        client.post("/nastaveni/aktualizace", data={"refresh_time": ""})
-        assert "Automatická aktualizace každý den" not in client.get("/").text
+        assert window_mod.get_window() is None                                 # neplatné → neuloží se nic
+        client.post("/nastaveni/planovani", data={"refresh_time": "21:30", "window_from": "22:00", "window_to": "06:00"})
+        assert 'name="refresh_time" value="21:30"' in client.get("/nastaveni").text
+        assert window_mod.get_window().label == "22:00–06:00"
+        assert "automaticky každý den v 21:30" in client.get("/").text
+        client.post("/nastaveni/planovani", data={"refresh_time": ""})
+        assert "automaticky každý den" not in client.get("/").text

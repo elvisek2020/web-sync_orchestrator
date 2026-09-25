@@ -122,48 +122,36 @@
     </div>
   </section>
 
-  <section class="card" id="aktualizace">
+  <section class="card" id="planovani">
     <div class="card-header">
       <div>
-        <h2 class="card-title">Automatická aktualizace</h2>
-        <p class="card-subtitle">Každý den v tento čas se spustí Aktualizovat vše — ideálně chvíli před oknem pro naplánovaný přenos.</p>
+        <h2 class="card-title">Plánování</h2>
+        <p class="card-subtitle">Každý den ve stejný čas, podle hodin kontejneru (TZ v docker-compose). Prázdné pole funkci vypne.</p>
       </div>
     </div>
-    <form method="post" action="/nastaveni/aktualizace" class="card-body stack">
-      <div class="form-group">
-        <label class="form-label" for="refresh_time">Čas (každý den)</label>
-        <div class="input-group input-group--window">
-          <input class="input" type="time" id="refresh_time" name="refresh_time" value="{{ refresh_time }}">
-          <button type="submit" class="btn btn-primary btn-wide">Uložit čas</button>
+    <form method="post" action="/nastaveni/planovani" class="card-body stack">
+      <div class="setting-row">
+        <div class="setting-row-text">
+          <label class="setting-row-title" for="refresh_time">Automatická aktualizace</label>
+          <span class="text-sm text-muted">Spustí Aktualizovat vše — ideálně chvíli před oknem přenosu. Pár, u kterého běží přenos, se přeskočí.</span>
         </div>
-        <p class="form-hint">
-          {% if refresh_time %}Teď: <strong>každý den v {{ refresh_time }}</strong>. {% endif %}Prázdné pole automatickou aktualizaci vypne.
-          Pár, u kterého zrovna běží přenos, se přeskočí. Čas je podle kontejneru (TZ v docker-compose).
-        </p>
-      </div>
-    </form>
-  </section>
-
-  <section class="card" id="okno">
-    <div class="card-header">
-      <div>
-        <h2 class="card-title">Okno pro naplánovaný přenos</h2>
-        <p class="card-subtitle">Naplánovaný přímý přenos poběží jen v tomto čase, každý den. Po konci okna rozpracovaný soubor dokončí a další už nezačne.</p>
-      </div>
-    </div>
-    <form method="post" action="/nastaveni/okno" class="card-body stack">
-      <div class="form-group">
-        <label class="form-label" for="window_from">Okno (od – do)</label>
-        <div class="input-group input-group--window">
-          <input class="input" type="time" id="window_from" name="window_from" aria-label="Od" value="{{ window.label[:5] if window else '' }}">
-          <span class="input-group-sep" aria-hidden="true">–</span>
-          <input class="input" type="time" id="window_to" name="window_to" aria-label="Do" value="{{ window.label[-5:] if window else '' }}">
-          <button type="submit" class="btn btn-primary btn-wide">Uložit okno</button>
+        <div class="setting-row-controls">
+          <input class="input input--time" type="time" id="refresh_time" name="refresh_time" value="{{ refresh_time }}">
         </div>
-        <p class="form-hint">
-        {% if window %}Teď: <strong>{{ window.label }}</strong>. {% endif %}Konec dřív než začátek = okno přes půlnoc (např. 22:00–06:00).
-        Prázdná pole okno zruší (naplánovat pak nejde). Čas je podle kontejneru (TZ v docker-compose).
-        </p>
+      </div>
+      <div class="setting-row">
+        <div class="setting-row-text">
+          <label class="setting-row-title" for="window_from">Okno pro naplánovaný přenos</label>
+          <span class="text-sm text-muted">Naplánovaný přímý přenos běží jen v tomto čase; po konci okna dokončí rozpracovaný soubor a další nezačne. Konec dřív než začátek = přes půlnoc.</span>
+        </div>
+        <div class="setting-row-controls">
+          <input class="input input--time" type="time" id="window_from" name="window_from" aria-label="Okno od" value="{{ window.label[:5] if window else '' }}">
+          <span class="text-muted" aria-hidden="true">–</span>
+          <input class="input input--time" type="time" id="window_to" name="window_to" aria-label="Okno do" value="{{ window.label[-5:] if window else '' }}">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-wide">Uložit plánování</button>
       </div>
     </form>
   </section>

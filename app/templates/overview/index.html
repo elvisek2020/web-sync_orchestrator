@@ -7,13 +7,15 @@
 <div class="page-header">
   <div class="page-header-text">
     <h1 class="page-title">Přehled</h1>
-    <p class="page-description">Aktualizuj páry, zkontroluj plán a stáhni skript pro přenos přes disk.{% if refresh_time %} Automatická aktualizace každý den v {{ refresh_time }}.{% endif %}</p>
   </div>
   {% if ov.pairs %}
   <div class="page-header-actions">
-    <form method="post" action="/aktualizovat-vse">
-      <button type="submit" class="btn btn-primary">{{ icon('refresh', 18) }}Aktualizovat vše</button>
-    </form>
+    <div class="refresh-all">
+      <form method="post" action="/aktualizovat-vse">
+        <button type="submit" class="btn btn-primary">{{ icon('refresh', 18) }}Aktualizovat vše</button>
+      </form>
+      {% if refresh_time %}<span class="refresh-all-note">automaticky každý den v {{ refresh_time }}</span>{% endif %}
+    </div>
   </div>
   {% endif %}
 </div>

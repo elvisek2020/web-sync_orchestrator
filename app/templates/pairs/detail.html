@@ -55,7 +55,7 @@
             okno {{ window.label }} · {{ direct.count|cz_plural('položka', 'položky', 'položek') }}{% if direct.upload_bytes %} ({{ direct.upload_bytes|filesize }}){% endif %} ·
             {% if window.contains(now) %}okno je otevřené, přenos se spustí během chvíle{% else %}začne {{ window.next_start(now).isoformat()|cz_datetime }}{% endif %}
           {%- else %}
-            okno není nastavené — zadej ho v <a href="/nastaveni#okno">Nastavení</a>
+            okno není nastavené — zadej ho v <a href="/nastaveni#planovani">Nastavení</a>
           {%- endif %}
         </span>
       </div>

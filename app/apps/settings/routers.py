@@ -22,7 +22,9 @@ from app.transfer import disk
 from app.transfer.disk import disk_info, usable_capacity  # noqa: F401 — usable_capacity i pro testy
 from app.transfer.runner import transfer_runner
 from app.transfer.scheduler import scheduler
-from app.transfer.window import get_refresh_time, get_window, refresh_label, set_refresh_time, set_window
+from app.transfer.window import (
+    get_refresh_time, get_window, parse, parse_time, refresh_label, set_refresh_time, set_window,
+)
 
 from . import db as settings_db
 
@@ -83,22 +85,15 @@ def clean_disk():
     return redirect("/nastaveni", "disk_cleaned")
 
 
-@router.post("/nastaveni/okno")
-def save_window(window_from: str = Form(""), window_to: str = Form("")):
-    try:
-        set_window(window_from, window_to)
-    except ValueError:
-        return redirect("/nastaveni", "window_invalid")
-    scheduler.wake()
-    return redirect("/nastaveni", "saved")
-
-
-@router.post("/nastaveni/aktualizace")
-def save_refresh_time(refresh_time: str = Form("")):
-    try:
-        set_refresh_time(refresh_time)
-    except ValueError:
+@router.post("/nastaveni/planovani")
+def save_planning(refresh_time: str = Form(""), window_from: str = Form(""), window_to: str = Form("")):
+    """Automatická aktualizace a okno pro naplánovaný přenos — uloží se obojí, nebo nic."""
+    if (refresh_time or "").strip() and parse_time(refresh_time) is None:
         return redirect("/nastaveni", "refresh_invalid")
+    if ((window_from or "").strip() or (window_to or "").strip()) and parse(f"{window_from}-{window_to}") is None:
+        return redirect("/nastaveni", "window_invalid")
+    set_refresh_time(refresh_time)
+    set_window(window_from, window_to)
     scheduler.wake()
     return redirect("/nastaveni", "saved")
 

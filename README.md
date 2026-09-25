@@ -96,13 +96,13 @@ Přenos běží z lokálně připojeného zdroje (NAS1); během přenosu se pár
 
 #### Automatická aktualizace
 
-V **Nastavení → Automatická aktualizace** lze zadat jeden čas (např. `21:30`), kdy se každý den samo spustí
+V **Nastavení → Plánování → Automatická aktualizace** lze zadat jeden čas (např. `21:30`), kdy se každý den samo spustí
 *Aktualizovat vše* — ideálně chvíli před oknem pro naplánovaný přenos. Zmeškaný termín (restart kontejneru)
 se dožene nejpozději do hodiny; pár, u kterého zrovna běží přenos, se přeskočí.
 
 #### Naplánovaný přímý přenos
 
-Když je v **Nastavení → Okno pro naplánovaný přenos** zadané časové okno (např. `22:00`–`06:00`, každý den;
+Když je v **Nastavení → Plánování → Okno pro naplánovaný přenos** zadané časové okno (např. `22:00`–`06:00`, každý den;
 konec dřív než začátek = přes půlnoc), má potvrzovací okno přímého přenosu i tlačítko **Naplánovat**.
 Naplánovaný pár se spustí sám, jakmile je okno otevřené (víc párů postupně, v pořadí párů). Po konci okna
 se rozpracovaný soubor dokončí, další už nezačne a přenos skončí jako *Pozastaveno*; zbytek pokračuje
