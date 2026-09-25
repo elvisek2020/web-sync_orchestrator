@@ -16,6 +16,7 @@ services:
       - DATABASE_PATH=/data/sync_orchestrator.db
       - LOCAL_ROOT=/mnt/nas1
       - LOG_LEVEL=INFO
+      - DISK_CHECK_DEVICE=0      # Docker Desktop: disk i NAS1 jsou ze stejného počítače
     volumes:
       - ./data/app:/data
       - ./data/nas1:/mnt/nas1:ro

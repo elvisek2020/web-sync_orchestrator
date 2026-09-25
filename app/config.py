@@ -21,6 +21,9 @@ class Config:
         self.local_root = Path(os.environ.get("LOCAL_ROOT", "/mnt/nas1"))
         # Volitelně: přenosový disk připojený do kontejneru (jen pro zjištění volného místa).
         self.disk_path = Path(os.environ.get("DISK_PATH", "/mnt/disk"))
+        # Kontrola, že disk není na stejném svazku jako NAS1. Vypnout (0) jen pro vývoj na Docker Desktopu,
+        # kde mají všechna připojení ze stejného počítače stejné zařízení.
+        self.disk_check_device = os.environ.get("DISK_CHECK_DEVICE", "1") != "0"
 
     @property
     def db_url(self) -> str:

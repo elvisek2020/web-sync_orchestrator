@@ -30,6 +30,7 @@ def disk_root(temp_db, tmp_path, monkeypatch):
     root.mkdir()
     monkeypatch.setattr(settings, "disk_path", root)
     monkeypatch.setattr(disk, "DISK_MIN_PLAUSIBLE", 0)       # dočasná složka není „skutečný“ disk
+    monkeypatch.setattr(disk, "_same_device_as_nas", lambda path: False)   # v testu je všechno na jednom svazku
     return root
 
 
@@ -205,3 +206,40 @@ def test_running_disk_transfer_is_shown(temp_db, disk_root):
             assert "transfer_cancelled" in r.headers["location"] and progress.cancel.is_set()
     finally:
         transfer_runner._active.pop(pid, None)
+
+
+def test_clean_disk_removes_only_transfer_data(temp_db, disk_root, monkeypatch):
+    root = temp_db
+    write_file(root, "src/a.mkv", b"a")
+    st = _pair(root)                                                            # slug „serialy“
+    write_file(disk_root, "serialy/Seriál/díl 1.mkv", b"x" * 100)
+    write_file(disk_root, "serialy/.sync-plan", b"PLAN=x\n")
+    write_file(disk_root, "sync_serialy.sh", b"#!/bin/bash\n")
+    write_file(disk_root, "stary-par/film.mkv", b"y" * 50)                      # pár, který už v aplikaci není
+    write_file(disk_root, "sync_stary-par.sh", b"#!/bin/bash\n")
+    write_file(disk_root, "Moje fotky/dovolena.jpg", b"z")                     # cizí data zůstanou
+    write_file(disk_root, "poznamky.txt", b"z")
+
+    with TestClient(app) as client:
+        page = client.get("/nastaveni").text
+        assert "Data přenosu na disku" in page and "Vyčistit disk" in page and "Pozor, mažu!" in page
+        assert "stary-par, serialy" in page or "serialy, stary-par" in page
+
+        monkeypatch.setattr(disk, "_same_device_as_nas", lambda path: True)   # špatně nastavená cesta
+        r = client.post("/nastaveni/disk/vycistit", follow_redirects=False)
+        assert "disk_same_as_nas" in r.headers["location"] and (disk_root / "serialy").exists()
+        monkeypatch.setattr(disk, "_same_device_as_nas", lambda path: False)
+
+        transfer_runner._active[999] = ActiveTransfer(1, 999, TransferProgress(), kind="disk")
+        try:
+            r = client.post("/nastaveni/disk/vycistit", follow_redirects=False)
+            assert "disk_clean_busy" in r.headers["location"] and (disk_root / "serialy").exists()
+        finally:
+            transfer_runner._active.pop(999, None)
+
+        r = client.post("/nastaveni/disk/vycistit", follow_redirects=False)
+        assert "disk_cleaned" in r.headers["location"]
+        assert sorted(p.name for p in disk_root.iterdir()) == ["Moje fotky", "poznamky.txt"]
+        assert "Žádná — disk je připravený." in client.get("/nastaveni").text
+        r = client.post("/nastaveni/disk/vycistit", follow_redirects=False)
+        assert "disk_clean_empty" in r.headers["location"]

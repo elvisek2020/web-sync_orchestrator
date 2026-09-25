@@ -18,7 +18,9 @@ from app.core.excludes import DEFAULT_EXCLUDE_PATTERNS, parse_patterns
 from app.scan.common import ScanError, cz_items
 from app.scan.sftp import SftpSession, test_connection
 from app.templates_engine import templates
+from app.transfer import disk
 from app.transfer.disk import disk_info, usable_capacity  # noqa: F401 — usable_capacity i pro testy
+from app.transfer.runner import transfer_runner
 
 from . import db as settings_db
 
@@ -38,8 +40,12 @@ def settings_page(request: Request):
         pairs=pairs_db.list_pairs(), hosts=settings_db.list_hosts(),
         capacity_gb=f"{capacity / 1e9:g}".replace(".", ",") if capacity else "",
         default_excludes=_default_excludes_text(), local_root=str(settings.local_root),
-        disk=disk_info(),
+        disk=disk_info(), disk_data=disk.entries_summary(_disk_entries()),
     ))
+
+
+def _disk_entries():
+    return disk.app_entries([p["slug"] for p in pairs_db.list_pairs()])
 
 
 # --- disk a vzory ---
@@ -52,6 +58,26 @@ def read_disk_capacity():
     # S rezervou — skript před kopírováním ještě sám ověří skutečné volné místo.
     db.set_setting("disk_capacity", str(info["usable"]))
     return redirect("/nastaveni", "disk_read")
+
+
+@router.post("/nastaveni/disk/vycistit")
+def clean_disk():
+    """Smaže z disku data přenosu (složky párů a skripty) — příprava na další kolo."""
+    if transfer_runner.disk_running():
+        return redirect("/nastaveni", "disk_clean_busy")
+    problem = disk.clean_problem()
+    if problem:
+        return redirect("/nastaveni", problem)
+    entries = _disk_entries()
+    if not entries:
+        return redirect("/nastaveni", "disk_clean_empty")
+    try:
+        disk.clean(entries)
+    except OSError:
+        logger.exception("Vyčištění disku selhalo")
+        return redirect("/nastaveni", "disk_clean_failed")
+    logger.info("Disk vyčištěn: %s", ", ".join(e.name for e in entries))
+    return redirect("/nastaveni", "disk_cleaned")
 
 
 @router.post("/nastaveni/disk")

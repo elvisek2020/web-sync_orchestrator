@@ -57,6 +57,8 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 
    Před mazáním přebývajících souborů se skript zeptá (výchozí odpověď je *ne*).
 5. Po přenosu znovu **Aktualizovat** — odložené soubory se objeví v dalším plánu.
+6. Před dalším kolem **Nastavení → Disk pro přenos → Vyčistit disk**: smaže z disku složky párů a skripty
+   `sync_*.sh` (jiné soubory na disku nechá).
 
 Během kopírování skript před každým souborem vypíše celkový stav, pod ním rsync ukazuje průběh souboru:
 
@@ -156,6 +158,7 @@ v2 používá **novou databázi** — stará (`/mnt/usb/sync_orchestrator.db`) s
 | `DATABASE_PATH` | `/data/sync_orchestrator.db` | soubor databáze |
 | `LOCAL_ROOT` | `/mnt/nas1` | kořen NAS1 v kontejneru; lokální cesty párů jsou relativní k němu |
 | `DISK_PATH` | `/mnt/disk` | přenosový disk v kontejneru (volitelné) — *Přenos na disk* v detailu páru a *Načíst volné místo* v Nastavení |
+| `DISK_CHECK_DEVICE` | `1` | `0` vypne kontrolu, že disk není na stejném svazku jako NAS1 (jen pro vývoj na Docker Desktopu) |
 | `LOG_LEVEL` | `INFO` | úroveň logování (průběh skenů je vidět v `docker compose logs`) |
 | `APP_NAME` | `Sync Orchestrator` | název v hlavičce |
 

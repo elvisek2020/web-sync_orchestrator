@@ -6,6 +6,8 @@ v kořeni disku a manifest .sync-plan ve složce páru — krok to-nas na NAS2 p
 from __future__ import annotations
 
 import os
+import re
+import shutil
 from pathlib import Path
 
 from app.config import settings
@@ -18,6 +20,7 @@ DISK_RESERVE_RATIO = 0.01        # rezerva: exFAT zabírá víc než součet vel
 DISK_RESERVE_MIN = 10**9         # nejméně 1 GB
 
 MANIFEST = ".sync-plan"
+SCRIPT_RE = re.compile(r"^sync_([a-z0-9-]+)\.sh$")    # skript páru v kořeni disku (script_filename)
 
 
 def usable_capacity(free: int) -> int:
@@ -42,6 +45,28 @@ def disk_info() -> dict:
     info["suspicious"] = info["total"] < DISK_MIN_PLAUSIBLE
     info["writable"] = os.access(path, os.W_OK)   # připojení :ro → False
     return info
+
+
+def _same_device_as_nas(path: Path) -> bool:
+    """Disk na stejném svazku jako NAS1 = špatně nastavená cesta (nesmí se na něj zapisovat ani mazat)."""
+    if not settings.disk_check_device:
+        return False
+    try:
+        return os.stat(path).st_dev == os.stat(settings.local_root).st_dev
+    except OSError:
+        return False
+
+
+def _basic_problem(info: dict) -> str | None:
+    if not info["mounted"]:
+        return "disk_not_mounted"
+    if not info["writable"]:
+        return "disk_readonly"
+    if info["suspicious"]:
+        return "disk_suspicious"
+    if _same_device_as_nas(settings.disk_path):
+        return "disk_same_as_nas"
+    return None
 
 
 def pair_dir(pair: dict) -> Path:
@@ -69,12 +94,63 @@ def bytes_needed(items: list[Item], root: Path) -> int:
 def disk_problem(items: list[Item], root: Path) -> str | None:
     """Kód hlášky, proč přenos na disk nejde spustit; None = lze."""
     info = disk_info()
-    if not info["mounted"]:
-        return "disk_not_mounted"
-    if not info["writable"]:
-        return "disk_readonly"
-    if info["suspicious"]:
-        return "disk_suspicious"
+    problem = _basic_problem(info)
+    if problem:
+        return problem
     if bytes_needed(items, root) > info["free"]:
         return "disk_full"
     return None
+
+
+# --- vyčištění disku: jen to, co tam dala aplikace nebo skript ---
+
+def app_entries(slugs: list[str]) -> list[Path]:
+    """Skripty sync_<pár>.sh v kořeni disku a složky párů (podle párů v aplikaci i podle skriptů na disku).
+    Cizí soubory a složky na disku se nepočítají."""
+    root = settings.disk_path
+    try:
+        names = sorted(os.listdir(root))
+    except OSError:
+        return []
+    folders = set(slugs)
+    scripts = []
+    for name in names:
+        m = SCRIPT_RE.match(name)
+        if m and (root / name).is_file():
+            scripts.append(root / name)
+            folders.add(m.group(1))
+    dirs = [root / f for f in sorted(folders) if (root / f).is_dir() and not (root / f).is_symlink()]
+    return dirs + scripts
+
+
+def entries_summary(entries: list[Path]) -> dict:
+    """Počet souborů a velikost toho, co by se smazalo (pro zobrazení v Nastavení)."""
+    files = size = 0
+    for entry in entries:
+        if entry.is_dir():
+            for dirpath, _dirs, filenames in os.walk(entry):
+                for name in filenames:
+                    try:
+                        size += os.lstat(os.path.join(dirpath, name)).st_size
+                        files += 1
+                    except OSError:
+                        pass
+        else:
+            try:
+                size += entry.stat().st_size
+                files += 1
+            except OSError:
+                pass
+    return {"names": [e.name for e in entries], "files": files, "size": size}
+
+
+def clean_problem() -> str | None:
+    return _basic_problem(disk_info())
+
+
+def clean(entries: list[Path]) -> None:
+    for entry in entries:
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink(missing_ok=True)

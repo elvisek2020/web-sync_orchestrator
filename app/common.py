@@ -34,6 +34,12 @@ FLASH_MESSAGES = {
                                "odeber „:ro“ a kontejner znovu vytvoř."),
     "disk_suspicious": ("error", "Připojený „disk“ má méně než 20 GB — nejspíš to není přenosový disk. "
                                  "Zkontroluj připojení."),
+    "disk_same_as_nas": ("error", "DISK_PATH je na stejném svazku jako NAS1 — to není přenosový disk. "
+                                  "Zkontroluj připojení v docker-compose."),
+    "disk_cleaned": ("success", "Disk vyčištěn."),
+    "disk_clean_empty": ("info", "Na disku nejsou žádná data přenosu."),
+    "disk_clean_busy": ("error", "Na disk se právě kopíruje — vyčistit ho jde až po dokončení přenosu."),
+    "disk_clean_failed": ("error", "Disk se nepodařilo celý vyčistit — podrobnosti jsou v logu kontejneru."),
     "disk_full": ("error", "Na disku není dost volného místa — uvolni ho (třeba data z minulého kola), "
                            "nebo v Nastavení sniž kapacitu disku."),
     "host_in_use": ("error", "Host používá některý pár — nejdřív pár upravte nebo smažte."),
