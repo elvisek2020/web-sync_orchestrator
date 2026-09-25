@@ -1,4 +1,9 @@
-"""Plánovač přímého přenosu: v časovém okně spouští naplánované páry, jeden po druhém.
+"""Plánovač: denní automatická aktualizace všech párů a naplánovaný přímý přenos v časovém okně.
+
+Automatická aktualizace: jednou denně v zadaný čas spustí „Aktualizovat vše“ (zmeškaný termín
+po restartu dožene nejpozději do hodiny).
+
+Přímý přenos: v časovém okně spouští naplánované páry, jeden po druhém.
 
 Každých pár desítek sekund (a hned po naplánování) se podívá, jestli je okno otevřené. Když ano
 a žádný přímý přenos neběží, spustí první naplánovaný pár (v pořadí párů). Přenos sám po konci
@@ -12,10 +17,11 @@ import logging
 import threading
 from datetime import datetime, timedelta
 
+from app import db
 from app.config import settings
 
 from .runner import transfer_runner
-from .window import get_window
+from .window import REFRESH_LAST, get_window, refresh_due
 
 logger = logging.getLogger("sync.scheduler")
 
@@ -53,12 +59,28 @@ class Scheduler:
             self._wake.wait(TICK_SECONDS)
             self._wake.clear()
 
+    def refresh_tick(self, now: datetime | None = None) -> bool:
+        """Automatická aktualizace: v denní čas spustí sken všech párů (jednou za den)."""
+        from app.apps.pairs import db as pairs_db
+        from app.scan.runner import runner
+
+        day = refresh_due(now or datetime.now())
+        if day is None:
+            return False
+        db.set_setting(REFRESH_LAST, day)
+        pairs = pairs_db.list_pairs()
+        for pair in pairs:
+            runner.start_pair(pair["id"])          # pár, který právě přenáší, runner přeskočí
+        logger.info("Plánovač: automatická aktualizace %d párů", len(pairs))
+        return True
+
     def tick(self, now: datetime | None = None) -> int | None:
         """Jedna kontrola; vrátí id spuštěného přenosu, nebo None."""
         from app.apps.pairs import db as pairs_db
         from app.apps.pairs.state import load_overview
 
         now = now or datetime.now()
+        self.refresh_tick(now)
         window = get_window()
         if window is None or not window.contains(now) or transfer_runner.direct_running():
             return None

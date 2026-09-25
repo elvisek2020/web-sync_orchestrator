@@ -122,6 +122,28 @@
     </div>
   </section>
 
+  <section class="card" id="aktualizace">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Automatická aktualizace</h2>
+        <p class="card-subtitle">Každý den v tento čas se spustí Aktualizovat vše — ideálně chvíli před oknem pro naplánovaný přenos.</p>
+      </div>
+    </div>
+    <form method="post" action="/nastaveni/aktualizace" class="card-body stack">
+      <div class="form-group">
+        <label class="form-label" for="refresh_time">Čas (každý den)</label>
+        <div class="input-group input-group--window">
+          <input class="input" type="time" id="refresh_time" name="refresh_time" value="{{ refresh_time }}">
+          <button type="submit" class="btn btn-primary btn-wide">Uložit čas</button>
+        </div>
+        <p class="form-hint">
+          {% if refresh_time %}Teď: <strong>každý den v {{ refresh_time }}</strong>. {% endif %}Prázdné pole automatickou aktualizaci vypne.
+          Pár, u kterého zrovna běží přenos, se přeskočí. Čas je podle kontejneru (TZ v docker-compose).
+        </p>
+      </div>
+    </form>
+  </section>
+
   <section class="card" id="okno">
     <div class="card-header">
       <div>

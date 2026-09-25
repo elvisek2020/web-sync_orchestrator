@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 
-from app.transfer.window import get_window
+from app.transfer.window import get_refresh_time, get_window, refresh_label
 from app.apps.pairs import db as pairs_db
 from app.apps.pairs.state import load_overview
 from app.common import page_ctx, redirect, safe_next
@@ -18,7 +18,10 @@ router = APIRouter(tags=["overview"])
 def _render(request: Request):
     ov = load_overview()
     template = "overview/_table.html" if request.headers.get("HX-Request") else "overview/index.html"
-    return templates.TemplateResponse(request, template, page_ctx(request, current_tab="overview", ov=ov, window=get_window()))
+    return templates.TemplateResponse(request, template, page_ctx(
+        request, current_tab="overview", ov=ov, window=get_window(),
+        refresh_time=refresh_label(get_refresh_time()),
+    ))
 
 
 @router.get("/", response_class=HTMLResponse)

@@ -155,3 +155,43 @@ def test_running_scheduled_transfer_shows_window(temp_db):
             assert "naplánovaný, okno do 06:00" in detail
     finally:
         transfer_runner._active.pop(pid, None)
+
+
+def test_auto_refresh_runs_once_a_day(temp_db, monkeypatch):
+    from app import db
+    from app.scan.runner import runner
+    from app.transfer.window import REFRESH_LAST, get_refresh_time, set_refresh_time
+
+    started = []
+    monkeypatch.setattr(runner, "start_pair", lambda pid: started.append(pid) or [])
+    (temp_db / "src").mkdir()
+    pairs_db.save_pair(None, {"name": "A", "source_host_id": None, "source_path": "src",
+                              "target_host_id": None, "target_path": "t"})
+    pairs_db.save_pair(None, {"name": "B", "source_host_id": None, "source_path": "src",
+                              "target_host_id": None, "target_path": "t2"})
+
+    assert scheduler.refresh_tick(now=at(21, 30)) is False                  # vypnuto
+    with pytest.raises(ValueError):
+        set_refresh_time("25:00")
+    set_refresh_time("23:30")
+    assert get_refresh_time() == 23 * 60 + 30
+    db.set_setting(REFRESH_LAST, "")
+
+    assert scheduler.refresh_tick(now=at(23, 0)) is False                   # ještě ne
+    assert scheduler.refresh_tick(now=at(23, 30)) is True and started == [1, 2]
+    assert scheduler.refresh_tick(now=at(23, 45)) is False                  # dnes už proběhla
+    # zmeškaný termín (restart) se dožene do hodiny — i přes půlnoc
+    assert scheduler.refresh_tick(now=datetime(2026, 9, 27, 0, 10)) is True
+    assert db.get_setting(REFRESH_LAST) == "2026-09-26"
+    assert scheduler.refresh_tick(now=datetime(2026, 9, 27, 3, 0)) is False  # víc než hodinu po termínu
+
+
+def test_auto_refresh_settings_page(temp_db):
+    with TestClient(app) as client:
+        r = client.post("/nastaveni/aktualizace", data={"refresh_time": "nesmysl"}, follow_redirects=False)
+        assert "refresh_invalid" in r.headers["location"]
+        client.post("/nastaveni/aktualizace", data={"refresh_time": "21:30"})
+        assert "každý den v 21:30" in client.get("/nastaveni").text
+        assert "Automatická aktualizace každý den v 21:30" in client.get("/").text
+        client.post("/nastaveni/aktualizace", data={"refresh_time": ""})
+        assert "Automatická aktualizace každý den" not in client.get("/").text

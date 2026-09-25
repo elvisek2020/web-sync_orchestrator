@@ -29,6 +29,7 @@ FLASH_MESSAGES = {
     "direct_scheduled": ("success", "Přímý přenos naplánován — poběží v časovém okně."),
     "schedule_cancelled": ("info", "Plán přímého přenosu zrušen."),
     "schedule_no_window": ("error", "Nejdřív v Nastavení zadej časové okno pro naplánovaný přenos."),
+    "refresh_invalid": ("error", "Neplatný čas — zadej ho ve tvaru HH:MM."),
     "window_invalid": ("error", "Neplatné okno — zadej čas ve tvaru HH:MM, začátek a konec se musí lišit."),
     "disk_started": ("success", "Přenos na disk spuštěn."),
     "disk_nothing": ("error", "Na disk není co kopírovat."),

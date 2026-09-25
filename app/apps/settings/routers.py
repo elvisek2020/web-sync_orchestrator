@@ -22,7 +22,7 @@ from app.transfer import disk
 from app.transfer.disk import disk_info, usable_capacity  # noqa: F401 — usable_capacity i pro testy
 from app.transfer.runner import transfer_runner
 from app.transfer.scheduler import scheduler
-from app.transfer.window import get_window, set_window
+from app.transfer.window import get_refresh_time, get_window, refresh_label, set_refresh_time, set_window
 
 from . import db as settings_db
 
@@ -43,6 +43,7 @@ def settings_page(request: Request):
         capacity_gb=f"{capacity / 1e9:g}".replace(".", ",") if capacity else "",
         default_excludes=_default_excludes_text(), local_root=str(settings.local_root),
         disk=disk_info(), disk_data=disk.entries_summary(_disk_entries()), window=get_window(),
+        refresh_time=refresh_label(get_refresh_time()),
     ))
 
 
@@ -88,6 +89,16 @@ def save_window(window_from: str = Form(""), window_to: str = Form("")):
         set_window(window_from, window_to)
     except ValueError:
         return redirect("/nastaveni", "window_invalid")
+    scheduler.wake()
+    return redirect("/nastaveni", "saved")
+
+
+@router.post("/nastaveni/aktualizace")
+def save_refresh_time(refresh_time: str = Form("")):
+    try:
+        set_refresh_time(refresh_time)
+    except ValueError:
+        return redirect("/nastaveni", "refresh_invalid")
     scheduler.wake()
     return redirect("/nastaveni", "saved")
 

@@ -94,6 +94,12 @@ nahraný soubor a přerušený přenos příště **naváže**. Zachová se čas
 (soubor zůstane označený pro další pokus). Výsledek se hned promítne do čísel páru bez nového skenu.
 Přenos běží z lokálně připojeného zdroje (NAS1); během přenosu se pár neskenuje.
 
+#### Automatická aktualizace
+
+V **Nastavení → Automatická aktualizace** lze zadat jeden čas (např. `21:30`), kdy se každý den samo spustí
+*Aktualizovat vše* — ideálně chvíli před oknem pro naplánovaný přenos. Zmeškaný termín (restart kontejneru)
+se dožene nejpozději do hodiny; pár, u kterého zrovna běží přenos, se přeskočí.
+
 #### Naplánovaný přímý přenos
 
 Když je v **Nastavení → Okno pro naplánovaný přenos** zadané časové okno (např. `22:00`–`06:00`, každý den;
@@ -247,6 +253,7 @@ Aplikace na `http://localhost:8090`, falešný NAS2: host `nas2`, port `2222`, u
 - ✅ **Skript pro exFAT**: jeden soubor pro `to-disk` i `to-nas`, bezpečné seznamy cest, `rsync` po souborech s celkovým průběhem, kontroly složek, místa a plánu
 - ✅ **UI na Jinja2 + HTMX** (bez Reactu a Node buildu), světlý i tmavý režim, mobil
 - ✅ **SSH heslo se nevrací do prohlížeče**
+- ✅ **Automatická aktualizace** všech párů jednou denně v zadaný čas
 - ✅ **Naplánovaný přímý přenos** v časovém okně (i přes půlnoc), po konci okna se pozastaví a pokračuje další den
 - ✅ **Vyčištění disku** před dalším kolem (jen data aplikace)
 - ✅ **Přenos na disk z aplikace** místo kroku `to-disk` — průběh, zrušení, navázání, skript a `.sync-plan` na disku

@@ -7,7 +7,7 @@
 <div class="page-header">
   <div class="page-header-text">
     <h1 class="page-title">Přehled</h1>
-    <p class="page-description">Aktualizuj páry, zkontroluj plán a stáhni skript pro přenos přes disk.</p>
+    <p class="page-description">Aktualizuj páry, zkontroluj plán a stáhni skript pro přenos přes disk.{% if refresh_time %} Automatická aktualizace každý den v {{ refresh_time }}.{% endif %}</p>
   </div>
   {% if ov.pairs %}
   <div class="page-header-actions">

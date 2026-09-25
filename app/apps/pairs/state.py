@@ -4,7 +4,6 @@ from __future__ import annotations
 import threading
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from datetime import datetime
 
 from app import db
 from app.core.excludes import Excluder
@@ -15,7 +14,6 @@ from app.transfer.runner import ActiveTransfer, transfer_runner
 
 from . import db as pairs_db
 
-AGE_WARNING_HOURS = 24
 
 
 @dataclass
@@ -142,10 +140,6 @@ def invalidate_scan(scan_id: int) -> None:
             del _compare_cache[key]
 
 
-def _hours_between(a: str, b: str) -> float:
-    return abs((datetime.fromisoformat(a) - datetime.fromisoformat(b)).total_seconds()) / 3600
-
-
 def load_overview() -> Overview:
     states: list[PairState] = []
     for pair in pairs_db.list_pairs():
@@ -162,9 +156,6 @@ def load_overview() -> Overview:
                 pair["id"], comparison, on_disk=bool(pair["on_disk"]),
                 include_conflicts=bool(pair["include_conflicts"]), include_extra=bool(pair["include_extra"]),
             )
-            hours = _hours_between(src["finished_at"], tgt["finished_at"])
-            if hours > AGE_WARNING_HOURS:
-                st.warnings.append(f"Skeny zdroje a cíle se liší stářím o {hours:.0f} h — zvažte Aktualizovat.")
         for side in (st.source, st.target):
             if side.failed:
                 label = "zdroje" if side.side == "source" else "cíle"

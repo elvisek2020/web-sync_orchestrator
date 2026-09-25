@@ -61,6 +61,48 @@ def parse(value: str) -> Window | None:
     return Window(s, e)
 
 
+# --- automatická aktualizace: jeden čas denně pro „Aktualizovat vše“ ---
+
+REFRESH_SETTING = "auto_refresh_time"
+REFRESH_LAST = "auto_refresh_last"        # datum, kdy už proběhla (aby běžela jen jednou denně)
+REFRESH_GRACE = 60                        # minut: zmeškaný termín (restart) se ještě dožene
+
+
+def get_refresh_time() -> int | None:
+    return parse_time(db.get_setting(REFRESH_SETTING, ""))
+
+
+def refresh_label(minutes: int | None) -> str:
+    return _fmt(minutes) if minutes is not None else ""
+
+
+def set_refresh_time(value: str) -> int | None:
+    """Uloží čas automatické aktualizace; prázdný ji vypne. Neplatný → ValueError."""
+    if not (value or "").strip():
+        db.set_setting(REFRESH_SETTING, "")
+        return None
+    minutes = parse_time(value)
+    if minutes is None:
+        raise ValueError("Neplatný čas")
+    db.set_setting(REFRESH_SETTING, _fmt(minutes))
+    # termín, který už dnes minul, se po uložení nedohání — první aktualizace až v nejbližší zadaný čas
+    db.set_setting(REFRESH_LAST, "")
+    db.set_setting(REFRESH_LAST, refresh_due(datetime.now()) or "")
+    return minutes
+
+
+def refresh_due(now: datetime) -> str | None:
+    """Datum termínu, který je právě na řadě a ještě neproběhl (jinak None)."""
+    at = get_refresh_time()
+    if at is None:
+        return None
+    late = (now.hour * 60 + now.minute - at) % (24 * 60)      # minut po termínu (i přes půlnoc)
+    if late >= REFRESH_GRACE:
+        return None
+    day = (now - timedelta(minutes=late)).date().isoformat()
+    return None if db.get_setting(REFRESH_LAST, "") == day else day
+
+
 def get_window() -> Window | None:
     return parse(db.get_setting(SETTING, ""))
 
