@@ -20,6 +20,7 @@ from app.config import STATIC_DIR, settings
 from app.db import DatabaseSetupError, get_engine, init_db
 from app.scan.runner import recover_interrupted
 from app.transfer.runner import recover_interrupted as recover_interrupted_transfers
+from app.transfer.scheduler import scheduler
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level, logging.INFO),
@@ -42,8 +43,10 @@ async def lifespan(_app: FastAPI):
         logger.warning("Po restartu označeno %d nedokončených skenů jako selhané.", interrupted)
     interrupted = recover_interrupted_transfers()
     if interrupted:
-        logger.warning("Po restartu označeno %d nedokončených přímých přenosů jako selhané.", interrupted)
+        logger.warning("Po restartu označeno %d nedokončených přenosů jako selhané.", interrupted)
+    scheduler.start()
     yield
+    scheduler.stop()
 
 
 app = FastAPI(title=settings.app_name, docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)

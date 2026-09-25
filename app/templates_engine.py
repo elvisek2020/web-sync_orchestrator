@@ -96,6 +96,7 @@ def cz_plural(count: int, one: str, few: str, many: str) -> str:
 
 templates.env.globals["app_name"] = settings.app_name
 templates.env.globals["app_version"] = _load_version()
+templates.env.globals["now_dt"] = datetime.now
 templates.env.filters["filesize"] = filesize
 templates.env.filters["number"] = number
 templates.env.filters["cz_datetime"] = cz_datetime

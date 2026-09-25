@@ -94,6 +94,16 @@ nahraný soubor a přerušený přenos příště **naváže**. Zachová se čas
 (soubor zůstane označený pro další pokus). Výsledek se hned promítne do čísel páru bez nového skenu.
 Přenos běží z lokálně připojeného zdroje (NAS1); během přenosu se pár neskenuje.
 
+#### Naplánovaný přímý přenos
+
+Když je v **Nastavení → Okno pro naplánovaný přenos** zadané časové okno (např. `22:00`–`06:00`, každý den;
+konec dřív než začátek = přes půlnoc), má potvrzovací okno přímého přenosu i tlačítko **Naplánovat**.
+Naplánovaný pár se spustí sám, jakmile je okno otevřené (víc párů postupně, v pořadí párů). Po konci okna
+se rozpracovaný soubor dokončí, další už nezačne a přenos skončí jako *Pozastaveno*; zbytek pokračuje
+v dalším okně. Když je přeneseno všechno (nebo přenos zrušíš), plán se sám zruší; zrušit ho jde i tlačítkem
+*Zrušit plán* v detailu páru. Ruční *Spustit přenos* okno nerespektuje a běží do konce. Po selhání (třeba
+nedostupný NAS2) plánovač v okně zkusí přenos znovu za 15 minut. Čas je podle kontejneru (`TZ`).
+
 ## 🚀 Deployment
 
 ### Předpoklady
@@ -237,6 +247,8 @@ Aplikace na `http://localhost:8090`, falešný NAS2: host `nas2`, port `2222`, u
 - ✅ **Skript pro exFAT**: jeden soubor pro `to-disk` i `to-nas`, bezpečné seznamy cest, `rsync` po souborech s celkovým průběhem, kontroly složek, místa a plánu
 - ✅ **UI na Jinja2 + HTMX** (bez Reactu a Node buildu), světlý i tmavý režim, mobil
 - ✅ **SSH heslo se nevrací do prohlížeče**
+- ✅ **Naplánovaný přímý přenos** v časovém okně (i přes půlnoc), po konci okna se pozastaví a pokračuje další den
+- ✅ **Vyčištění disku** před dalším kolem (jen data aplikace)
 - ✅ **Přenos na disk z aplikace** místo kroku `to-disk` — průběh, zrušení, navázání, skript a `.sync-plan` na disku
 - ✅ **Přímý přenos NAS → NAS** přes SFTP pro menší objemy a mazání přebývajících (průběh, rychlost, odhad času, navázání)
 - ❌ Odstraněno: kopírování z backendu, SAFE MODE, DB na USB, WebSocket, fáze, stránka Debug

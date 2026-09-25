@@ -16,7 +16,11 @@ from app.core.excludes import parse_patterns
 from app.core.plan import Item, PairPlan
 from app.core.script import generate_script, script_filename
 from app.scan.runner import runner
+from datetime import datetime
+
 from app.transfer import disk
+from app.transfer.scheduler import scheduler
+from app.transfer.window import get_window
 from app.transfer.runner import split_items, transfer_runner
 from app.templates_engine import templates
 
@@ -135,6 +139,7 @@ def _detail_ctx(request: Request, st: PairState, tab: str, q: str, page: int, so
         disk_available=disk.disk_info()["mounted"], disk_dest=str(disk.pair_dir(st.pair)),
         script_name=script_filename(st.pair["slug"]),
         last_transfers=[] if st.transfer else pairs_db.last_transfers(st.pair["id"]),
+        window=get_window(), now=datetime.now(),
     )
 
 
@@ -212,6 +217,29 @@ def start_direct(pair_id: int):
     return redirect(f"/pary/{pair_id}", "direct_started" if started else "transfer_busy")
 
 
+@router.post("/pary/{pair_id:int}/primy-prenos/naplanovat")
+def schedule_direct(pair_id: int):
+    """Přímý přenos jen v časovém okně (z Nastavení) — i přes víc nocí, dokud se nepřenese všechno."""
+    st = _load_state(pair_id)
+    if not st or not st.plan:
+        return redirect(f"/pary/{pair_id}", "no_plan")
+    if not st.direct_supported:
+        return redirect(f"/pary/{pair_id}", "direct_local_only")
+    if not st.plan.comparison.direct:
+        return redirect(f"/pary/{pair_id}", "direct_none")
+    if get_window() is None:
+        return redirect(f"/pary/{pair_id}", "schedule_no_window")
+    pairs_db.set_scheduled(pair_id, True)
+    scheduler.wake()                                   # je-li okno právě otevřené, začne hned
+    return redirect(f"/pary/{pair_id}", "direct_scheduled")
+
+
+@router.post("/pary/{pair_id:int}/primy-prenos/zrusit-plan")
+def unschedule_direct(pair_id: int):
+    pairs_db.set_scheduled(pair_id, False)
+    return redirect(f"/pary/{pair_id}", "schedule_cancelled")
+
+
 # --- přenos na disk (místo kroku to-disk skriptu) ---
 
 @router.post("/pary/{pair_id:int}/prenos-na-disk")
@@ -265,6 +293,7 @@ def transfer_panel(request: Request, pair_id: int):
         "request": request, "pair": pair, "job": job,
         "last_transfers": [] if job else pairs_db.last_transfers(pair_id),
         "script_name": script_filename(pair["slug"]) if pair else "",
+        "window": get_window(),
     })
 
 

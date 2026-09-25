@@ -139,6 +139,7 @@ SCHEMA_STATEMENTS = [
         include_extra     INTEGER NOT NULL DEFAULT 0,
         exclude_patterns  TEXT NOT NULL DEFAULT '',
         on_disk           INTEGER NOT NULL DEFAULT 1,
+        scheduled         INTEGER NOT NULL DEFAULT 0,      -- přímý přenos naplánovaný do okna
         created_at        TEXT NOT NULL
     )
     """,
@@ -255,6 +256,7 @@ def init_db() -> None:
 ADDED_COLUMNS = [
     ("transfers", "kind", "TEXT NOT NULL DEFAULT 'direct'"),
     ("transfers", "results", "TEXT NULL"),
+    ("pairs", "scheduled", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 

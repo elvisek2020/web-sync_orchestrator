@@ -44,6 +44,28 @@
     </div>
   </section>
 
+  {% if pair.scheduled and not job %}
+  <section class="card" id="schedule-notice">
+    <div class="card-body schedule-row">
+      <span class="schedule-icon">{{ icon('clock', 20) }}</span>
+      <div class="schedule-text">
+        <strong>Naplánovaný přímý přenos</strong>
+        <span class="text-sm text-muted">
+          {%- if window %}
+            okno {{ window.label }} · {{ direct.count|cz_plural('položka', 'položky', 'položek') }}{% if direct.upload_bytes %} ({{ direct.upload_bytes|filesize }}){% endif %} ·
+            {% if window.contains(now) %}okno je otevřené, přenos se spustí během chvíle{% else %}začne {{ window.next_start(now).isoformat()|cz_datetime }}{% endif %}
+          {%- else %}
+            okno není nastavené — zadej ho v <a href="/nastaveni#okno">Nastavení</a>
+          {%- endif %}
+        </span>
+      </div>
+      <form method="post" action="/pary/{{ pair.id }}/primy-prenos/zrusit-plan">
+        <button type="submit" class="btn btn-outline btn-sm">{{ icon('x', 16) }}Zrušit plán</button>
+      </form>
+    </div>
+  </section>
+  {% endif %}
+
   {% if job or last_transfers %}
     {% include "pairs/_transfer.html" %}
   {% endif %}

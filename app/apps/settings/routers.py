@@ -21,6 +21,8 @@ from app.templates_engine import templates
 from app.transfer import disk
 from app.transfer.disk import disk_info, usable_capacity  # noqa: F401 — usable_capacity i pro testy
 from app.transfer.runner import transfer_runner
+from app.transfer.scheduler import scheduler
+from app.transfer.window import get_window, set_window
 
 from . import db as settings_db
 
@@ -40,7 +42,7 @@ def settings_page(request: Request):
         pairs=pairs_db.list_pairs(), hosts=settings_db.list_hosts(),
         capacity_gb=f"{capacity / 1e9:g}".replace(".", ",") if capacity else "",
         default_excludes=_default_excludes_text(), local_root=str(settings.local_root),
-        disk=disk_info(), disk_data=disk.entries_summary(_disk_entries()),
+        disk=disk_info(), disk_data=disk.entries_summary(_disk_entries()), window=get_window(),
     ))
 
 
@@ -78,6 +80,16 @@ def clean_disk():
         return redirect("/nastaveni", "disk_clean_failed")
     logger.info("Disk vyčištěn: %s", ", ".join(e.name for e in entries))
     return redirect("/nastaveni", "disk_cleaned")
+
+
+@router.post("/nastaveni/okno")
+def save_window(window_from: str = Form(""), window_to: str = Form("")):
+    try:
+        set_window(window_from, window_to)
+    except ValueError:
+        return redirect("/nastaveni", "window_invalid")
+    scheduler.wake()
+    return redirect("/nastaveni", "saved")
 
 
 @router.post("/nastaveni/disk")

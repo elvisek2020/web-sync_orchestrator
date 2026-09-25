@@ -122,6 +122,32 @@
     </div>
   </section>
 
+  <section class="card" id="okno">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Okno pro naplánovaný přenos</h2>
+        <p class="card-subtitle">Naplánovaný přímý přenos poběží jen v tomto čase, každý den. Po konci okna rozpracovaný soubor dokončí a další už nezačne.</p>
+      </div>
+    </div>
+    <form method="post" action="/nastaveni/okno" class="card-body stack">
+      <div class="window-fields">
+        <div class="form-group">
+          <label class="form-label" for="window_from">Od</label>
+          <input class="input" type="time" id="window_from" name="window_from" value="{{ window.label[:5] if window else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="window_to">Do</label>
+          <input class="input" type="time" id="window_to" name="window_to" value="{{ window.label[-5:] if window else '' }}">
+        </div>
+        <button type="submit" class="btn btn-primary btn-wide">Uložit okno</button>
+      </div>
+      <p class="form-hint">
+        {% if window %}Teď: <strong>{{ window.label }}</strong>. {% endif %}Konec dřív než začátek = okno přes půlnoc (např. 22:00–06:00).
+        Prázdná pole okno zruší (naplánovat pak nejde). Čas je podle kontejneru (TZ v docker-compose).
+      </p>
+    </form>
+  </section>
+
   <section class="card" id="vzory">
     <div class="card-header">
       <div>

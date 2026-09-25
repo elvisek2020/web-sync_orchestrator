@@ -72,6 +72,10 @@ def update_pair_options(pair_id: int, *, include_conflicts: bool, include_extra:
     )
 
 
+def set_scheduled(pair_id: int, value: bool) -> None:
+    db.execute("UPDATE pairs SET scheduled = :v WHERE id = :id", {"v": int(value), "id": pair_id})
+
+
 def set_on_disk(pair_id: int, value: bool) -> None:
     db.execute("UPDATE pairs SET on_disk = :v WHERE id = :id", {"v": int(value), "id": pair_id})
 
@@ -230,6 +234,13 @@ def last_transfers(pair_id: int) -> list[dict]:
     """Poslední přenos každého druhu (nejnovější první) — karty v detailu páru."""
     rows = [t for kind in TRANSFER_KINDS if (t := last_transfer(pair_id, kind))]
     return sorted(rows, key=lambda t: t["id"], reverse=True)
+
+
+def last_direct_failure(pair_id: int) -> str | None:
+    """Čas posledního selhaného přímého přenosu (pro odstup před dalším pokusem plánovače)."""
+    row = db.query_one("SELECT finished_at FROM transfers WHERE pair_id = :p AND kind = 'direct' "
+                       "AND status = 'failed' ORDER BY id DESC LIMIT 1", {"p": pair_id})
+    return row["finished_at"] if row else None
 
 
 def delete_transfer(pair_id: int, transfer_id: int) -> None:

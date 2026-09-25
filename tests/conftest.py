@@ -20,6 +20,7 @@ def temp_db(tmp_path, monkeypatch):
     local_root.mkdir()
     monkeypatch.setattr(settings, "database_path", db_path)
     monkeypatch.setattr(settings, "local_root", local_root)
+    monkeypatch.setattr(settings, "scheduler_enabled", False)     # plánovač v testech jen přes tick()
     db.reset_engine(f"sqlite:///{db_path}")
     pairs_db._files_cache.clear()
     state._compare_cache.clear()

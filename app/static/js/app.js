@@ -6,6 +6,7 @@
  *
  * Všechno je řízené atributy v HTML, žádná inicializace v šablonách:
  *   data-confirm          potvrzení akce modalem místo confirm()
+ *   data-confirm-alt      druhé tlačítko v potvrzení (s data-confirm-alt-action = kam formulář odeslat)
  *   data-keep-scroll      po odeslání formuláře zůstane pozice na stránce
  *   data-remember-open    <details> si pamatuje, jestli bylo rozbalené
  *   data-lightbox         fotka se otevře v překryvu, ne na nové kartě
@@ -43,7 +44,7 @@ function showNotification(message, type) {
 
 var _confirmCb = null;
 
-function confirmAction(title, message, okLabel, cb, danger) {
+function confirmAction(title, message, okLabel, cb, danger, alt) {
     document.getElementById('confirm-title').textContent = title;
     document.getElementById('confirm-message').textContent = message;
     var ok = document.getElementById('confirm-ok');
@@ -56,11 +57,20 @@ function confirmAction(title, message, okLabel, cb, danger) {
         closeConfirm();
         if (fn) fn();
     };
+    // volitelné druhé tlačítko (alt = {label, cb}), např. „Naplánovat“ vedle „Spustit přenos“
+    var altBtn = document.getElementById('confirm-alt');
+    if (altBtn) {
+        altBtn.hidden = !alt;
+        altBtn.textContent = alt ? alt.label : '';
+        altBtn.onclick = alt ? function () { closeConfirm(); alt.cb(); } : null;
+    }
     ok.focus();
 }
 
 function closeConfirm() {
     document.getElementById('confirm-overlay').style.display = 'none';
+    var altBtn = document.getElementById('confirm-alt');
+    if (altBtn) altBtn.hidden = true;
     _confirmCb = null;
 }
 
@@ -200,6 +210,18 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!form.hasAttribute || !form.hasAttribute('data-confirm') || form.dataset.confirmed) return;
         e.preventDefault();
         var submitter = e.submitter;
+        // data-confirm-alt="Popisek" + data-confirm-alt-action="/url": druhá volba odešle formulář jinam
+        var alt = null;
+        if (form.dataset.confirmAlt && form.dataset.confirmAltAction) {
+            alt = {
+                label: form.dataset.confirmAlt,
+                cb: function () {
+                    form.action = form.dataset.confirmAltAction;
+                    form.dataset.confirmed = '1';
+                    form.submit();
+                }
+            };
+        }
         confirmAction(
             form.dataset.confirmTitle || 'Opravdu?',
             form.dataset.confirm,
@@ -209,7 +231,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (form.requestSubmit) form.requestSubmit(submitter || undefined);
                 else form.submit();
             },
-            form.hasAttribute('data-confirm-danger')
+            form.hasAttribute('data-confirm-danger'),
+            alt
         );
     }, true);
 

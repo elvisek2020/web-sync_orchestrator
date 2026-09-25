@@ -3113,6 +3113,37 @@ details.card[open] > .summary-toggle {
     margin-top: var(--space-2);
 }
 
+/* Naplánovaný přímý přenos: pruh v detailu páru a okno v Nastavení */
+.schedule-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3) var(--space-4);
+}
+
+.schedule-icon {
+    display: inline-flex;
+    color: var(--color-primary);
+}
+
+.schedule-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 14rem;
+}
+
+.window-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-3);
+}
+
+.window-fields .form-group {
+    margin: 0;
+}
+
 /* Řazení seznamu souborů kliknutím na záhlaví sloupce */
 .th-sort {
     display: inline-flex;

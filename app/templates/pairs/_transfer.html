@@ -13,7 +13,7 @@
       <p class="card-subtitle">
         {%- if cancelling %}Ruší se — rozpracovaný soubor příště naváže
         {%- elif deleting %}Mažu přebývající soubory
-        {%- elif p.phase == 'Nahrávám' %}Nahrávám soubory
+        {%- elif p.phase == 'Nahrávám' %}Nahrávám soubory{% if job.scheduled %} · naplánovaný, okno do {{ job.window_end().strftime('%H:%M') }} (zbývá {{ (job.window_end() - now_dt()).total_seconds()|duration }}){% endif %}
         {%- elif p.phase == 'Kopíruji' %}Kopíruji na disk · {{ job.dest }}
         {%- else %}{{ p.phase }}{% endif -%}
       </p>
@@ -87,6 +87,7 @@
 {% if t.status == 'done' and not t.failed %}{% set b_cls, b_text, b_ok = 'badge--success', 'Hotovo', true %}
 {% elif t.status == 'done' %}{% set b_cls, b_text, b_ok = 'badge--warn', 'Hotovo s chybami', false %}
 {% elif t.status == 'cancelled' %}{% set b_cls, b_text, b_ok = 'badge--warn', 'Zrušen', false %}
+{% elif t.status == 'paused' %}{% set b_cls, b_text, b_ok = 'badge--accent', 'Pozastaveno', false %}
 {% else %}{% set b_cls, b_text, b_ok = 'badge--error', 'Selhal', false %}{% endif %}
 <details class="card" id="transfer-last-{{ t.kind }}">
   <summary class="card-header summary-toggle">
@@ -115,6 +116,8 @@
         Disk je připravený. Je na něm i skript <strong>{{ script_name }}</strong> — disk připoj k NAS2 (nebo k Macu) a spusť:
         <pre class="log log--inline">bash {{ script_name }} to-nas &lt;kořen disku&gt; &lt;složka na NAS2&gt;</pre>
       {% endcall %}
+    {% elif t.status == 'paused' %}
+      {{ alert('info', 'Časové okno skončilo — rozpracovaný soubor se dokončil, zbytek zůstal v záložce Přímý přenos a pokračuje v dalším okně' ~ ((' (' ~ window.label ~ ')') if window else '') ~ '.') }}
     {% elif t.status == 'cancelled' %}
       {% if is_disk %}
         {{ alert('info', 'Přenos byl zrušen. Při dalším spuštění naváže — soubory, které už na disku jsou, se přeskočí. Manifest .sync-plan se zapíše až po dokončení.') }}

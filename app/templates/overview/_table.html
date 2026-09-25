@@ -125,7 +125,11 @@
       {% set tp = st.transfer.progress %}
       <p class="scan-caption" aria-live="polite">
         <span class="pulse-dot" aria-hidden="true"></span>
-        {{ st.transfer.label }}{% if st.transfer.kind == 'direct' %} na NAS2{% endif %} · {{ tp.percent|round|int }} % · {{ tp.files_done|number }} z {{ tp.files_total|cz_plural('souboru', 'souborů', 'souborů') }}{% if tp.speed %} · {{ tp.speed|filesize }}/s{% endif %}{% if tp.eta is not none %} · zbývá ~{{ tp.eta|duration }}{% endif %}
+        {{ st.transfer.label }}{% if st.transfer.kind == 'direct' %} na NAS2{% endif %}{% if st.transfer.scheduled %} (naplánovaný){% endif %} · {{ tp.percent|round|int }} % · {{ tp.files_done|number }} z {{ tp.files_total|cz_plural('souboru', 'souborů', 'souborů') }}{% if tp.speed %} · {{ tp.speed|filesize }}/s{% endif %}{% if tp.eta is not none %} · zbývá ~{{ tp.eta|duration }}{% endif %}
+      </p>
+      {% elif pair.scheduled %}
+      <p class="scan-caption">
+        {{ icon('clock', 14) }}Naplánovaný přímý přenos · {% if window %}okno {{ window.label }}{% else %}okno není nastavené{% endif %}
       </p>
       {% endif %}
 

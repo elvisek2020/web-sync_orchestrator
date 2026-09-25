@@ -24,6 +24,8 @@ class Config:
         # Kontrola, že disk není na stejném svazku jako NAS1. Vypnout (0) jen pro vývoj na Docker Desktopu,
         # kde mají všechna připojení ze stejného počítače stejné zařízení.
         self.disk_check_device = os.environ.get("DISK_CHECK_DEVICE", "1") != "0"
+        # Plánovač naplánovaného přímého přenosu (vypíná se jen v testech).
+        self.scheduler_enabled = os.environ.get("SCHEDULER", "1") != "0"
 
     @property
     def db_url(self) -> str:

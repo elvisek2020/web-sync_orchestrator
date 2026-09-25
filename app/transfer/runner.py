@@ -29,6 +29,7 @@ from app.core.plan import EXTRA, Item
 
 from . import disk
 from .targets import LocalTarget, SftpTarget, as_str, part_name
+from .window import Window
 
 logger = logging.getLogger("sync.transfer")
 
@@ -40,6 +41,10 @@ MAX_FAILURES_IN_ROW = 5       # pak se přenos ukončí (nejspíš je cíl nedos
 
 class TransferCancelled(Exception):
     pass
+
+
+class WindowClosed(Exception):
+    """Naplánovaný přenos: okno skončilo — rozpracovaný soubor se dokončil, další už nezačne."""
 
 
 @dataclass
@@ -129,7 +134,15 @@ class ActiveTransfer:
     progress: TransferProgress
     kind: str = "direct"                     # direct = NAS → NAS, disk = NAS → přenosový disk
     dest: str = ""                           # kam se kopíruje (zobrazí se v panelu)
+    window: Window | None = None             # naplánovaný přenos: běží jen v tomto okně
     thread: threading.Thread | None = None
+
+    @property
+    def scheduled(self) -> bool:
+        return self.window is not None
+
+    def window_end(self) -> datetime | None:
+        return self.window.end_after(datetime.now()) if self.window else None
 
     @property
     def label(self) -> str:
@@ -167,8 +180,13 @@ class TransferRunner:
             return True
         return False
 
-    def start(self, pair: dict, items: list[Item], target_scan_id: int) -> int | None:
-        """Přímý přenos NAS → NAS pro označené položky. None = u páru už něco běží."""
+    def direct_running(self) -> bool:
+        with self._lock:
+            return any(j.kind == "direct" for j in self._active.values())
+
+    def start(self, pair: dict, items: list[Item], target_scan_id: int, window: Window | None = None) -> int | None:
+        """Přímý přenos NAS → NAS pro označené položky. S oknem = naplánovaný: po konci okna
+        další soubor nezačne a přenos skončí jako „pozastavený“. None = u páru už něco běží."""
         from app.apps.pairs import db as pairs_db
         from app.apps.pairs.state import invalidate_scan
 
@@ -180,8 +198,10 @@ class TransferRunner:
             pairs_db.patch_scan(target_scan_id, added=added, removed_keys=removed_keys)
             pairs_db.set_direct(pair["id"], done_keys, marked=False)
             invalidate_scan(target_scan_id)
+            if job.scheduled and status in ("done", "cancelled"):
+                pairs_db.set_scheduled(pair["id"], False)     # vše prošlo (nebo zrušeno) → plán hotový
 
-        return self._launch(pair, "direct", uploads, deletions, dest="NAS2",
+        return self._launch(pair, "direct", uploads, deletions, dest="NAS2", window=window,
                             make_target=lambda: self._make_target(pair), prepare=None, finish=finish)
 
     def start_disk(self, pair: dict, items: list[Item], *, script_name: str, script_text: str,
@@ -212,7 +232,7 @@ class TransferRunner:
                             make_target=lambda: LocalTarget(str(root)), prepare=prepare, finish=finish)
 
     def _launch(self, pair: dict, kind: str, uploads: list[Item], deletions: list[Item], *, dest: str,
-                make_target, prepare, finish) -> int | None:
+                make_target, prepare, finish, window: Window | None = None) -> int | None:
         from app.apps.pairs import db as pairs_db
 
         bytes_total = sum(i.src.size for i in uploads)
@@ -227,7 +247,7 @@ class TransferRunner:
             )
             progress = TransferProgress(files_total=len(uploads), bytes_total=bytes_total,
                                         delete_total=len(deletions))
-            job = ActiveTransfer(transfer_id, pair["id"], progress, kind=kind, dest=dest)
+            job = ActiveTransfer(transfer_id, pair["id"], progress, kind=kind, dest=dest, window=window)
             job.thread = threading.Thread(
                 target=self._run, args=(job, pair, uploads, deletions, make_target, prepare, finish),
                 daemon=True, name=f"transfer-{transfer_id}",
@@ -239,6 +259,11 @@ class TransferRunner:
         return transfer_id
 
     # --- běh ---
+
+    @staticmethod
+    def _check_window(job: ActiveTransfer) -> None:
+        if job.window and not job.window.contains(datetime.now()):
+            raise WindowClosed()
 
     def _make_target(self, pair: dict):
         host_id = pair["target_host_id"]
@@ -269,6 +294,7 @@ class TransferRunner:
 
             for no, item in enumerate(deletions, 1):     # nejdřív mazání — je rychlé a uvolní místo
                 progress.check_cancel()
+                self._check_window(job)
                 progress.current_no = no
                 rel = as_str(item.tgt.path)
                 progress.phase, progress.current, progress.current_size, progress.current_done = "Mažu", rel, 0, 0
@@ -293,6 +319,7 @@ class TransferRunner:
 
             for no, item in enumerate(uploads, 1):
                 progress.check_cancel()
+                self._check_window(job)
                 progress.current_no = no
                 rel = as_str(item.src.path)
                 try:
@@ -321,6 +348,9 @@ class TransferRunner:
             status = "done"
         except TransferCancelled as e:
             status, error = "cancelled", str(e)
+        except WindowClosed:
+            status = "paused"
+            progress.log(f"Okno {job.window.label} skončilo — zbytek pokračuje v dalším okně.")
         except Exception as e:  # noqa: BLE001
             error = f"{e}\n\n{traceback.format_exc()}"
             progress.log(f"CHYBA: {e}")
