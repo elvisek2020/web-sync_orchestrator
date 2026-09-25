@@ -186,3 +186,11 @@ def test_file_list_sorting(temp_db):
         assert "sort=-size" in r.headers["location"]
         csv_lines = client.get("/pary/1/export.csv?tab=copy&sort=-path").text.splitlines()[1:]
         assert [line.split(";")[0] for line in csv_lines] == ["Čtyřlístek.mkv", "cheers.mkv"]
+
+
+def test_hidden_attribute_wins_over_display_classes():
+    """Skryté druhé tlačítko v potvrzovacím okně (.btn má display: inline-flex) nesmí být vidět."""
+    from pathlib import Path
+
+    css = (Path(__file__).parent.parent / "app/static/css/app.css").read_text(encoding="utf-8")
+    assert "[hidden] {\n    display: none !important;" in css

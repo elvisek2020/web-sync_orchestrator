@@ -3113,6 +3113,16 @@ details.card[open] > .summary-toggle {
     margin-top: var(--space-2);
 }
 
+/* Potvrzovací okno: nový řádek v data-confirm (&#10;) se zobrazí jako zalomení */
+#confirm-message {
+    white-space: pre-line;
+}
+
+/* Atribut hidden platí vždy — i u prvků, kterým třída nastavuje display (např. .btn) */
+[hidden] {
+    display: none !important;
+}
+
 /* Naplánovaný přímý přenos: pruh v detailu páru a okno v Nastavení */
 .schedule-row {
     display: flex;
@@ -3133,15 +3143,21 @@ details.card[open] > .summary-toggle {
     min-width: 14rem;
 }
 
-.window-fields {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: var(--space-3);
+.input-group-sep {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-text-light);
 }
 
-.window-fields .form-group {
-    margin: 0;
+/* Na úzkém displeji tlačítko pod časy, ať se čas vejde celý */
+@media (max-width: 600px) {
+    .input-group--window {
+        flex-wrap: wrap;
+    }
+
+    .input-group--window > .btn {
+        flex-basis: 100%;
+    }
 }
 
 /* Řazení seznamu souborů kliknutím na záhlaví sloupce */
