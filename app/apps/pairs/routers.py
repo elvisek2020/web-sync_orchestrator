@@ -33,6 +33,7 @@ PAGE_SIZE = 50
 TABS = [
     ("copy", "Kopírovat"),
     ("deferred", "Odloženo"),
+    ("ondisk", "Na disku"),
     ("conflict", "Konflikty"),
     ("extra", "Přebývá"),
     ("skipped", "Vyřazené"),
@@ -49,6 +50,7 @@ def tab_items(plan: PairPlan, tab: str) -> list[Item]:
         "conflict": cmp.conflict,
         "extra": cmp.extra,
         "deferred": plan.deferred,
+        "ondisk": cmp.ondisk,
         "skipped": cmp.skipped,
         "direct": cmp.direct,
         "problems": cmp.problems,
@@ -78,11 +80,15 @@ def disk_summary(plan: PairPlan | None) -> dict:
     return {"count": len(items), "bytes": sum(i.src.size for i in items)}
 
 
-def _script(st: PairState) -> str:
+def _script_for(pair: dict, plan: PairPlan) -> str:
     return generate_script(
-        pair_name=st.pair["name"], slug=st.pair["slug"], plan=st.plan,
-        source_desc=side_desc(st.pair, "source"), target_desc=side_desc(st.pair, "target"),
+        pair_name=pair["name"], slug=pair["slug"], plan=plan,
+        source_desc=side_desc(pair, "source"), target_desc=side_desc(pair, "target"),
     )
+
+
+def _script(st: PairState) -> str:
+    return _script_for(st.pair, st.plan)
 
 
 # Řazení seznamu souborů: podle cesty nebo velikosti, „-“ = sestupně; prázdné = pořadí plánu.
@@ -193,7 +199,7 @@ def bulk_toggle(
     action: str = Form(...), tab: str = Form("copy"), q: str = Form(""), sort: str = Form(""),
 ):
     st = _load_state(pair_id)
-    if st and st.plan and tab in TAB_KEYS and tab != "problems":
+    if st and st.plan and tab in TAB_KEYS and tab not in ("problems", "ondisk"):
         keys = [item.key for item in _filter(tab_items(st.plan, tab), q.strip())]
         apply_action(pair_id, keys, action)
     return _after_change(request, pair_id, tab, q, 1, sort)
@@ -259,11 +265,19 @@ def start_disk(pair_id: int):
     problem = disk.disk_problem(items, disk.pair_dir(st.pair))
     if problem:
         return redirect(f"/pary/{pair_id}", problem)
+    pair = st.pair
     started = transfer_runner.start_disk(
-        st.pair, items, script_name=script_filename(st.pair["slug"]), script_text=_script(st),
-        plan_hash=st.plan.plan_hash(),
+        pair, st.plan, script_name=script_filename(pair["slug"]),
+        make_script=lambda plan: _script_for(pair, plan),
     )
     return redirect(f"/pary/{pair_id}", "disk_started" if started else "disk_busy")
+
+
+@router.post("/pary/{pair_id:int}/na-disku/vyprazdnit")
+def clear_ondisk(pair_id: int):
+    """Ruční vyprázdnění záložky Na disku — soubory se vrátí do Kopírovat / Odloženo (bez skenu)."""
+    pairs_db.clear_ondisk(pair_id)
+    return redirect(f"/pary/{pair_id}", "ondisk_cleared", tab="copy")
 
 
 @router.post("/pary/{pair_id:int}/prenos/zrusit")

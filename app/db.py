@@ -179,6 +179,14 @@ SCHEMA_STATEMENTS = [
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS pair_ondisk (
+        pair_id    INTEGER NOT NULL REFERENCES pairs(id) ON DELETE CASCADE,
+        key        TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (pair_id, key)
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS transfers (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
         pair_id      INTEGER NOT NULL REFERENCES pairs(id) ON DELETE CASCADE,

@@ -204,29 +204,50 @@ class TransferRunner:
         return self._launch(pair, "direct", uploads, deletions, dest="NAS2", window=window,
                             make_target=lambda: self._make_target(pair), prepare=None, finish=finish)
 
-    def start_disk(self, pair: dict, items: list[Item], *, script_name: str, script_text: str,
-                   plan_hash: str) -> int | None:
-        """Přenos na disk: soubory do <disk>/<slug>/, skript do kořene disku, po úplném dokončení
-        manifest .sync-plan (krok to-nas skriptu ho kontroluje). None = u páru už něco běží,
-        nebo se na disk právě kopíruje jiný pár."""
-        uploads = [i for i in items if i.src is not None]
+    def start_disk(self, pair: dict, plan, *, script_name: str, make_script) -> int | None:
+        """Přenos na disk: soubory ze záložky Kopírovat do <disk>/<slug>/.
+
+        Zkopírované soubory se zapíší do záložky Na disku (Kopírovat se přepočítá — další várka jde
+        na tentýž nebo jiný disk bez duplicit). Skript v kořeni disku a manifest .sync-plan popisují
+        soubory páru, které na tomto disku opravdu leží (i z předchozích várek na stejný disk).
+        `make_script(plan)` vytvoří text skriptu. None = u páru už něco běží, nebo se na disk právě
+        kopíruje jiný pár."""
+        from dataclasses import replace
+
+        uploads = [i for i in plan.selected if i.src is not None]
         root = disk.pair_dir(pair)
         manifest = root / disk.MANIFEST
+        script = settings.disk_path / script_name
+
+        def on_this_disk(items):
+            return [i for i in items if (root / as_str(i.src.path)).is_file()]
+
+        def write_script(disk_plan, job: ActiveTransfer, with_manifest: bool) -> None:
+            script.write_text(make_script(disk_plan), encoding="utf-8")
+            if with_manifest:
+                manifest.write_text(
+                    f"PLAN={disk_plan.plan_hash()}\nCREATED={time.strftime('%Y-%m-%d %H:%M:%S')}\n", encoding="utf-8")
+                job.progress.log(f"Skript {script_name} a {disk.MANIFEST} obsahují {len(disk_plan.selected)} souborů "
+                                 f"páru na disku (plán {disk_plan.plan_hash()}).")
 
         def prepare(job: ActiveTransfer) -> None:
             root.mkdir(parents=True, exist_ok=True)
-            script = settings.disk_path / script_name
-            script.write_text(script_text, encoding="utf-8")
-            job.progress.log(f"Skript uložen: {script}")
-            # manifest platí až po úplném přenosu — do té doby to-nas upozorní, že to-disk nedoběhl
+            # během kopírování: skript se vším, co na disku bude; manifest až na konci
+            write_script(replace(plan, selected=on_this_disk(plan.comparison.ondisk) + uploads), job,
+                         with_manifest=False)
             manifest.unlink(missing_ok=True)
+            job.progress.log(f"Skript uložen: {script}")
 
         def finish(job: ActiveTransfer, status: str, added: list[FileRec], removed_keys: list[str],
                    done_keys: list[str]) -> None:
-            if status == "done" and not job.progress.failed:
-                manifest.write_text(f"PLAN={plan_hash}\nCREATED={time.strftime('%Y-%m-%d %H:%M:%S')}\n",
-                                    encoding="utf-8")
-                job.progress.log(f"Manifest {disk.MANIFEST} zapsán (plán {plan_hash}) — disk je připravený pro to-nas.")
+            from app.apps.pairs import db as pairs_db
+            from app.apps.pairs.state import load_overview
+
+            pairs_db.add_ondisk(pair["id"], done_keys)       # i po zrušení: co se zkopírovalo, na disku je
+            st = load_overview().get(pair["id"])
+            if st and st.plan:
+                write_script(replace(st.plan, selected=on_this_disk(st.plan.comparison.ondisk)), job,
+                             with_manifest=True)
 
         return self._launch(pair, "disk", uploads, [], dest=str(root),
                             make_target=lambda: LocalTarget(str(root)), prepare=prepare, finish=finish)

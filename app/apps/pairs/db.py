@@ -168,6 +168,22 @@ def direct_for_pair(pair_id: int) -> set[str]:
     return {r["key"] for r in db.query_all("SELECT key FROM pair_direct WHERE pair_id = :p", {"p": pair_id})}
 
 
+def ondisk_for_pair(pair_id: int) -> set[str]:
+    """Soubory zkopírované na disk od posledního skenu NAS2 (záložka Na disku)."""
+    return {r["key"] for r in db.query_all("SELECT key FROM pair_ondisk WHERE pair_id = :p", {"p": pair_id})}
+
+
+def add_ondisk(pair_id: int, keys: list[str]) -> None:
+    if keys:
+        now = db.now_iso()
+        db.execute_many("INSERT OR IGNORE INTO pair_ondisk (pair_id, key, created_at) VALUES (:p, :k, :now)",
+                        [{"p": pair_id, "k": k, "now": now} for k in keys])
+
+
+def clear_ondisk(pair_id: int) -> None:
+    db.execute("DELETE FROM pair_ondisk WHERE pair_id = :p", {"p": pair_id})
+
+
 def set_direct(pair_id: int, keys: list[str], marked: bool) -> None:
     if not keys:
         return

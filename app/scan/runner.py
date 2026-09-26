@@ -177,6 +177,9 @@ class ScanRunner:
                     text("INSERT INTO files (scan_id, path, key, size, mtime) VALUES (:s, :p, :k, :z, :m)"),
                     rows[i:i + INSERT_CHUNK],
                 )
+            if job.side == "target":
+                # nový sken NAS2 ukazuje skutečný stav → záložka Na disku začíná znovu od nuly
+                conn.execute(text("DELETE FROM pair_ondisk WHERE pair_id = :p"), {"p": job.pair_id})
             # Jen poslední stav: starší skeny této strany (i s jejich soubory) pryč.
             conn.execute(
                 text("DELETE FROM scans WHERE pair_id = :p AND side = :side AND id <> :id AND status NOT IN ('queued', 'running')"),

@@ -24,11 +24,13 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 - **Vzory k vynechání** — výchozí (`@eaDir`, `.DS_Store`, `@Recycle`, `*.tmp`…) i vlastní pro pár; platí na obou stranách.
 - **Problémy** — názvy, které exFAT neuloží (`: * ? " < > |`, koncová tečka), kolize názvů a neplatné kódování se nepřenáší ani nemažou, jen se ukážou.
 - **Přenos na disk** — aplikace zkopíruje plán páru na připojený disk sama (průběh, zrušení, navázání) a uloží tam i skript pro `to-nas`.
+- **Na disku** — zkopírované soubory se přesunou do záložky *Na disku* a Kopírovat se přepočítá na další várku; disky jde
+  střídat a plnit postupně bez duplicit. Záložku vyprázdní Aktualizovat (nový sken NAS2), případně ručně tlačítko.
 - **Vyčistit disk** — smaže celý obsah disku před dalším kolem, volitelně rovnou přeskenuje páry s daty k přenosu.
 - **Přímý přenos NAS → NAS** — vybrané soubory přes SFTP rovnou na NAS2 (nahrání i smazání přebývajících), ručně nebo naplánovaně.
 - **Plánování** — denní automatická aktualizace všech párů a časové okno pro naplánovaný přímý přenos.
 - **Výsledek přenosu po souborech** — karta posledního přenosu (přímého i na disk) s tabulkou čas / soubor / stav; kartu jde odebrat, po novém skenu cíle zmizí sama.
-- **Seznamy souborů** — záložky Kopírovat, Odloženo, Konflikty, Přebývá, Vyřazené, Přímý přenos, Problémy; hledání, stránkování po 50, řazení podle cesty nebo velikosti, export CSV.
+- **Seznamy souborů** — záložky Kopírovat, Odloženo, Na disku, Konflikty, Přebývá, Vyřazené, Přímý přenos, Problémy; hledání, stránkování po 50, řazení podle cesty nebo velikosti, export CSV.
 - **Skript** — seznamy cest jsou uvnitř jako base64 (bezpečné pro jakékoli znaky v názvu), kopíruje `rsync` po souborech s celkovým průběhem a odhadem konce (přerušený běh naváže), kontroluje volné místo, správnost složek a shodu plánu mezi `to-disk` a `to-nas`.
 
 ## 📖 Použití
@@ -45,9 +47,14 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 1. **Přehled → Aktualizovat vše** (nebo *Aktualizovat* u jednoho páru) a počkat na dokončení skenů.
 2. Zkontrolovat čísla u párů, případně v **detailu páru** odškrtnout, co se přenášet nemá. Ve **Volbách páru** (detail páru) volbou *Zahrnout do přenosu* určit, které páry se tentokrát vezou na disku.
 3. V detailu páru **Přenos na disk** (disk připojený k NAS1 a do kontejneru jako `DISK_PATH`, viz Deployment).
-   Aplikace zkopíruje soubory ze záložky *Kopírovat* do `<kořen disku>/<pár>/`, do kořene disku uloží skript
-   `sync_<pár>.sh` a po úplném dokončení manifest `.sync-plan`. Panel ukazuje průběh jako u přímého přenosu;
-   přenos jde zrušit a příště naváže (soubory, které už na disku celé jsou, přeskočí).
+   Aplikace zkopíruje soubory ze záložky *Kopírovat* do `<kořen disku>/<pár>/` a do kořene disku uloží skript
+   `sync_<pár>.sh` s manifestem `.sync-plan` — obsahují všechny soubory páru, které na tomto disku leží.
+   Panel ukazuje průběh jako u přímého přenosu; přenos jde zrušit a příště naváže.
+
+   Zkopírované soubory se přesunou do záložky **Na disku** a *Kopírovat* se přepočítá na další várku (podle
+   kapacity v Nastavení). Můžeš tak připojit další disk (upravit kapacitu) a kopírovat dál, nebo přikopírovat na
+   tentýž disk — nic se nezkopíruje dvakrát. Záložku *Na disku* vyprázdní až **Aktualizovat** (nový sken NAS2),
+   případně ručně tlačítko *Vyprázdnit Na disku*.
 
    Bez disku v kontejneru: **Stáhnout skript** a na NAS1 spustit
 
@@ -62,9 +69,9 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
    ```
 
    Před mazáním přebývajících souborů se skript zeptá (výchozí odpověď je *ne*).
-5. Po přenosu znovu **Aktualizovat** — odložené soubory se objeví v dalším plánu.
+5. Po `to-nas` (klidně až po několika discích) **Aktualizovat** — záložka *Na disku* se vyprázdní a plán odpovídá NAS2.
 6. Před dalším kolem **Nastavení → Disk pro přenos → Vyčistit disk**: smaže celý obsah disku. Volba
-   *Smazat a aktualizovat* pak přeskenuje páry, které měly něco k přenosu (Kopírovat nebo Odloženo).
+   *Smazat a aktualizovat* pak přeskenuje páry, které měly něco k přenosu (Kopírovat, Odloženo nebo Na disku).
 
 Během kopírování skript před každým souborem vypíše celkový stav, pod ním rsync ukazuje průběh souboru:
 
@@ -278,6 +285,7 @@ Aplikace na `http://localhost:8090`, falešný NAS2: host `nas2`, port `2222`, u
 - ✅ **Automatická aktualizace** všech párů jednou denně v zadaný čas
 - ✅ **Naplánovaný přímý přenos** v časovém okně (i přes půlnoc), po konci okna se pozastaví a pokračuje další den
 - ✅ **Vyčištění disku** před dalším kolem (celý obsah, volitelně s aktualizací párů)
+- ✅ **Záložka Na disku** — disky jde střídat a plnit po várkách bez duplicit, srovná Aktualizovat
 - ✅ **Přenos na disk z aplikace** místo kroku `to-disk` — průběh, zrušení, navázání, skript a `.sync-plan` na disku
 - ✅ **Přímý přenos NAS → NAS** přes SFTP pro menší objemy a mazání přebývajících (průběh, rychlost, odhad času, navázání)
 - ✅ **Výsledky přenosů po souborech**, řazení seznamů podle cesty a velikosti, stránkování po 50

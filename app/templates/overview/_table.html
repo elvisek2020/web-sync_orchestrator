@@ -53,6 +53,13 @@
             <span class="stat-meta" title="{{ plan.transfer_size|filesize }} · není zahrnuto do přenosu">{{ plan.transfer_size|filesize }} · není zahrnuto do přenosu</span>
           </a>
           {% endif %}
+          {% if cmp.ondisk %}
+          <a class="stat stat--ok" href="/pary/{{ pair.id }}?tab=ondisk">
+            <span class="stat-label">Na disku</span>
+            <span class="stat-value">{{ cmp.ondisk|length|number }}</span>
+            <span class="stat-meta" title="{{ plan.ondisk_size|filesize }} · čeká na to-nas a aktualizaci">{{ plan.ondisk_size|filesize }} · čeká na aktualizaci</span>
+          </a>
+          {% endif %}
           <a class="stat {{ 'stat--warn' if cmp.conflict else 'stat--ok' }}" href="/pary/{{ pair.id }}?tab=conflict">
             <span class="stat-label">Konflikty</span>
             <span class="stat-value">{{ cmp.conflict|length|number }}</span>

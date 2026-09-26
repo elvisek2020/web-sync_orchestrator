@@ -53,9 +53,10 @@ def settings_page(request: Request):
 
 
 def _pairs_to_refresh() -> list[dict]:
-    """Páry, které mají něco k přenosu (Kopírovat nebo Odloženo) — jen u nich se po to-nas plán změní.
-    Páry s nulou k přenosu se znovu neskenují."""
-    return [st.pair for st in load_overview().pairs if st.plan and st.plan.transfer]
+    """Páry, které mají něco k přenosu (Kopírovat, Odloženo) nebo na disku — jen u nich se po to-nas
+    plán změní. Páry bez toho se znovu neskenují."""
+    return [st.pair for st in load_overview().pairs
+            if st.plan and (st.plan.transfer or st.plan.comparison.ondisk)]
 
 
 # --- disk a vzory ---

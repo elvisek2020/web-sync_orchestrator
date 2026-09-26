@@ -119,13 +119,14 @@ _compare_lock = threading.Lock()
 _COMPARE_CACHE_SIZE = 16
 
 
-def _cached_compare(src_id: int, tgt_id: int, excluder: Excluder, skips: set[str], direct: set[str]) -> Comparison:
-    key = (src_id, tgt_id, tuple(excluder.patterns), frozenset(skips), frozenset(direct))
+def _cached_compare(src_id: int, tgt_id: int, excluder: Excluder, skips: set[str], direct: set[str],
+                    ondisk: set[str]) -> Comparison:
+    key = (src_id, tgt_id, tuple(excluder.patterns), frozenset(skips), frozenset(direct), frozenset(ondisk))
     with _compare_lock:
         if key in _compare_cache:
             _compare_cache.move_to_end(key)
             return _compare_cache[key]
-    result = compare(pairs_db.load_files(src_id), pairs_db.load_files(tgt_id), excluder, skips, direct)
+    result = compare(pairs_db.load_files(src_id), pairs_db.load_files(tgt_id), excluder, skips, direct, ondisk)
     with _compare_lock:
         _compare_cache[key] = result
         while len(_compare_cache) > _COMPARE_CACHE_SIZE:
@@ -151,6 +152,7 @@ def load_overview() -> Overview:
             comparison = _cached_compare(
                 src["id"], tgt["id"], pair_excluder(pair),
                 pairs_db.skips_for_pair(pair["id"]), pairs_db.direct_for_pair(pair["id"]),
+                pairs_db.ondisk_for_pair(pair["id"]),
             )
             st.plan = build_plan(
                 pair["id"], comparison, on_disk=bool(pair["on_disk"]),

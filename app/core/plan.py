@@ -52,6 +52,7 @@ class Comparison:
     extra: list[Item] = field(default_factory=list)
     skipped: list[Item] = field(default_factory=list)
     direct: list[Item] = field(default_factory=list)     # označené k přímému přenosu (mimo plán na disk)
+    ondisk: list[Item] = field(default_factory=list)     # už zkopírované na disk, čekají na to-nas a nový sken NAS2
     problems: list[Item] = field(default_factory=list)
     same_count: int = 0
     same_size: int = 0
@@ -99,9 +100,11 @@ def _index(files: Iterable[FileRec], excluder: Excluder, side_label: str, proble
 
 
 def compare(source: Iterable[FileRec], target: Iterable[FileRec], excluder: Excluder,
-            skips: set[str] | None = None, direct: set[str] | None = None) -> Comparison:
+            skips: set[str] | None = None, direct: set[str] | None = None,
+            ondisk: set[str] | None = None) -> Comparison:
     skips = skips or set()
     direct = direct or set()
+    ondisk = ondisk or set()
     cmp = Comparison()
     src, ex_s = _index(source, excluder, "zdroj", cmp.problems)
     tgt, ex_t = _index(target, excluder, "cíl", cmp.problems)
@@ -146,6 +149,8 @@ def compare(source: Iterable[FileRec], target: Iterable[FileRec], excluder: Excl
             cmp.problems.append(item)
         elif item.key in direct:
             cmp.direct.append(item)
+        elif item.key in ondisk and item.category != EXTRA:
+            cmp.ondisk.append(item)
         elif item.key in skips:
             cmp.skipped.append(item)
         else:
@@ -174,6 +179,10 @@ class PairPlan:
     @property
     def deferred_size(self) -> int:
         return sum(i.size for i in self.deferred)
+
+    @property
+    def ondisk_size(self) -> int:
+        return sum(i.size for i in self.comparison.ondisk)
 
     @property
     def transfer_size(self) -> int:
@@ -210,7 +219,8 @@ def allocate(plans_in_order: list[PairPlan], capacity: int | None) -> int:
     """Rozdělí kapacitu disku mezi páry zahrnuté do přenosu (v pořadí). Vrací zbývající kapacitu.
 
     Uvnitř páru se jde podle cesty a použije se first-fit: co se nevejde, přeskočí se
-    a zkouší se další soubory. Bez kapacity (None/0) se vybere všechno.
+    a zkouší se další soubory. Bez kapacity (None/0) se vybere všechno. Soubory v záložce
+    Na disku se do plánu nepočítají (kapacita je vždy ta zadaná v Nastavení).
     """
     remaining = capacity if capacity and capacity > 0 else None
     for plan in plans_in_order:

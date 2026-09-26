@@ -45,10 +45,19 @@ def _pair(root, name="Serialy") -> dict:
 
 
 def _start(st) -> int | None:
-    script = generate_script(pair_name=st.pair["name"], slug=st.pair["slug"], plan=st.plan,
-                             source_desc="NAS1", target_desc="NAS2")
-    return transfer_runner.start_disk(st.pair, st.plan.selected, script_name=script_filename(st.pair["slug"]),
-                                      script_text=script, plan_hash=st.plan.plan_hash())
+    def make_script(plan):
+        return generate_script(pair_name=st.pair["name"], slug=st.pair["slug"], plan=plan,
+                               source_desc="NAS1", target_desc="NAS2")
+    return transfer_runner.start_disk(st.pair, st.plan, script_name=script_filename(st.pair["slug"]),
+                                      make_script=make_script)
+
+
+def _to_nas(disk_root, slug, target):
+    if shutil.which("bash") is None or shutil.which("rsync") is None:
+        pytest.skip("chybí bash nebo rsync")
+    return subprocess.run(["bash", str(disk_root / script_filename(slug)), "to-nas", str(disk_root), str(target),
+                           "--yes"], capture_output=True, text=True, errors="replace", stdin=subprocess.DEVNULL,
+                          timeout=60, start_new_session=True)
 
 
 def test_copies_plan_script_and_manifest_then_to_nas_works(temp_db, disk_root):
@@ -69,52 +78,98 @@ def test_copies_plan_script_and_manifest_then_to_nas_works(temp_db, disk_root):
     assert (pair_dir / "Film.mkv").read_bytes() == b"film"
     assert not list(pair_dir.rglob("*.syncpart"))
     assert (disk_root / script_filename(slug)).exists()                       # skript pro to-nas na disku
-    assert (pair_dir / ".sync-plan").read_text().startswith(f"PLAN={st.plan.plan_hash()}\n")
+    assert (pair_dir / ".sync-plan").read_text().startswith("PLAN=")
     t = pairs_db.last_transfer(st.pair["id"], "disk")
     assert t["status"] == "done" and t["files_done"] == 2 and t["failed"] == 0
     assert pairs_db.last_transfer(st.pair["id"], "direct") is None
-    # NAS2 se nezměnil — soubory dál čekají na to-nas
-    assert len(load_overview().get(st.pair["id"]).plan.selected) == 2
 
-    if shutil.which("bash") is None or shutil.which("rsync") is None:
-        pytest.skip("chybí bash nebo rsync")
-    r = subprocess.run(["bash", str(disk_root / script_filename(slug)), "to-nas", str(disk_root), str(root / "tgt"),
-                        "--yes"], capture_output=True, text=True, errors="replace", stdin=subprocess.DEVNULL,
-                       timeout=60, start_new_session=True)
+    # zkopírované soubory jsou v záložce Na disku, ne v Kopírovat (podruhé se kopírovat nebudou)
+    plan = load_overview().get(st.pair["id"]).plan
+    assert not plan.selected and len(plan.comparison.ondisk) == 2
+
+    r = _to_nas(disk_root, slug, root / "tgt")
     assert r.returncode == 0, r.stdout + r.stderr
     assert "VAROVÁNÍ" not in r.stdout                                         # plán na disku sedí se skriptem
     assert (root / "tgt/Seriál (2019)/Season 01/S01E01.mkv").read_bytes() == b"prvni dil"
 
+    # nový sken NAS2 (Aktualizovat) záložku Na disku vyprázdní — pravdu má sken
+    runner.start_pair(st.pair["id"])
+    wait_for_scans()
+    plan = load_overview().get(st.pair["id"]).plan
+    assert pairs_db.ondisk_for_pair(st.pair["id"]) == set() and not plan.comparison.ondisk and not plan.transfer
 
-def test_resume_skips_complete_files_and_manifest_only_after_success(temp_db, disk_root, monkeypatch):
+
+def test_disk_filled_in_batches_without_duplicates(temp_db, disk_root):
+    from app import db
+
+    root = temp_db
+    for i in range(1, 5):
+        write_file(root, f"src/dil {i}.mkv", bytes([i]) * 100)
+    st = _pair(root)
+    pid, slug = st.pair["id"], st.pair["slug"]
+    db.set_setting("disk_capacity", "250")                                     # vejdou se 2 soubory
+
+    st = load_overview().get(pid)
+    assert [i.key for i in st.plan.selected] == ["dil 1.mkv", "dil 2.mkv"] and len(st.plan.deferred) == 2
+    _start(st)
+    wait_for_transfer()
+
+    # další dávka: Kopírovat se přepočítá z Odloženo, zkopírované jsou Na disku
+    st = load_overview().get(pid)
+    assert [i.key for i in st.plan.selected] == ["dil 3.mkv", "dil 4.mkv"] and not st.plan.deferred
+    assert sorted(i.key for i in st.plan.comparison.ondisk) == ["dil 1.mkv", "dil 2.mkv"]
+    _start(st)
+    wait_for_transfer()
+    st = load_overview().get(pid)
+    assert not st.plan.selected and len(st.plan.comparison.ondisk) == 4
+
+    # skript na disku obsahuje obě dávky → to-nas přenese všechno
+    r = _to_nas(disk_root, slug, root / "tgt")
+    assert r.returncode == 0 and "VAROVÁNÍ" not in r.stdout, r.stdout + r.stderr
+    assert sorted(p.name for p in (root / "tgt").iterdir()) == [f"dil {i}.mkv" for i in range(1, 5)]
+
+
+def test_resume_after_cancel(temp_db, disk_root, monkeypatch):
     monkeypatch.setattr(transfer_module, "CHUNK", 4096)
     root = temp_db
     big = os.urandom(6 * 1024 * 1024)
     write_file(root, "src/a.mkv", b"hotovy")
     write_file(root, "src/b.bin", big)
     st = _pair(root)
+    pid = st.pair["id"]
     pair_dir = disk_root / st.pair["slug"]
-    write_file(pair_dir, ".sync-plan", b"PLAN=stary\n")                       # manifest minulého kola
 
     assert _start(st)
-    transfer_runner.cancel(st.pair["id"])
+    transfer_runner.cancel(pid)
     wait_for_transfer()
-    t = pairs_db.last_transfer(st.pair["id"], "disk")
+    t = pairs_db.last_transfer(pid, "disk")
     assert t["status"] == "cancelled"
-    assert not (pair_dir / ".sync-plan").exists()                              # nedokončené kolo nemá manifest
+    assert "b.bin" not in pairs_db.ondisk_for_pair(pid)                       # nedokončený soubor není Na disku
+    assert (pair_dir / ".sync-plan").exists()                                  # skript popisuje, co na disku je
 
-    # a.mkv už na disku celý, b.bin napůl → a se přeskočí, b naváže
-    write_file(pair_dir, "a.mkv", b"hotovy")
+    # b.bin napůl (jako po výpadku) → další spuštění naváže
     write_file(pair_dir, ".b.bin.syncpart", big[: 2 * 1024 * 1024])
     (pair_dir / "b.bin").unlink(missing_ok=True)
-    assert _start(load_overview().get(st.pair["id"]))
+    assert _start(load_overview().get(pid))
+    wait_for_transfer()
+    t = pairs_db.last_transfer(pid, "disk")
+    assert t["status"] == "done" and "Navazuji b.bin" in t["log"]
+    assert (pair_dir / "b.bin").read_bytes() == big
+    assert pairs_db.ondisk_for_pair(pid) == {"a.mkv", "b.bin"}
+
+
+def test_file_already_on_disk_is_skipped(temp_db, disk_root):
+    root = temp_db
+    write_file(root, "src/a.mkv", b"hotovy")
+    write_file(root, "src/b.mkv", b"novy")
+    st = _pair(root)
+    pair_dir = disk_root / st.pair["slug"]
+    write_file(pair_dir, "a.mkv", b"hotovy")                                   # např. po ručním kopírování
+    assert _start(st)
     wait_for_transfer()
     t = pairs_db.last_transfer(st.pair["id"], "disk")
-    assert t["status"] == "done" and t["files_done"] == 2
-    assert "Už bylo na cíli (přeskočeno): 1" in t["log"] and "Navazuji b.bin" in t["log"]
-    assert [(path, status) for _, path, status, _ in t["items"]] == [("a.mkv", "skipped"), ("b.bin", "ok")]
-    assert (pair_dir / "b.bin").read_bytes() == big
-    assert (pair_dir / ".sync-plan").read_text().startswith(f"PLAN={st.plan.plan_hash()}")
+    assert "Už bylo na cíli (přeskočeno): 1" in t["log"]
+    assert [(path, status) for _, path, status, _ in t["items"]] == [("a.mkv", "skipped"), ("b.mkv", "ok")]
 
 
 def test_only_one_disk_transfer_at_a_time(temp_db, disk_root):
@@ -168,7 +223,7 @@ def test_web_flow_and_disk_checks(temp_db, disk_root, monkeypatch):
         monkeypatch.setattr(settings, "disk_path", root / "neni")
         page = client.get("/pary/1").text
         assert "Spustit přenos na disk?" not in page and 'class="btn btn-primary" download' in page
-        assert "disk_not_mounted" in start()
+        assert "disk_nothing" in start()                                      # vše už je Na disku
 
 
 def test_transfers_kind_column_is_added_to_old_database(temp_db):
@@ -261,3 +316,36 @@ def test_clean_disk_removes_everything(temp_db, disk_root, monkeypatch):
         assert "Prázdný — disk je připravený." in client.get("/nastaveni").text
         r = client.post("/nastaveni/disk/vycistit", follow_redirects=False)
         assert "disk_clean_empty" in r.headers["location"]
+
+
+def test_second_disk_gets_only_its_batch_and_queue_can_be_cleared(temp_db, disk_root, tmp_path, monkeypatch):
+    from app import db
+
+    root = temp_db
+    for i in range(1, 5):
+        write_file(root, f"src/dil {i}.mkv", bytes([i]) * 100)
+    st = _pair(root)
+    pid, slug = st.pair["id"], st.pair["slug"]
+    db.set_setting("disk_capacity", "250")
+    _start(load_overview().get(pid))                                           # 1. disk: díly 1–2
+    wait_for_transfer()
+
+    disk2 = tmp_path / "disk2"                                                 # připojen jiný (prázdný) disk
+    disk2.mkdir()
+    monkeypatch.setattr(settings, "disk_path", disk2)
+    _start(load_overview().get(pid))                                           # 2. disk: díly 3–4
+    wait_for_transfer()
+    assert sorted(p.name for p in (disk2 / slug).iterdir() if not p.name.startswith(".")) == ["dil 3.mkv", "dil 4.mkv"]
+    assert len(load_overview().get(pid).plan.comparison.ondisk) == 4           # Na disku: obě várky
+
+    # skript na 2. disku zná jen soubory, které na něm jsou (jinak by to-nas hlásil chybějící)
+    r = _to_nas(disk2, slug, root / "tgt")
+    assert r.returncode == 0 and "Ve zdroji chybí" not in r.stdout, r.stdout + r.stderr
+    assert sorted(p.name for p in (root / "tgt").iterdir()) == ["dil 3.mkv", "dil 4.mkv"]
+
+    # ruční vyprázdnění fronty Na disku
+    with TestClient(app) as client:
+        assert "Vyprázdnit Na disku" in client.get(f"/pary/{pid}?tab=ondisk").text
+        r = client.post(f"/pary/{pid}/na-disku/vyprazdnit", follow_redirects=False)
+        assert "ondisk_cleared" in r.headers["location"]
+    assert pairs_db.ondisk_for_pair(pid) == set()

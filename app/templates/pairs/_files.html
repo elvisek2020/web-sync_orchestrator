@@ -12,7 +12,7 @@
     </a>
   </th>
 {%- endmacro %}
-{% set selectable = tab != 'problems' %}
+{% set selectable = tab not in ('problems', 'ondisk') %}
 {% set can_direct = st.direct_supported and tab in ('copy', 'conflict', 'extra', 'deferred') %}
 {# akce nad označenými soubory podle záložky: (akce, text, ikona) #}
 {% if tab == 'skipped' %}
@@ -73,6 +73,13 @@
         </div>
       </details>
       {% endif %}
+      {% if tab == 'ondisk' and total %}
+      <form method="post" action="/pary/{{ pair.id }}/na-disku/vyprazdnit"
+            data-confirm="Soubory se vrátí do Kopírovat / Odloženo, jako by na disku nebyly. Běžně to není potřeba — záložku vyprázdní Aktualizovat (nový sken NAS2)."
+            data-confirm-title="Vyprázdnit Na disku?" data-confirm-ok="Vyprázdnit">
+        <button type="submit" class="btn btn-outline btn-sm">{{ icon('rotate-left', 14) }}Vyprázdnit Na disku</button>
+      </form>
+      {% endif %}
       {% if total %}
       <a class="btn btn-ghost btn-sm" href="/pary/{{ pair.id }}/export.csv?tab={{ tab }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}{% if sort %}&amp;sort={{ sort }}{% endif %}">{{ icon('download', 14) }}CSV</a>
       {% endif %}
@@ -106,7 +113,7 @@
             {% endif %}
             <td class="path">
               {% if selectable %}<label for="sel-{{ loop.index }}">{{ item.display }}</label>{% else %}{{ item.display }}{% endif %}
-              {% if tab in ('skipped', 'deferred', 'direct') %} <span class="badge badge--sm">{{ {'missing': 'chybí', 'conflict': 'konflikt', 'extra': 'přebývá'}[item.category] }}</span>{% endif %}
+              {% if tab in ('skipped', 'deferred', 'direct', 'ondisk') %} <span class="badge badge--sm">{{ {'missing': 'chybí', 'conflict': 'konflikt', 'extra': 'přebývá'}[item.category] }}</span>{% endif %}
               {% if tab == 'problems' %}<div class="text-sm text-muted show-mobile">{{ item.problem }}</div>{% endif %}
             </td>
             <td class="num">{{ item.size|filesize }}</td>

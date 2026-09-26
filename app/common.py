@@ -31,6 +31,7 @@ FLASH_MESSAGES = {
     "schedule_no_window": ("error", "Nejdřív v Nastavení zadej časové okno pro naplánovaný přenos."),
     "refresh_invalid": ("error", "Neplatný čas — zadej ho ve tvaru HH:MM."),
     "window_invalid": ("error", "Neplatné okno — zadej čas ve tvaru HH:MM, začátek a konec se musí lišit."),
+    "ondisk_cleared": ("info", "Záložka Na disku vyprázdněna — soubory jsou zpět v Kopírovat / Odloženo."),
     "disk_started": ("success", "Přenos na disk spuštěn."),
     "disk_nothing": ("error", "Na disk není co kopírovat."),
     "disk_busy": ("error", "Na disk se právě kopíruje jiný pár — počkej na dokončení."),

@@ -25,6 +25,9 @@
         Soubor je na obou stranách, ale liší se velikost. {% if pair.include_conflicts %}Na NAS2 se přepíše verzí z NAS1.{% else %}Přenášení konfliktů je ve Volbách páru vypnuté.{% endif %}
       {% elif tab == 'extra' %}
         Soubor je jen na NAS2. {% if plan.deletions %}Skript ho v režimu to-nas po potvrzení smaže.{% elif plan.deletion_blocked %}{{ plan.deletion_blocked }}{% else %}Mazání je ve Volbách páru vypnuté.{% endif %}
+      {% elif tab == 'ondisk' %}
+        Už zkopírované na disk (Přenosem na disk, i na víc disků) — do Kopírovat se znovu nedostanou.
+        Až je na NAS2 nahraješ (to-nas), dej Aktualizovat — nový sken NAS2 záložku vyprázdní.
       {% elif tab == 'deferred' %}
         Nevešlo se na disk — objeví se znovu po dalším skenu.
       {% elif tab == 'skipped' %}
