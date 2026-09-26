@@ -16,6 +16,7 @@ from app.common import page_ctx, redirect
 from app.config import settings
 from app.core.excludes import DEFAULT_EXCLUDE_PATTERNS, parse_patterns
 from app.scan.common import ScanError, cz_items
+from app.scan.runner import runner
 from app.scan.sftp import SftpSession, test_connection
 from app.templates_engine import templates
 from app.transfer import disk
@@ -66,8 +67,9 @@ def read_disk_capacity():
 
 
 @router.post("/nastaveni/disk/vycistit")
-def clean_disk():
-    """Smaže z disku data přenosu (složky párů a skripty) — příprava na další kolo."""
+def clean_disk(aktualizovat: str = ""):
+    """Smaže z disku data přenosu (složky párů a skripty) — příprava na další kolo.
+    S ?aktualizovat=1 pak spustí Aktualizovat vše (po to-nas, ať plán neobsahuje přenesené soubory)."""
     if transfer_runner.disk_running():
         return redirect("/nastaveni", "disk_clean_busy")
     problem = disk.clean_problem()
@@ -82,6 +84,10 @@ def clean_disk():
         logger.exception("Vyčištění disku selhalo")
         return redirect("/nastaveni", "disk_clean_failed")
     logger.info("Disk vyčištěn: %s", ", ".join(e.name for e in entries))
+    if aktualizovat:
+        for pair in pairs_db.list_pairs():
+            runner.start_pair(pair["id"])
+        return redirect("/", "disk_cleaned_refresh")
     return redirect("/nastaveni", "disk_cleaned")
 
 

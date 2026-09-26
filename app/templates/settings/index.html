@@ -102,9 +102,10 @@
           <span class="text-sm text-muted">Žádná — disk je připravený.</span>
           {% endif %}
         </div>
-        <form method="post" action="/nastaveni/disk/vycistit"
-              data-confirm="Z disku se smažou složky párů a skripty ({{ disk_data.files|cz_plural('soubor', 'soubory', 'souborů') }}, {{ disk_data.size|filesize }}). Nejde to vrátit."
-              data-confirm-title="Pozor, mažu!" data-confirm-ok="Smazat" data-confirm-danger>
+        <form method="post" action="/nastaveni/disk/vycistit?aktualizovat=1"
+              data-confirm="Z disku se smažou složky párů a skripty ({{ disk_data.files|cz_plural('soubor', 'soubory', 'souborů') }}, {{ disk_data.size|filesize }}). Nejde to vrátit.&#10;&#10;Proběhl už na NAS2 krok to-nas? Pak rovnou aktualizuj všechny páry — jinak by další plán obsahoval znovu soubory, které už na NAS2 jsou."
+              data-confirm-title="Pozor, mažu!" data-confirm-ok="Smazat a aktualizovat" data-confirm-danger
+              data-confirm-alt="Jen smazat" data-confirm-alt-action="/nastaveni/disk/vycistit">
           <button type="submit" class="btn btn-danger btn-wide" {% if not disk_data.names %}disabled{% endif %}>{{ icon('trash', 18) }}Vyčistit disk</button>
         </form>
       </div>
