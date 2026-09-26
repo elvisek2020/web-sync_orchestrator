@@ -1,6 +1,8 @@
 """Stránky se vykreslí a heslo SSH hosta se nikdy nevrátí do prohlížeče."""
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -86,7 +88,8 @@ def test_full_cycle_local(client, temp_db):
     # export CSV je výchozí vypnutý, povolí se v Nastavení → Další volby
     assert client.get("/pary/1/export.csv?tab=extra").status_code == 404
     assert "/export.csv" not in client.get("/pary/1?tab=extra").text
-    client.post("/nastaveni/volby", data={"csv_export": "1"})
+    r = client.post("/nastaveni/volby", data={"csv_export": "1"}, headers={"HX-Request": "true"})
+    assert r.status_code == 204 and json.loads(r.headers["HX-Trigger"])["notify"]["message"] == "Uloženo."
     assert "/export.csv" in client.get("/pary/1?tab=extra").text
     csv = client.get("/pary/1/export.csv?tab=extra")
     assert "Navic.mkv" in csv.text
@@ -112,7 +115,6 @@ def test_full_cycle_local(client, temp_db):
 
 
 def test_options_autosave_and_cancel_pair(client, temp_db):
-    import json
 
     from app.scan.runner import runner
 
@@ -151,9 +153,9 @@ def test_options_autosave_and_cancel_pair(client, temp_db):
 def test_disk_capacity_keeps_reserve():
     from app.transfer.disk import usable_capacity
 
-    assert usable_capacity(513_054_605_312) == 507 * 10**9     # 1 % rezerva
-    assert usable_capacity(50 * 10**9) == 49 * 10**9            # nejméně 1 GB
-    assert usable_capacity(500 * 10**6) == 0
+    assert usable_capacity(513_054_605_312) == 511 * 10**9     # rezerva 2 GB, dolů na celé GB
+    assert usable_capacity(50 * 10**9) == 48 * 10**9
+    assert usable_capacity(1500 * 10**6) == 0
 
 
 def test_stylesheet_braces_are_balanced():

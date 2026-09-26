@@ -1,13 +1,14 @@
 """Nastavení — páry, SSH hosté, kapacita disku, výchozí vzory."""
 from __future__ import annotations
 
+import json
 import logging
 import os
 import posixpath
 import stat
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 
 from app import db
 from app.apps.pairs import db as pairs_db
@@ -103,8 +104,12 @@ def clean_disk(aktualizovat: str = ""):
 
 
 @router.post("/nastaveni/volby")
-def save_options(csv_export: str = Form("")):
+def save_options(request: Request, csv_export: str = Form("")):
+    """Další volby se ukládají hned při změně (HTMX) — bez tlačítka."""
     db.set_setting("csv_export", "1" if csv_export else "0")
+    if request.headers.get("HX-Request"):
+        return Response(status_code=204, headers={
+            "HX-Trigger": json.dumps({"notify": {"message": "Uloženo.", "type": "success"}})})
     return redirect("/nastaveni", "saved")
 
 
