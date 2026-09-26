@@ -13,7 +13,7 @@
         <h2 class="card-title">{{ pair.name }}</h2>
         <p class="card-subtitle">
           {{ pair.source_host_name or 'lokálně' }}: {{ pair.source_path or '/' }} {{ icon('arrow-right', 12, 'inline-icon') }} {{ pair.target_host_name or 'lokálně' }}: {{ pair.target_path }}
-          · {{ 'zahrnuto do hromadného přenosu' if pair.on_disk else 'nezahrnuto do hromadného přenosu' }}
+          {% if pair.on_disk %}· zahrnuto do hromadného přenosu{% endif %}
         </p>
       </div>
     </div>

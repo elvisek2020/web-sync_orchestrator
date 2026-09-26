@@ -92,7 +92,8 @@ def test_full_cycle_local(client, temp_db):
 
     # pár není zahrnutý do přenosu → skript se nestáhne
     client.post("/pary/1/volby", data={"include_conflicts": "1"})             # bez on_disk = nezahrnuto
-    assert "· nezahrnuto do hromadného přenosu" in client.get("/").text
+    overview = client.get("/").text
+    assert "zahrnuto do hromadného přenosu" not in overview                  # nezahrnutý pár bez poznámky
     r = client.get("/pary/1/skript", follow_redirects=False)
     assert r.status_code == 302 and "not_on_disk" in r.headers["location"]
 
