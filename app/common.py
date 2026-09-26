@@ -14,7 +14,7 @@ FLASH_MESSAGES = {
     "scan_cancelled": ("info", "Sken se ruší."),
     "saved": ("success", "Uloženo."),
     "deleted": ("success", "Smazáno."),
-    "not_on_disk": ("error", "Pár není zahrnutý do přenosu — zaškrtněte u něj „Zahrnout do přenosu“."),
+    "not_on_disk": ("error", "Pár není zahrnutý do přenosu — zapni ho v detailu páru ve Volbách páru."),
     "no_plan": ("error", "Pár zatím nemá úspěšný sken obou stran."),
     "disk_read": ("success", "Kapacita nastavena podle volného místa na disku."),
     "disk_missing": ("error", "Disk není do kontejneru připojený — zadej kapacitu ručně."),

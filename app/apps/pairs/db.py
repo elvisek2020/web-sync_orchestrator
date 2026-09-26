@@ -65,10 +65,13 @@ def save_pair(pair_id: int | None, data: dict) -> int:
     )
 
 
-def update_pair_options(pair_id: int, *, include_conflicts: bool, include_extra: bool, exclude_patterns: str) -> None:
+def update_pair_options(pair_id: int, *, on_disk: bool, include_conflicts: bool, include_extra: bool,
+                        exclude_patterns: str) -> None:
     db.execute(
-        "UPDATE pairs SET include_conflicts = :c, include_extra = :e, exclude_patterns = :x WHERE id = :id",
-        {"c": int(include_conflicts), "e": int(include_extra), "x": exclude_patterns, "id": pair_id},
+        "UPDATE pairs SET on_disk = :d, include_conflicts = :c, include_extra = :e, exclude_patterns = :x "
+        "WHERE id = :id",
+        {"d": int(on_disk), "c": int(include_conflicts), "e": int(include_extra), "x": exclude_patterns,
+         "id": pair_id},
     )
 
 

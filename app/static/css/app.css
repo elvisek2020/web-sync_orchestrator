@@ -2521,11 +2521,6 @@ code {
     opacity: 0.75;
 }
 
-.disk-toggle {
-    font-size: 0.9rem;
-    min-height: var(--btn-height-sm);
-}
-
 .pair-sides {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

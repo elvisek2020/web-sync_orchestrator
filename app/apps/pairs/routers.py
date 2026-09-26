@@ -300,14 +300,18 @@ def transfer_panel(request: Request, pair_id: int):
 @router.post("/pary/{pair_id:int}/volby", response_class=HTMLResponse)
 def save_options(
     request: Request, pair_id: int,
-    include_conflicts: str = Form(""), include_extra: str = Form(""), exclude_patterns: str = Form(""),
-    tab: str = Form("copy"), q: str = Form(""), sort: str = Form(""),
+    on_disk: str = Form(""), include_conflicts: str = Form(""), include_extra: str = Form(""),
+    exclude_patterns: str = Form(""), tab: str = Form("copy"), q: str = Form(""), sort: str = Form(""),
 ):
     """Volby se ukládají hned při změně (HTMX); bez JS klasicky s přesměrováním."""
+    before = pairs_db.get_pair(pair_id)
     pairs_db.update_pair_options(
-        pair_id, include_conflicts=bool(include_conflicts), include_extra=bool(include_extra),
+        pair_id, on_disk=bool(on_disk), include_conflicts=bool(include_conflicts), include_extra=bool(include_extra),
         exclude_patterns="\n".join(parse_patterns(exclude_patterns)),
     )
+    if request.headers.get("HX-Request") and before and bool(before["on_disk"]) != bool(on_disk):
+        # zahrnutí do přenosu mění i tlačítka v hlavičce (Přenos na disk, Stáhnout skript) → celá stránka
+        return Response(status_code=204, headers={"HX-Refresh": "true"})
     if request.headers.get("HX-Request"):
         st = _load_state(pair_id)
         if st and st.plan:

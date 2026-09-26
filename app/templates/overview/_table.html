@@ -13,13 +13,9 @@
         <h2 class="card-title">{{ pair.name }}</h2>
         <p class="card-subtitle">
           {{ pair.source_host_name or 'lokálně' }}: {{ pair.source_path or '/' }} {{ icon('arrow-right', 12, 'inline-icon') }} {{ pair.target_host_name or 'lokálně' }}: {{ pair.target_path }}
+          · {{ 'zahrnuto do hromadného přenosu' if pair.on_disk else 'nezahrnuto do hromadného přenosu' }}
         </p>
       </div>
-      <label class="check-row disk-toggle" title="Zahrnout pár do plánu pro aktuální přenosový disk">
-        <input type="checkbox" name="on_disk" value="1" {% if pair.on_disk %}checked{% endif %}
-               hx-post="/pary/{{ pair.id }}/na-disk" hx-trigger="change" hx-target="#overview" hx-swap="outerHTML">
-        <span>Zahrnout do přenosu</span>
-      </label>
     </div>
     <div class="card-body">
       <div class="pair-sides">

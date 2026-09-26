@@ -91,7 +91,8 @@ def test_full_cycle_local(client, temp_db):
     assert "Film (2001)/Film.mkv" in client.get("/pary/1?tab=deferred").text
 
     # pár není zahrnutý do přenosu → skript se nestáhne
-    client.post("/pary/1/na-disk", data={})
+    client.post("/pary/1/volby", data={"include_conflicts": "1"})             # bez on_disk = nezahrnuto
+    assert "· nezahrnuto do hromadného přenosu" in client.get("/").text
     r = client.get("/pary/1/skript", follow_redirects=False)
     assert r.status_code == 302 and "not_on_disk" in r.headers["location"]
 
@@ -118,11 +119,17 @@ def test_options_autosave_and_cancel_pair(client, temp_db):
     wait_for_scans()
 
     # volby se ukládají přes HTMX: vrátí překreslené tělo, nový souhrn voleb (OOB) a toast
-    r = client.post("/pary/1/volby", data={"include_extra": "1", "tab": "conflict"}, headers={"HX-Request": "true"})
+    r = client.post("/pary/1/volby", data={"on_disk": "1", "include_extra": "1", "tab": "conflict"},
+                    headers={"HX-Request": "true"})
     assert r.status_code == 200 and 'id="pair-body"' in r.text
-    assert 'hx-swap-oob="true"' in r.text and "Konflikty se nepřenáší" in r.text
+    assert 'hx-swap-oob="true"' in r.text and "konflikty se nepřenáší" in r.text
     assert json.loads(r.headers["HX-Trigger"])["notify"]["message"] == "Volby uloženy."
     assert pairs_db.get_pair(1)["include_conflicts"] == 0 and pairs_db.get_pair(1)["include_extra"] == 1
+
+    # vypnutí „Zahrnout do přenosu“ mění i hlavičku stránky → celé překreslení
+    r = client.post("/pary/1/volby", data={"include_extra": "1"}, headers={"HX-Request": "true"})
+    assert r.status_code == 204 and r.headers["HX-Refresh"] == "true" and pairs_db.get_pair(1)["on_disk"] == 0
+    client.post("/pary/1/volby", data={"on_disk": "1", "include_extra": "1"})
 
     # „Zrušit aktualizaci“ zruší oba skeny páru
     for i in range(300):

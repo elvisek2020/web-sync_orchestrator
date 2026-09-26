@@ -62,9 +62,3 @@ def cancel_scan(scan_id: int, next: str = Form("/")):
     return redirect(safe_next(next), "scan_cancelled")
 
 
-@router.post("/pary/{pair_id:int}/na-disk", response_class=HTMLResponse)
-def toggle_on_disk(request: Request, pair_id: int, on_disk: str = Form("")):
-    pairs_db.set_on_disk(pair_id, bool(on_disk))
-    if request.headers.get("HX-Request"):
-        return _render(request)
-    return redirect("/")

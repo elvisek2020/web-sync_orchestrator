@@ -94,6 +94,10 @@
       <input type="hidden" name="tab" value="{{ tab }}">
       <div class="check-list">
         <label class="check-row">
+          <input type="checkbox" name="on_disk" value="1" {% if pair.on_disk %}checked{% endif %}>
+          <span>Zahrnout do přenosu — pár dostane místo v plánu pro aktuální přenosový disk (Kopírovat, Přenos na disk, skript)</span>
+        </label>
+        <label class="check-row">
           <input type="checkbox" name="include_conflicts" value="1" {% if pair.include_conflicts %}checked{% endif %}>
           <span>Přenášet konflikty (soubor je na obou stranách, ale liší se velikost) — na NAS2 se přepíše</span>
         </label>
