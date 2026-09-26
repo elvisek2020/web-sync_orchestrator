@@ -294,7 +294,8 @@ def test_clean_disk_removes_everything(temp_db, disk_root, monkeypatch):
             transfer_runner._active.pop(999, None)
 
         page = client.get("/nastaveni").text
-        assert 'data-confirm-alt="Jen smazat"' in page and "vycistit?aktualizovat=1" in page
+        assert 'data-confirm-ok="Jen smazat"' in page and 'data-confirm-alt="Smazat a aktualizovat"' in page
+        assert 'data-confirm-alt-action="/nastaveni/disk/vycistit?aktualizovat=1"' in page
         r = client.post("/nastaveni/disk/vycistit", follow_redirects=False)
         assert "disk_cleaned" in r.headers["location"] and "/nastaveni" in r.headers["location"]
         assert list(disk_root.iterdir()) == []                                 # disk je prázdný
@@ -309,7 +310,7 @@ def test_clean_disk_removes_everything(temp_db, disk_root, monkeypatch):
         started = []
         monkeypatch.setattr(runner, "start_pair", lambda pid: started.append(pid) or [])
         write_file(disk_root, "serialy/dil.mkv", b"x")
-        assert 'data-confirm-alt="Jen smazat"' in client.get("/nastaveni").text
+        assert 'data-confirm-alt="Smazat a aktualizovat"' in client.get("/nastaveni").text
         r = client.post("/nastaveni/disk/vycistit?aktualizovat=1", follow_redirects=False)
         assert r.headers["location"].startswith("/?") and "disk_cleaned_refresh" in r.headers["location"]
         assert started == [st.pair["id"]] and not (disk_root / "serialy").exists()   # Filmy (0 k přenosu) ne

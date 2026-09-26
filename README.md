@@ -30,7 +30,7 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 - **Přímý přenos NAS → NAS** — vybrané soubory přes SFTP rovnou na NAS2 (nahrání i smazání přebývajících), ručně nebo naplánovaně.
 - **Plánování** — denní automatická aktualizace všech párů a časové okno pro naplánovaný přímý přenos.
 - **Výsledek přenosu po souborech** — karta posledního přenosu (přímého i na disk) s tabulkou čas / soubor / stav; kartu jde odebrat, po novém skenu cíle zmizí sama.
-- **Seznamy souborů** — záložky Kopírovat, Odloženo, Na disku, Konflikty, Přebývá, Vyřazené, Přímý přenos, Problémy; hledání, stránkování po 50, řazení podle cesty nebo velikosti, export CSV.
+- **Seznamy souborů** — záložky Kopírovat, Odloženo, Na disku, Konflikty, Přebývá, Vyřazené, Přímý přenos, Problémy; hledání, stránkování po 50, řazení podle cesty nebo velikosti; export CSV po povolení v *Nastavení → Další volby*.
 - **Skript** — seznamy cest jsou uvnitř jako base64 (bezpečné pro jakékoli znaky v názvu), kopíruje `rsync` po souborech s celkovým průběhem a odhadem konce (přerušený běh naváže), kontroluje volné místo, správnost složek a shodu plánu mezi `to-disk` a `to-nas`.
 
 ## 📖 Použití
@@ -71,7 +71,7 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
    Před mazáním přebývajících souborů se skript zeptá (výchozí odpověď je *ne*).
 5. Po `to-nas` (klidně až po několika discích) **Aktualizovat** — záložka *Na disku* se vyprázdní a plán odpovídá NAS2.
 6. Před dalším kolem **Nastavení → Disk pro přenos → Vyčistit disk**: smaže celý obsah disku. Volba
-   *Smazat a aktualizovat* pak přeskenuje páry, které měly něco k přenosu (Kopírovat, Odloženo nebo Na disku).
+   Výchozí volba *Jen smazat*; *Smazat a aktualizovat* navíc přeskenuje páry, které měly něco k přenosu (Kopírovat, Odloženo nebo Na disku).
 
 Během kopírování skript před každým souborem vypíše celkový stav, pod ním rsync ukazuje průběh souboru:
 

@@ -10,6 +10,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
+from app import db
 from app.common import page_ctx, redirect
 from app.config import settings
 from app.core.excludes import parse_patterns
@@ -145,7 +146,7 @@ def _detail_ctx(request: Request, st: PairState, tab: str, q: str, page: int, so
         disk_available=disk.disk_info()["mounted"], disk_dest=str(disk.pair_dir(st.pair)),
         script_name=script_filename(st.pair["slug"]),
         last_transfers=[] if st.transfer else pairs_db.last_transfers(st.pair["id"]),
-        window=get_window(), now=datetime.now(),
+        window=get_window(), now=datetime.now(), csv_export=db.get_setting("csv_export", "0") == "1",
     )
 
 
@@ -358,6 +359,8 @@ def download_script(pair_id: int):
 
 @router.get("/pary/{pair_id:int}/export.csv")
 def export_csv(pair_id: int, tab: str = "copy", q: str = "", sort: str = ""):
+    if db.get_setting("csv_export", "0") != "1":
+        return Response(status_code=404)                 # export CSV je v Nastavení vypnutý
     st = _load_state(pair_id)
     if not st or not st.plan:
         return redirect(f"/pary/{pair_id}")

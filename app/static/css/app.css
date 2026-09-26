@@ -3147,6 +3147,20 @@ details.card[open] > .summary-toggle {
     min-width: 14rem;
 }
 
+/* Položky rozbalovacího menu (Hromadně) se nezalamují */
+.dropdown-menu {
+    min-width: max-content;
+}
+
+.menu-item {
+    white-space: nowrap;
+}
+
+/* Řádek nastavení jako celý klikací popisek (zaškrtávátko vpravo) */
+label.setting-row {
+    cursor: pointer;
+}
+
 /* Přehled: „Aktualizovat vše“ a pod ním drobně čas automatické aktualizace */
 .refresh-all {
     display: flex;

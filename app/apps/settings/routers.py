@@ -49,7 +49,12 @@ def settings_page(request: Request):
         disk=disk_info(), disk_data=disk.entries_summary(entries), refresh_pairs=_pairs_to_refresh(),
         window=get_window(),
         refresh_time=refresh_label(get_refresh_time()),
+        csv_export=csv_export_enabled(),
     ))
+
+
+def csv_export_enabled() -> bool:
+    return db.get_setting("csv_export", "0") == "1"
 
 
 def _pairs_to_refresh() -> list[dict]:
@@ -95,6 +100,12 @@ def clean_disk(aktualizovat: str = ""):
             runner.start_pair(pair["id"])
         return redirect("/", "disk_cleaned_refresh")
     return redirect("/nastaveni", "disk_cleaned")
+
+
+@router.post("/nastaveni/volby")
+def save_options(csv_export: str = Form("")):
+    db.set_setting("csv_export", "1" if csv_export else "0")
+    return redirect("/nastaveni", "saved")
 
 
 @router.post("/nastaveni/planovani")

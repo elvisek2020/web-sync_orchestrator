@@ -83,6 +83,11 @@ def test_full_cycle_local(client, temp_db):
     assert script.headers["content-disposition"] == 'attachment; filename="sync_filmy.sh"'
     assert script.text.startswith("#!/usr/bin/env bash") and "Kopírovat:        1 souborů" in script.text
 
+    # export CSV je výchozí vypnutý, povolí se v Nastavení → Další volby
+    assert client.get("/pary/1/export.csv?tab=extra").status_code == 404
+    assert "/export.csv" not in client.get("/pary/1?tab=extra").text
+    client.post("/nastaveni/volby", data={"csv_export": "1"})
+    assert "/export.csv" in client.get("/pary/1?tab=extra").text
     csv = client.get("/pary/1/export.csv?tab=extra")
     assert "Navic.mkv" in csv.text
 
@@ -192,6 +197,7 @@ def test_file_list_sorting(temp_db):
         r = client.post("/pary/1/vybrane", data={"key": ["Zorro.mkv"], "action": "skip", "tab": "copy",
                                                  "sort": "-size"}, follow_redirects=False)
         assert "sort=-size" in r.headers["location"]
+        client.post("/nastaveni/volby", data={"csv_export": "1"})
         csv_lines = client.get("/pary/1/export.csv?tab=copy&sort=-path").text.splitlines()[1:]
         assert [line.split(";")[0] for line in csv_lines] == ["Čtyřlístek.mkv", "cheers.mkv"]
 

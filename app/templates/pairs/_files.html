@@ -80,7 +80,7 @@
         <button type="submit" class="btn btn-outline btn-sm">{{ icon('rotate-left', 14) }}Vyprázdnit Na disku</button>
       </form>
       {% endif %}
-      {% if total %}
+      {% if total and csv_export %}
       <a class="btn btn-ghost btn-sm" href="/pary/{{ pair.id }}/export.csv?tab={{ tab }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}{% if sort %}&amp;sort={{ sort }}{% endif %}">{{ icon('download', 14) }}CSV</a>
       {% endif %}
     </div>

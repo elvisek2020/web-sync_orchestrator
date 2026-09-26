@@ -103,10 +103,10 @@
           {% endif %}
         </div>
         {% if refresh_pairs %}
-        <form method="post" action="/nastaveni/disk/vycistit?aktualizovat=1"
+        <form method="post" action="/nastaveni/disk/vycistit"
               data-confirm="Z disku se smaže úplně všechno. Nejde to vrátit.&#10;&#10;Proběhl už na NAS2 krok to-nas? Pak rovnou aktualizuj páry s daty k přenosu — jinak by další plán obsahoval znovu soubory, které už na NAS2 jsou."
-              data-confirm-title="Pozor, mažu!" data-confirm-ok="Smazat a aktualizovat" data-confirm-danger
-              data-confirm-alt="Jen smazat" data-confirm-alt-action="/nastaveni/disk/vycistit">
+              data-confirm-title="Pozor, mažu!" data-confirm-ok="Jen smazat" data-confirm-danger
+              data-confirm-alt="Smazat a aktualizovat" data-confirm-alt-action="/nastaveni/disk/vycistit?aktualizovat=1">
         {% else %}
         <form method="post" action="/nastaveni/disk/vycistit"
               data-confirm="Z disku se smaže úplně všechno. Nejde to vrátit."
@@ -118,13 +118,15 @@
       {% else %}
       <p class="text-sm text-muted">Disk není do kontejneru připojený ({{ disk.path }}). Připoj ho v compose, např. <code>/volumeUSB1/usbshare:{{ disk.path }}</code> (bez <code>:ro</code>, aby šlo kopírovat a čistit), a volné místo se načte tlačítkem — nebo kapacitu zadej ručně.</p>
       {% endif %}
-      <form method="post" action="/nastaveni/disk" class="form-group">
-        <label class="form-label" for="capacity_gb">Kapacita pro plán (GB)</label>
-        <div class="input-group">
-          <input class="input" id="capacity_gb" name="capacity_gb" inputmode="decimal" value="{{ capacity_gb }}" placeholder="např. 3900">
+      <form method="post" action="/nastaveni/disk" class="setting-row">
+        <div class="setting-row-text">
+          <label class="setting-row-title" for="capacity_gb">Kapacita pro plán (GB)</label>
+          <span class="text-sm text-muted">1 TB = 1000 GB. Prázdné = bez omezení. Před kopírováním se ještě ověří skutečné volné místo.</span>
+        </div>
+        <div class="setting-row-controls">
+          <input class="input input--time" id="capacity_gb" name="capacity_gb" inputmode="decimal" value="{{ capacity_gb }}" placeholder="např. 510">
           <button type="submit" class="btn btn-primary btn-wide">Uložit kapacitu</button>
         </div>
-        <p class="form-hint">1 TB = 1000 GB. Prázdné = bez omezení. Skript před kopírováním ještě sám ověří skutečné volné místo.</p>
       </form>
     </div>
   </section>
@@ -159,6 +161,28 @@
       </div>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary btn-wide">Uložit plánování</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card" id="volby">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Další volby</h2>
+      </div>
+    </div>
+    <form method="post" action="/nastaveni/volby" class="card-body stack">
+      <label class="setting-row" for="csv_export">
+        <span class="setting-row-text">
+          <span class="setting-row-title">Povolit export CSV</span>
+          <span class="text-sm text-muted">Tlačítko CSV u seznamů souborů v detailu páru.</span>
+        </span>
+        <span class="setting-row-controls">
+          <input type="checkbox" id="csv_export" name="csv_export" value="1" {% if csv_export %}checked{% endif %}>
+        </span>
+      </label>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-wide">Uložit volby</button>
       </div>
     </form>
   </section>
