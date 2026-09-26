@@ -208,7 +208,7 @@ def test_running_disk_transfer_is_shown(temp_db, disk_root):
         transfer_runner._active.pop(pid, None)
 
 
-def test_clean_disk_removes_only_transfer_data(temp_db, disk_root, monkeypatch):
+def test_clean_disk_removes_everything(temp_db, disk_root, monkeypatch):
     root = temp_db
     write_file(root, "src/a.mkv", b"a")
     st = _pair(root)                                                            # slug „serialy“
@@ -217,13 +217,14 @@ def test_clean_disk_removes_only_transfer_data(temp_db, disk_root, monkeypatch):
     write_file(disk_root, "sync_serialy.sh", b"#!/bin/bash\n")
     write_file(disk_root, "stary-par/film.mkv", b"y" * 50)                      # pár, který už v aplikaci není
     write_file(disk_root, "sync_stary-par.sh", b"#!/bin/bash\n")
-    write_file(disk_root, "Moje fotky/dovolena.jpg", b"z")                     # cizí data zůstanou
+    write_file(disk_root, "Moje fotky/dovolena.jpg", b"z")                     # smaže se i cizí obsah
     write_file(disk_root, "poznamky.txt", b"z")
+    write_file(disk_root, ".skryta/x", b"z")
 
     with TestClient(app) as client:
         page = client.get("/nastaveni").text
-        assert "Data přenosu na disku" in page and "Vyčistit disk" in page and "Pozor, mažu!" in page
-        assert "stary-par, serialy" in page or "serialy, stary-par" in page
+        assert "Obsah disku" in page and "Vyčistit disk" in page and "Pozor, mažu!" in page
+        assert "Z disku se smaže úplně všechno." in page and "8 souborů" in page
 
         monkeypatch.setattr(disk, "_same_device_as_nas", lambda path: True)   # špatně nastavená cesta
         r = client.post("/nastaveni/disk/vycistit", follow_redirects=False)
@@ -241,15 +242,22 @@ def test_clean_disk_removes_only_transfer_data(temp_db, disk_root, monkeypatch):
         assert 'data-confirm-alt="Jen smazat"' in page and "vycistit?aktualizovat=1" in page
         r = client.post("/nastaveni/disk/vycistit", follow_redirects=False)
         assert "disk_cleaned" in r.headers["location"] and "/nastaveni" in r.headers["location"]
-        assert sorted(p.name for p in disk_root.iterdir()) == ["Moje fotky", "poznamky.txt"]
+        assert list(disk_root.iterdir()) == []                                 # disk je prázdný
 
-        # „Smazat a aktualizovat“: po vyčištění spustí sken všech párů a vrátí na Přehled
+        # „Smazat a aktualizovat“: přeskenuje jen páry, které mají něco k přenosu, a vrátí na Přehled
+        write_file(root, "src2/film.mkv", b"f")
+        write_file(root, "tgt2/film.mkv", b"f")                                 # pár bez rozdílů
+        other = pairs_db.save_pair(None, {"name": "Filmy", "source_host_id": None, "source_path": "src2",
+                                          "target_host_id": None, "target_path": "tgt2"})
+        runner.start_pair(other)
+        wait_for_scans()
         started = []
         monkeypatch.setattr(runner, "start_pair", lambda pid: started.append(pid) or [])
         write_file(disk_root, "serialy/dil.mkv", b"x")
+        assert 'data-confirm-alt="Jen smazat"' in client.get("/nastaveni").text
         r = client.post("/nastaveni/disk/vycistit?aktualizovat=1", follow_redirects=False)
         assert r.headers["location"].startswith("/?") and "disk_cleaned_refresh" in r.headers["location"]
-        assert started == [st.pair["id"]] and not (disk_root / "serialy").exists()
-        assert "Žádná — disk je připravený." in client.get("/nastaveni").text
+        assert started == [st.pair["id"]] and not (disk_root / "serialy").exists()   # Filmy (0 k přenosu) ne
+        assert "Prázdný — disk je připravený." in client.get("/nastaveni").text
         r = client.post("/nastaveni/disk/vycistit", follow_redirects=False)
         assert "disk_clean_empty" in r.headers["location"]

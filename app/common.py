@@ -42,10 +42,10 @@ FLASH_MESSAGES = {
     "disk_same_as_nas": ("error", "DISK_PATH je na stejném svazku jako NAS1 — to není přenosový disk. "
                                   "Zkontroluj připojení v docker-compose."),
     "disk_cleaned": ("success", "Disk vyčištěn."),
-    "disk_cleaned_refresh": ("success", "Disk vyčištěn — aktualizace všech párů spuštěna."),
-    "disk_clean_empty": ("info", "Na disku nejsou žádná data přenosu."),
+    "disk_cleaned_refresh": ("success", "Disk vyčištěn — aktualizace párů s daty k přenosu spuštěna."),
+    "disk_clean_empty": ("info", "Disk je prázdný."),
     "disk_clean_busy": ("error", "Na disk se právě kopíruje — vyčistit ho jde až po dokončení přenosu."),
-    "disk_clean_failed": ("error", "Disk se nepodařilo celý vyčistit — podrobnosti jsou v logu kontejneru."),
+    "disk_clean_failed": ("error", "Některé soubory z disku nešly smazat — podrobnosti jsou v logu kontejneru."),
     "disk_full": ("error", "Na disku není dost volného místa — uvolni ho (třeba data z minulého kola), "
                            "nebo v Nastavení sniž kapacitu disku."),
     "host_in_use": ("error", "Host používá některý pár — nejdřív pár upravte nebo smažte."),

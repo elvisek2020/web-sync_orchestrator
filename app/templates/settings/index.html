@@ -94,18 +94,24 @@
       </div>
       <div class="disk-facts">
         <div>
-          <strong>Data přenosu na disku</strong><br>
+          <strong>Obsah disku</strong><br>
           {% if disk_data.names %}
           <span class="text-sm">{{ disk_data.files|cz_plural('soubor', 'soubory', 'souborů') }} · {{ disk_data.size|filesize }}</span>
-          <span class="text-sm text-muted">({{ disk_data.names|join(', ') }})</span>
+          <span class="text-sm text-muted">({{ disk_data.names[:6]|join(', ') }}{% if disk_data.names|length > 6 %}, …{% endif %})</span>
           {% else %}
-          <span class="text-sm text-muted">Žádná — disk je připravený.</span>
+          <span class="text-sm text-muted">Prázdný — disk je připravený.</span>
           {% endif %}
         </div>
+        {% if refresh_pairs %}
         <form method="post" action="/nastaveni/disk/vycistit?aktualizovat=1"
-              data-confirm="Z disku se smažou složky párů a skripty ({{ disk_data.files|cz_plural('soubor', 'soubory', 'souborů') }}, {{ disk_data.size|filesize }}). Nejde to vrátit.&#10;&#10;Proběhl už na NAS2 krok to-nas? Pak rovnou aktualizuj všechny páry — jinak by další plán obsahoval znovu soubory, které už na NAS2 jsou."
+              data-confirm="Z disku se smaže úplně všechno. Nejde to vrátit.&#10;&#10;Proběhl už na NAS2 krok to-nas? Pak rovnou aktualizuj páry s daty k přenosu — jinak by další plán obsahoval znovu soubory, které už na NAS2 jsou."
               data-confirm-title="Pozor, mažu!" data-confirm-ok="Smazat a aktualizovat" data-confirm-danger
               data-confirm-alt="Jen smazat" data-confirm-alt-action="/nastaveni/disk/vycistit">
+        {% else %}
+        <form method="post" action="/nastaveni/disk/vycistit"
+              data-confirm="Z disku se smaže úplně všechno. Nejde to vrátit."
+              data-confirm-title="Pozor, mažu!" data-confirm-ok="Smazat" data-confirm-danger>
+        {% endif %}
           <button type="submit" class="btn btn-danger btn-wide" {% if not disk_data.names %}disabled{% endif %}>{{ icon('trash', 18) }}Vyčistit disk</button>
         </form>
       </div>

@@ -6,7 +6,6 @@ v kořeni disku a manifest .sync-plan ve složce páru — krok to-nas na NAS2 p
 from __future__ import annotations
 
 import os
-import re
 import shutil
 from pathlib import Path
 
@@ -20,7 +19,6 @@ DISK_RESERVE_RATIO = 0.01        # rezerva: exFAT zabírá víc než součet vel
 DISK_RESERVE_MIN = 10**9         # nejméně 1 GB
 
 MANIFEST = ".sync-plan"
-SCRIPT_RE = re.compile(r"^sync_([a-z0-9-]+)\.sh$")    # skript páru v kořeni disku (script_filename)
 
 
 def usable_capacity(free: int) -> int:
@@ -102,25 +100,14 @@ def disk_problem(items: list[Item], root: Path) -> str | None:
     return None
 
 
-# --- vyčištění disku: jen to, co tam dala aplikace nebo skript ---
+# --- vyčištění disku: smaže celý obsah disku (příprava na další kolo) ---
 
-def app_entries(slugs: list[str]) -> list[Path]:
-    """Skripty sync_<pár>.sh v kořeni disku a složky párů (podle párů v aplikaci i podle skriptů na disku).
-    Cizí soubory a složky na disku se nepočítají."""
-    root = settings.disk_path
+def all_entries() -> list[Path]:
+    """Všechno v kořeni disku (soubory i složky, i skryté)."""
     try:
-        names = sorted(os.listdir(root))
+        return sorted(settings.disk_path.iterdir(), key=lambda p: p.name.casefold())
     except OSError:
         return []
-    folders = set(slugs)
-    scripts = []
-    for name in names:
-        m = SCRIPT_RE.match(name)
-        if m and (root / name).is_file():
-            scripts.append(root / name)
-            folders.add(m.group(1))
-    dirs = [root / f for f in sorted(folders) if (root / f).is_dir() and not (root / f).is_symlink()]
-    return dirs + scripts
 
 
 def entries_summary(entries: list[Path]) -> dict:
@@ -148,9 +135,15 @@ def clean_problem() -> str | None:
     return _basic_problem(disk_info())
 
 
-def clean(entries: list[Path]) -> None:
+def clean(entries: list[Path]) -> list[str]:
+    """Smaže položky; vrátí ty, které smazat nešly (zbytek se smaže i tak)."""
+    failed = []
     for entry in entries:
-        if entry.is_dir() and not entry.is_symlink():
-            shutil.rmtree(entry)
-        else:
-            entry.unlink(missing_ok=True)
+        try:
+            if entry.is_dir() and not entry.is_symlink():
+                shutil.rmtree(entry)
+            else:
+                entry.unlink(missing_ok=True)
+        except OSError:
+            failed.append(entry.name)
+    return failed

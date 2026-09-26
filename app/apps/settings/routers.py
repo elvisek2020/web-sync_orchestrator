@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse
 
 from app import db
 from app.apps.pairs import db as pairs_db
-from app.apps.pairs.state import get_capacity
+from app.apps.pairs.state import get_capacity, load_overview
 from app.common import page_ctx, redirect
 from app.config import settings
 from app.core.excludes import DEFAULT_EXCLUDE_PATTERNS, parse_patterns
@@ -39,19 +39,23 @@ def _default_excludes_text() -> str:
 
 @router.get("/nastaveni", response_class=HTMLResponse)
 def settings_page(request: Request):
+    entries = disk.all_entries()
     capacity = get_capacity()
     return templates.TemplateResponse(request, "settings/index.html", page_ctx(
         request, current_tab="settings",
         pairs=pairs_db.list_pairs(), hosts=settings_db.list_hosts(),
         capacity_gb=f"{capacity / 1e9:g}".replace(".", ",") if capacity else "",
         default_excludes=_default_excludes_text(), local_root=str(settings.local_root),
-        disk=disk_info(), disk_data=disk.entries_summary(_disk_entries()), window=get_window(),
+        disk=disk_info(), disk_data=disk.entries_summary(entries), refresh_pairs=_pairs_to_refresh(),
+        window=get_window(),
         refresh_time=refresh_label(get_refresh_time()),
     ))
 
 
-def _disk_entries():
-    return disk.app_entries([p["slug"] for p in pairs_db.list_pairs()])
+def _pairs_to_refresh() -> list[dict]:
+    """Páry, které mají něco k přenosu (Kopírovat nebo Odloženo) — jen u nich se po to-nas plán změní.
+    Páry s nulou k přenosu se znovu neskenují."""
+    return [st.pair for st in load_overview().pairs if st.plan and st.plan.transfer]
 
 
 # --- disk a vzory ---
@@ -68,24 +72,25 @@ def read_disk_capacity():
 
 @router.post("/nastaveni/disk/vycistit")
 def clean_disk(aktualizovat: str = ""):
-    """Smaže z disku data přenosu (složky párů a skripty) — příprava na další kolo.
-    S ?aktualizovat=1 pak spustí Aktualizovat vše (po to-nas, ať plán neobsahuje přenesené soubory)."""
+    """Smaže celý obsah disku — příprava na další kolo.
+    S ?aktualizovat=1 pak přeskenuje páry, které mají něco k přenosu (po to-nas, ať jejich plán
+    neobsahuje přenesené soubory); páry s nulou k přenosu se neskenují."""
     if transfer_runner.disk_running():
         return redirect("/nastaveni", "disk_clean_busy")
     problem = disk.clean_problem()
     if problem:
         return redirect("/nastaveni", problem)
-    entries = _disk_entries()
+    entries = disk.all_entries()
     if not entries:
         return redirect("/nastaveni", "disk_clean_empty")
-    try:
-        disk.clean(entries)
-    except OSError:
-        logger.exception("Vyčištění disku selhalo")
+    refresh = _pairs_to_refresh() if aktualizovat else []
+    failed = disk.clean(entries)
+    if failed:
+        logger.error("Vyčištění disku: nepodařilo se smazat %s", ", ".join(failed))
         return redirect("/nastaveni", "disk_clean_failed")
     logger.info("Disk vyčištěn: %s", ", ".join(e.name for e in entries))
-    if aktualizovat:
-        for pair in pairs_db.list_pairs():
+    if refresh:
+        for pair in refresh:
             runner.start_pair(pair["id"])
         return redirect("/", "disk_cleaned_refresh")
     return redirect("/nastaveni", "disk_cleaned")
