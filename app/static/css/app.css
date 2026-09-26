@@ -3113,6 +3113,15 @@ details.card[open] > .summary-toggle {
     margin-top: var(--space-2);
 }
 
+/* Potvrzovací okno se třemi tlačítky (druhá volba): širší, tlačítka se případně zalomí */
+.modal--wide {
+    max-width: 540px;
+}
+
+.modal-footer {
+    flex-wrap: wrap;
+}
+
 /* Potvrzovací okno: nový řádek v data-confirm (&#10;) se zobrazí jako zalomení */
 #confirm-message {
     white-space: pre-line;

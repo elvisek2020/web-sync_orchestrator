@@ -59,6 +59,8 @@ function confirmAction(title, message, okLabel, cb, danger, alt) {
     };
     // volitelné druhé tlačítko (alt = {label, cb}), např. „Naplánovat“ vedle „Spustit přenos“
     var altBtn = document.getElementById('confirm-alt');
+    var modal = document.querySelector('#confirm-overlay .modal');
+    if (modal) modal.classList.toggle('modal--wide', !!alt);   // tři tlačítka potřebují víc místa
     if (altBtn) {
         altBtn.hidden = !alt;
         altBtn.textContent = alt ? alt.label : '';
