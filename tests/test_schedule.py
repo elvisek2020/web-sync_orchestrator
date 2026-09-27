@@ -201,3 +201,16 @@ def test_auto_refresh_settings_page(temp_db):
         assert "automaticky každý den v 21:30" in client.get("/").text
         client.post("/nastaveni/planovani", data={"refresh_time": ""})
         assert "automaticky každý den" not in client.get("/").text
+
+
+def test_refresh_clears_direct_marks_and_schedule(temp_db):
+    from app.scan.runner import runner
+
+    st = _pair_with_direct(temp_db, ["a.mkv", "b.mkv"])
+    pid = st.pair["id"]
+    pairs_db.set_scheduled(pid, True)
+    runner.start_pair(pid)                                                     # např. automatická aktualizace
+    wait_for_scans()
+    assert pairs_db.direct_for_pair(pid) == set()                              # Přímý přenos od nuly
+    assert pairs_db.get_pair(pid)["scheduled"] == 0                            # plán zrušen (data se mohla změnit)
+    assert not load_overview().get(pid).plan.comparison.direct

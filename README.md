@@ -108,6 +108,8 @@ Pro menší objemy — drobné soubory, konflikty, mazání přebývajících �
 Soubor se nahrává pod dočasným názvem `.jméno.syncpart` a přejmenuje se až celý — na NAS2 nikdy nezůstane napůl
 nahraný soubor a přerušený přenos příště **naváže**. Zachová se čas změny. Chyba jednoho souboru přenos nezastaví
 (soubor zůstane označený pro další pokus). Výsledek se hned promítne do čísel páru bez nového skenu.
+Nový sken NAS2 (Aktualizovat) záložku *Přímý přenos* vyprázdní, aby se přenášela jen aktuální data;
+tím se zruší i naplánovaný přímý přenos páru.
 Přenos běží z lokálně připojeného zdroje (NAS1); během přenosu se pár neskenuje.
 
 ### Plánování
@@ -117,8 +119,8 @@ Plánovač běží v aplikaci, kontroluje každých 30 s a plán přežije resta
 
 #### Automatická aktualizace
 
-Jeden čas (např. `21:30`), kdy se každý den samo spustí *Aktualizovat vše* — ideálně chvíli před oknem pro
-naplánovaný přenos. Zmeškaný termín (restart kontejneru) se dožene nejpozději do hodiny; pár, u kterého zrovna
+Jeden čas (např. `21:30`), kdy se každý den samo spustí *Aktualizovat vše*. Stejně jako ruční Aktualizovat
+vyprázdní záložky *Na disku* a *Přímý přenos* a zruší naplánované přímé přenosy. Zmeškaný termín (restart kontejneru) se dožene nejpozději do hodiny; pár, u kterého zrovna
 běží přenos, se přeskočí. Na Přehledu je čas vidět pod tlačítkem *Aktualizovat vše*.
 
 #### Naplánovaný přímý přenos
@@ -127,7 +129,8 @@ Když je zadané okno pro naplánovaný přenos (např. `22:00`–`06:00`; konec
 má potvrzovací okno přímého přenosu i tlačítko **Naplánovat**.
 Naplánovaný pár se spustí sám, jakmile je okno otevřené (víc párů postupně, v pořadí párů). Po konci okna
 se rozpracovaný soubor dokončí, další už nezačne a přenos skončí jako *Pozastaveno*; zbytek pokračuje
-v dalším okně. Když je přeneseno všechno (nebo přenos zrušíš), plán se sám zruší; zrušit ho jde i tlačítkem
+v dalším okně. Když je přeneseno všechno (nebo přenos zrušíš), plán se sám zruší; zruší ho i Aktualizovat
+(ruční i automatická), protože vyprázdní výběr — data se mezi okny mohla změnit; zrušit ho jde i tlačítkem
 *Zrušit plán* v detailu páru. Ruční *Spustit přenos* okno nerespektuje a běží do konce. Po selhání (třeba
 nedostupný NAS2) plánovač v okně zkusí přenos znovu za 15 minut.
 

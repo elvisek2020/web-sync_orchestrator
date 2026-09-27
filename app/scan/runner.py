@@ -178,8 +178,11 @@ class ScanRunner:
                     rows[i:i + INSERT_CHUNK],
                 )
             if job.side == "target":
-                # nový sken NAS2 ukazuje skutečný stav → záložka Na disku začíná znovu od nuly
+                # nový sken NAS2 ukazuje skutečný stav → záložky Na disku a Přímý přenos začínají od nuly;
+                # s vyprázdněným výběrem skončí i naplánovaný přímý přenos (data se mohla změnit)
                 conn.execute(text("DELETE FROM pair_ondisk WHERE pair_id = :p"), {"p": job.pair_id})
+                conn.execute(text("DELETE FROM pair_direct WHERE pair_id = :p"), {"p": job.pair_id})
+                conn.execute(text("UPDATE pairs SET scheduled = 0 WHERE id = :p"), {"p": job.pair_id})
             # Jen poslední stav: starší skeny této strany (i s jejich soubory) pryč.
             conn.execute(
                 text("DELETE FROM scans WHERE pair_id = :p AND side = :side AND id <> :id AND status NOT IN ('queued', 'running')"),
