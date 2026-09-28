@@ -22,7 +22,7 @@ from app.scan.sftp import SftpSession, test_connection
 from app.templates_engine import templates
 from app.transfer import disk
 from app.transfer.disk import disk_info, usable_capacity  # noqa: F401 — usable_capacity i pro testy
-from app.transfer.runner import transfer_runner
+from app.transfer.runner import SPEED_AFTER_CHOICES, speed_limit, transfer_runner
 from app.transfer.scheduler import scheduler
 from app.transfer.window import (
     get_refresh_time, get_window, parse, parse_time, refresh_label, set_refresh_time, set_window,
@@ -50,8 +50,14 @@ def settings_page(request: Request):
         disk=disk_info(), disk_data=disk.entries_summary(entries), refresh_pairs=_pairs_to_refresh(),
         window=get_window(),
         refresh_time=refresh_label(get_refresh_time()),
-        csv_export=csv_export_enabled(),
+        csv_export=csv_export_enabled(), speed_after_choices=SPEED_AFTER_CHOICES, **_speed_ctx(),
     ))
+
+
+def _speed_ctx() -> dict:
+    limit, after = speed_limit()
+    mb = f"{limit / 1e6:g}".replace(".", ",") if limit else ""
+    return {"min_speed": mb, "min_speed_after": int(after // 60) or 3}
 
 
 def csv_export_enabled() -> bool:
@@ -104,9 +110,23 @@ def clean_disk(aktualizovat: str = ""):
 
 
 @router.post("/nastaveni/volby")
-def save_options(request: Request, csv_export: str = Form("")):
+def save_options(request: Request, csv_export: str = Form(""), min_speed: str = Form(""),
+                 min_speed_after: str = Form("3")):
     """Další volby se ukládají hned při změně (HTMX) — bez tlačítka."""
+    value = min_speed.strip().replace(" ", "").replace(",", ".")
+    try:
+        limit = int(float(value) * 1e6) if value else 0
+        after = int(min_speed_after)
+    except ValueError:
+        limit, after = -1, 0
+    if limit < 0 or after not in SPEED_AFTER_CHOICES:
+        if request.headers.get("HX-Request"):
+            return Response(status_code=204, headers={"HX-Trigger": json.dumps(
+                {"notify": {"message": "Neplatná rychlost — zadej číslo v MB/s, např. 1 nebo 0,5.", "type": "error"}})})
+        return redirect("/nastaveni", "speed_invalid")
     db.set_setting("csv_export", "1" if csv_export else "0")
+    db.set_setting("direct_min_speed", str(limit))
+    db.set_setting("direct_min_speed_after", str(after))
     if request.headers.get("HX-Request"):
         return Response(status_code=204, headers={
             "HX-Trigger": json.dumps({"notify": {"message": "Uloženo.", "type": "success"}})})

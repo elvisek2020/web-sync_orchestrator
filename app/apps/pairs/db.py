@@ -256,9 +256,10 @@ def last_transfers(pair_id: int) -> list[dict]:
 
 
 def last_direct_failure(pair_id: int) -> str | None:
-    """Čas posledního selhaného přímého přenosu (pro odstup před dalším pokusem plánovače)."""
+    """Čas posledního selhaného nebo kvůli rychlosti zastaveného přímého přenosu
+    (pro odstup před dalším pokusem plánovače)."""
     row = db.query_one("SELECT finished_at FROM transfers WHERE pair_id = :p AND kind = 'direct' "
-                       "AND status = 'failed' ORDER BY id DESC LIMIT 1", {"p": pair_id})
+                       "AND status IN ('failed', 'slow') ORDER BY id DESC LIMIT 1", {"p": pair_id})
     return row["finished_at"] if row else None
 
 

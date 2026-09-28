@@ -66,6 +66,9 @@
       </div>
     </div>
 
+    {% if p.slow %}
+      {{ alert('warn', 'Rychlost ' ~ (p.slow[0]|filesize) ~ '/s je pod limitem ' ~ (p.slow[1]|filesize) ~ '/s — rozpracovaný soubor se dokončí a přenos se zastaví.') }}
+    {% endif %}
     {% if p.errors %}
       {% call alert('warn') %}
         <strong>{{ p.errors|length|cz_plural('položka se nepovedla', 'položky se nepovedly', 'položek se nepovedlo') }}</strong> — přenos pokračuje dál.
@@ -88,6 +91,7 @@
 {% elif t.status == 'done' %}{% set b_cls, b_text, b_ok = 'badge--warn', 'Hotovo s chybami', false %}
 {% elif t.status == 'cancelled' %}{% set b_cls, b_text, b_ok = 'badge--warn', 'Zrušen', false %}
 {% elif t.status == 'paused' %}{% set b_cls, b_text, b_ok = 'badge--accent', 'Pozastaveno', false %}
+{% elif t.status == 'slow' %}{% set b_cls, b_text, b_ok = 'badge--warn', 'Zastaveno — pomalé připojení', false %}
 {% else %}{% set b_cls, b_text, b_ok = 'badge--error', 'Selhal', false %}{% endif %}
 <details class="card" id="transfer-last-{{ t.kind }}">
   <summary class="card-header summary-toggle">
@@ -116,6 +120,8 @@
         Disk je připravený. Je na něm i skript <strong>{{ script_name }}</strong> — disk připoj k NAS2 (nebo k Macu) a spusť:
         <pre class="log log--inline">bash {{ script_name }} to-nas &lt;kořen disku&gt; &lt;složka na NAS2&gt;</pre>
       {% endcall %}
+    {% elif t.status == 'slow' %}
+      {{ alert('warn', (t.error or 'Rychlost byla pod limitem.') ~ ' Rozpracovaný soubor se dokončil, zbytek zůstal v záložce Přímý přenos.') }}
     {% elif t.status == 'paused' %}
       {{ alert('info', 'Časové okno skončilo — rozpracovaný soubor se dokončil, zbytek zůstal v záložce Přímý přenos a pokračuje v dalším okně' ~ ((' (' ~ window.label ~ ')') if window else '') ~ '.') }}
     {% elif t.status == 'cancelled' %}

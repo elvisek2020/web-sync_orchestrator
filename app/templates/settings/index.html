@@ -182,6 +182,27 @@
           <input type="checkbox" id="csv_export" name="csv_export" value="1" {% if csv_export %}checked{% endif %}>
         </span>
       </label>
+      <div class="setting-row">
+        <div class="setting-row-text">
+          <label class="setting-row-title" for="min_speed">Minimální rychlost přímého přenosu</label>
+          <span class="text-sm text-muted">Když je průměr za poslední minutu nižší, rozpracovaný soubor se dokončí a přenos se zastaví (naplánovaný se v okně zkusí znovu za 15 min). Prázdné = bez limitu.</span>
+        </div>
+        <div class="setting-row-controls">
+          <input class="input input--time" id="min_speed" name="min_speed" inputmode="decimal" value="{{ min_speed }}" placeholder="bez limitu">
+          <span class="text-muted">MB/s</span>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-row-text">
+          <label class="setting-row-title" for="min_speed_after">Hlídat rychlost od</label>
+          <span class="text-sm text-muted">Rozjezd — tolik minut od začátku přenosu se rychlost nehodnotí.</span>
+        </div>
+        <div class="setting-row-controls">
+          <select class="select input--time" id="min_speed_after" name="min_speed_after">
+            {% for m in speed_after_choices %}<option value="{{ m }}" {% if m == min_speed_after %}selected{% endif %}>{{ m }} min</option>{% endfor %}
+          </select>
+        </div>
+      </div>
       <noscript><div class="form-actions"><button type="submit" class="btn btn-primary btn-wide">Uložit volby</button></div></noscript>
     </form>
   </section>

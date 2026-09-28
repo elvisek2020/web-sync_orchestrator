@@ -32,6 +32,7 @@ ui/.vite/
 # Lokální pomocné adresáře – nikdy necommitovat
 _backup/
 _docs/
+CLAUDE.md
 
 
 # Data aplikace a E2E prostředí

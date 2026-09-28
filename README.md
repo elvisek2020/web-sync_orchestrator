@@ -108,6 +108,10 @@ Pro menší objemy — drobné soubory, konflikty, mazání přebývajících �
 Soubor se nahrává pod dočasným názvem `.jméno.syncpart` a přejmenuje se až celý — na NAS2 nikdy nezůstane napůl
 nahraný soubor a přerušený přenos příště **naváže**. Zachová se čas změny. Chyba jednoho souboru přenos nezastaví
 (soubor zůstane označený pro další pokus). Výsledek se hned promítne do čísel páru bez nového skenu.
+**Minimální rychlost** (*Nastavení → Další volby*, v MB/s, s rozjezdem 1/3/5/10 min): když je průměr za poslední
+minutu nižší, rozpracovaný soubor se dokončí a přenos skončí se stavem *Zastaveno — pomalé připojení*; zbytek
+zůstane v záložce *Přímý přenos*, naplánovaný přenos to v okně zkusí znovu za 15 minut.
+
 Nový sken NAS2 (Aktualizovat) záložku *Přímý přenos* vyprázdní, aby se přenášela jen aktuální data;
 tím se zruší i naplánovaný přímý přenos páru.
 Přenos běží z lokálně připojeného zdroje (NAS1); během přenosu se pár neskenuje.

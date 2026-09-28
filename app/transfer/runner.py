@@ -37,6 +37,8 @@ CHUNK = 256 * 1024
 FILE_RETRIES = 3
 SPEED_WINDOW = 5.0            # sekund pro klouzavý průměr rychlosti
 MAX_FAILURES_IN_ROW = 5       # pak se přenos ukončí (nejspíš je cíl nedostupný)
+SLOW_WINDOW = 60.0            # sekund: průměr rychlosti pro hlídání minimální rychlosti
+SLOW_MIN_SPAN = 10.0          # sekund dat nejméně, než se průměr hodnotí
 
 
 class TransferCancelled(Exception):
@@ -45,6 +47,10 @@ class TransferCancelled(Exception):
 
 class WindowClosed(Exception):
     """Naplánovaný přenos: okno skončilo — rozpracovaný soubor se dokončil, další už nezačne."""
+
+
+class TooSlow(Exception):
+    """Průměrná rychlost byla pod limitem — rozpracovaný soubor se dokončil, další už nezačne."""
 
 
 @dataclass
@@ -65,6 +71,9 @@ class TransferProgress:
     started: float = field(default_factory=time.monotonic)
     cancel: threading.Event = field(default_factory=threading.Event)
     samples: deque = field(default_factory=lambda: deque(maxlen=200))
+    sent: int = 0                 # bajty opravdu odeslané (bez skoků navázání/přeskočení) — pro limit rychlosti
+    slow_samples: deque = field(default_factory=deque)   # (čas, sent) za posledních SLOW_WINDOW s
+    slow: tuple | None = None     # (průměrná rychlost, limit) — pod limitem, po souboru se zastaví
     log_lines: deque = field(default_factory=lambda: deque(maxlen=2000))
     errors: list = field(default_factory=list)
     results: list = field(default_factory=list)   # po souborech: [čas ISO, cesta, stav, podrobnost]
@@ -84,7 +93,29 @@ class TransferProgress:
     def add_bytes(self, n: int) -> None:
         self.bytes_done += n
         self.current_done += n
-        self.samples.append((time.monotonic(), self.bytes_done))
+        self.sent += n
+        now = time.monotonic()
+        self.samples.append((now, self.bytes_done))
+        self.slow_samples.append((now, self.sent))
+        while self.slow_samples and now - self.slow_samples[0][0] > SLOW_WINDOW:
+            self.slow_samples.popleft()
+
+    def reset_speed(self) -> None:
+        """Skok v počtu bajtů (navázání, přeskočený soubor) nemá zkreslit zobrazenou rychlost."""
+        self.samples.clear()
+
+    def average_speed(self) -> float | None:
+        """Průměrná rychlost za posledních SLOW_WINDOW s; None = zatím málo dat."""
+        now = time.monotonic()
+        while self.slow_samples and now - self.slow_samples[0][0] > SLOW_WINDOW:
+            self.slow_samples.popleft()
+        if not self.slow_samples:
+            return 0.0 if self.elapsed > SLOW_WINDOW else None     # nic nepřibylo celou minutu
+        t0, b0 = self.slow_samples[0]
+        span = now - t0
+        if span <= 0 or span < SLOW_MIN_SPAN:
+            return None
+        return (self.sent - b0) / span
 
     @property
     def elapsed(self) -> float:
@@ -135,6 +166,8 @@ class ActiveTransfer:
     kind: str = "direct"                     # direct = NAS → NAS, disk = NAS → přenosový disk
     dest: str = ""                           # kam se kopíruje (zobrazí se v panelu)
     window: Window | None = None             # naplánovaný přenos: běží jen v tomto okně
+    min_speed: int = 0                       # B/s; 0 = bez hlídání rychlosti (jen přímý přenos)
+    min_speed_after: float = 0.0             # s od začátku, než se rychlost hodnotí (rozjezd)
     thread: threading.Thread | None = None
 
     @property
@@ -147,6 +180,24 @@ class ActiveTransfer:
     @property
     def label(self) -> str:
         return KIND_LABELS.get(self.kind, "Přenos")
+
+
+SPEED_AFTER_CHOICES = (1, 3, 5, 10)      # minuty rozjezdu, než se rychlost hodnotí
+
+
+def rate(bps: float) -> str:
+    """Rychlost čitelně: 214 kB/s, 1,2 MB/s."""
+    return f"{bps / 1e3:.0f} kB/s" if bps < 1e6 else f"{bps / 1e6:.1f} MB/s".replace(".", ",")
+
+
+def speed_limit() -> tuple[int, float]:
+    """Minimální rychlost přímého přenosu z Nastavení: (B/s, sekundy rozjezdu); (0, 0) = vypnuto."""
+    try:
+        limit = int(db.get_setting("direct_min_speed", "0") or 0)
+        after = int(db.get_setting("direct_min_speed_after", "3") or 3)
+    except ValueError:
+        return 0, 0.0
+    return max(limit, 0), after * 60.0
 
 
 def split_items(items: list[Item]) -> tuple[list[Item], list[Item]]:
@@ -269,6 +320,8 @@ class TransferRunner:
             progress = TransferProgress(files_total=len(uploads), bytes_total=bytes_total,
                                         delete_total=len(deletions))
             job = ActiveTransfer(transfer_id, pair["id"], progress, kind=kind, dest=dest, window=window)
+            if kind == "direct":
+                job.min_speed, job.min_speed_after = speed_limit()
             job.thread = threading.Thread(
                 target=self._run, args=(job, pair, uploads, deletions, make_target, prepare, finish),
                 daemon=True, name=f"transfer-{transfer_id}",
@@ -285,6 +338,20 @@ class TransferRunner:
     def _check_window(job: ActiveTransfer) -> None:
         if job.window and not job.window.contains(datetime.now()):
             raise WindowClosed()
+        if job.progress.slow:
+            raise TooSlow()
+
+    @staticmethod
+    def _watch_speed(job: ActiveTransfer) -> None:
+        """Po rozjezdu: průměr za poslední minutu pod limitem → po dokončení souboru konec."""
+        progress = job.progress
+        if not job.min_speed or progress.slow or progress.elapsed < job.min_speed_after:
+            return
+        avg = progress.average_speed()
+        if avg is not None and avg < job.min_speed:
+            progress.slow = (avg, job.min_speed)
+            progress.log(f"Rychlost {rate(avg)} je pod limitem {rate(job.min_speed)} — "
+                         "rozpracovaný soubor se dokončí a přenos se zastaví.")
 
     def _make_target(self, pair: dict):
         host_id = pair["target_host_id"]
@@ -372,6 +439,10 @@ class TransferRunner:
         except WindowClosed:
             status = "paused"
             progress.log(f"Okno {job.window.label} skončilo — zbytek pokračuje v dalším okně.")
+        except TooSlow:
+            status = "slow"
+            avg, limit = progress.slow
+            error = f"Průměrná rychlost {rate(avg)} byla pod limitem {rate(limit)} (pomalé připojení)."
         except Exception as e:  # noqa: BLE001
             error = f"{e}\n\n{traceback.format_exc()}"
             progress.log(f"CHYBA: {e}")
@@ -419,7 +490,7 @@ class TransferRunner:
             progress.skipped += 1
             progress.result(rel, "skipped")
             progress.bytes_done += size
-            progress.samples.clear()                   # skok o přeskočená data nemá zkreslit rychlost
+            progress.reset_speed()                   # skok o přeskočená data nemá zkreslit rychlost
             return FileRec(rel.encode("utf-8", "surrogateescape"), item.key, size, mtime)
         target.makedirs(posixpath.dirname(rel))
 
@@ -434,7 +505,8 @@ class TransferRunner:
                     progress.log(f"Navazuji {rel} od {offset} B")
                 progress.bytes_done += offset - progress.current_done
                 progress.current_done = offset
-                progress.samples.clear()           # skok o navázaná data nemá zkreslit rychlost
+                if offset:
+                    progress.reset_speed()       # skok o navázaná data nemá zkreslit rychlost
                 with open(local, "rb") as src, target.open_write(part, offset) as dst:
                     src.seek(offset)
                     while True:
@@ -444,6 +516,7 @@ class TransferRunner:
                             break
                         dst.write(chunk)
                         progress.add_bytes(len(chunk))
+                        self._watch_speed(job)
                     target.finish_write(dst)
                 if target.size(part) != size:
                     raise OSError(f"velikost po nahrání nesedí ({target.size(part)} ≠ {size})")

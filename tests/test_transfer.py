@@ -209,3 +209,56 @@ def test_pages_render_while_transfer_runs(temp_db):
             assert "transfer_running" in r.headers["location"]                  # během přenosu se neskenuje
         finally:
             transfer_runner._active.pop(1, None)
+
+
+def test_too_slow_transfer_stops_after_current_file(temp_db, monkeypatch):
+    from app import db
+
+    monkeypatch.setattr(transfer_module, "CHUNK", 4096)
+    monkeypatch.setattr(transfer_module, "SLOW_MIN_SPAN", 0)
+    db.set_setting("direct_min_speed", str(10**15))                         # nesplnitelný limit
+    db.set_setting("direct_min_speed_after", "0")                           # bez rozjezdu (jen test)
+    root = temp_db
+    pid = _pair(root)
+    for n in ("a.bin", "b.bin", "c.bin"):
+        write_file(root, f"src/{n}", os.urandom(512 * 1024))
+    st = _scan(pid)
+    pairs_db.set_direct(pid, ["a.bin", "b.bin", "c.bin"], marked=True)
+    pairs_db.set_scheduled(pid, True)
+    st = load_overview().get(pid)
+    transfer_runner.start(st.pair, st.plan.comparison.direct, st.target.current["id"])
+    wait_for_transfer()
+
+    t = pairs_db.last_transfer(pid)
+    assert t["status"] == "slow" and t["files_done"] == 1 and t["failed"] == 0   # rozpracovaný soubor dokončen
+    assert "pod limitem" in t["error"] and (root / "tgt/a.bin").exists() and not (root / "tgt/b.bin").exists()
+    assert pairs_db.direct_for_pair(pid) == {"b.bin", "c.bin"}               # zbytek čeká
+    assert pairs_db.get_pair(pid)["scheduled"] == 1                          # plán trvá…
+    assert pairs_db.last_direct_failure(pid)                                 # …a plánovač počká s dalším pokusem
+
+    with TestClient(app) as client:
+        assert "Zastaveno — pomalé připojení" in client.get(f"/pary/{pid}").text
+
+
+def test_speed_limit_settings(temp_db):
+    from app import db
+
+    with TestClient(app) as client:
+        r = client.post("/nastaveni/volby", data={"min_speed": "0,5", "min_speed_after": "5"},
+                        headers={"HX-Request": "true"})
+        assert r.status_code == 204 and '"success"' in r.headers["HX-Trigger"]
+        assert transfer_module.speed_limit() == (500_000, 300.0)
+        page = client.get("/nastaveni").text
+        assert 'id="min_speed" name="min_speed" inputmode="decimal" value="0,5"' in page
+        assert '<option value="5" selected>5 min</option>' in page
+
+        r = client.post("/nastaveni/volby", data={"min_speed": "rychle", "min_speed_after": "5"},
+                        headers={"HX-Request": "true"})
+        assert '"error"' in r.headers["HX-Trigger"] and db.get_setting("direct_min_speed") == "500000"
+        client.post("/nastaveni/volby", data={"min_speed": "", "min_speed_after": "3"})
+        assert transfer_module.speed_limit() == (0, 180.0)                  # prázdné = bez limitu
+
+
+def test_rate_format():
+    assert transfer_module.rate(214_000) == "214 kB/s"
+    assert transfer_module.rate(1_234_000) == "1,2 MB/s"
