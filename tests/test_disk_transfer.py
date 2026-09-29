@@ -169,7 +169,10 @@ def test_file_already_on_disk_is_skipped(temp_db, disk_root):
     wait_for_transfer()
     t = pairs_db.last_transfer(st.pair["id"], "disk")
     assert "Už bylo na cíli (přeskočeno): 1" in t["log"]
-    assert [(path, status) for _, path, status, _ in t["items"]] == [("a.mkv", "skipped"), ("b.mkv", "ok")]
+    assert [(r[1], r[2]) for r in t["items"]] == [("a.mkv", "skipped"), ("b.mkv", "ok")]
+    skipped, copied = t["items"]
+    assert skipped[4] == 6 and skipped[5] is None                             # velikost ano, rychlost jen u přenosu
+    assert copied[4] == 4 and copied[5] and copied[5] > 0
 
 
 def test_only_one_disk_transfer_at_a_time(temp_db, disk_root):

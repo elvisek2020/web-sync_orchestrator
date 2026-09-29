@@ -3093,6 +3093,11 @@ details.card[open] > .summary-toggle {
     white-space: nowrap;
 }
 
+.transfer-results-num {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
 .transfer-results-detail {
     margin-top: 0.15rem;
     color: var(--color-error);

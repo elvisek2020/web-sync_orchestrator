@@ -139,13 +139,17 @@
     <div class="table-wrap transfer-results">
       <table class="table table--compact">
         <thead>
-          <tr><th>Datum a čas</th><th>Soubor</th><th>Stav</th></tr>
+          <tr><th>Datum a čas</th><th>Soubor</th><th class="num">Velikost</th><th class="num">Rychlost</th><th>Stav</th></tr>
         </thead>
         <tbody>
-          {% for ts, path, status, detail in t['items'][:1000] %}
+          {% for r in t['items'][:1000] %}
+          {% set ts, path, status, detail = r[0], r[1], r[2], r[3] %}
+          {% set size, speed = r[4] if r|length > 4 else none, r[5] if r|length > 5 else none %}
           <tr>
             <td class="transfer-results-time">{{ ts|cz_datetime(true) }}</td>
             <td class="path">{{ path }}{% if detail %}<div class="transfer-results-detail">{{ detail }}</div>{% endif %}</td>
+            <td class="num transfer-results-num">{% if size is not none %}{{ size|filesize }}{% else %}—{% endif %}</td>
+            <td class="num transfer-results-num">{% if speed %}{{ speed|filesize }}/s{% else %}—{% endif %}</td>
             <td>
               {%- if status == 'ok' %}<span class="badge badge--success">{{ icon('check', 12) }}{{ ok_label }}</span>
               {%- elif status == 'deleted' %}<span class="badge badge--success">{{ icon('check', 12) }}Smazáno</span>

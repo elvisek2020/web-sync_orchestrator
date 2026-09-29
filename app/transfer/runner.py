@@ -76,15 +76,18 @@ class TransferProgress:
     slow: tuple | None = None     # (průměrná rychlost, limit) — pod limitem, po souboru se zastaví
     log_lines: deque = field(default_factory=lambda: deque(maxlen=2000))
     errors: list = field(default_factory=list)
-    results: list = field(default_factory=list)   # po souborech: [čas ISO, cesta, stav, podrobnost]
+    results: list = field(default_factory=list)   # po souborech: [čas ISO, cesta, stav, podrobnost, velikost, B/s]
 
     def log(self, message: str) -> None:
         now = datetime.now()
         self.log_lines.append(f"{now.day}. {now.month}. {now:%H:%M:%S} {message}")
 
-    def result(self, path: str, status: str, detail: str = "") -> None:
-        """Jak dopadl soubor: ok | skipped (už na cíli) | deleted | gone (už neexistoval) | error."""
-        self.results.append([datetime.now().isoformat(timespec="seconds"), path, status, detail])
+    def result(self, path: str, status: str, detail: str = "", size: int | None = None,
+               speed: float | None = None) -> None:
+        """Jak dopadl soubor: ok | skipped (už na cíli) | deleted | gone (už neexistoval) | error.
+        speed = průměrná rychlost přenosu souboru (jen odeslaná data), u ostatních stavů None."""
+        self.results.append([datetime.now().isoformat(timespec="seconds"), path, status, detail, size,
+                             round(speed) if speed else None])
 
     def check_cancel(self) -> None:
         if self.cancel.is_set():
@@ -388,11 +391,11 @@ class TransferRunner:
                 progress.phase, progress.current, progress.current_size, progress.current_done = "Mažu", rel, 0, 0
                 try:
                     if target.size(rel) is None:
-                        progress.result(rel, "gone")
+                        progress.result(rel, "gone", size=item.tgt.size)
                     else:
                         target.remove(rel)
                         target.remove_empty_dirs(posixpath.dirname(rel))
-                        progress.result(rel, "deleted")
+                        progress.result(rel, "deleted", size=item.tgt.size)
                     progress.deleted += 1
                     removed_keys.append(item.key)
                     done_keys.append(item.key)
@@ -401,7 +404,7 @@ class TransferRunner:
                     progress.failed += 1
                     failures_in_row += 1
                     progress.errors.append(f"{rel}: {e}")
-                    progress.result(rel, "error", f"mazání: {e}")
+                    progress.result(rel, "error", f"mazání: {e}", size=item.tgt.size)
                     if failures_in_row >= MAX_FAILURES_IN_ROW:
                         raise RuntimeError(f"{failures_in_row} chyb za sebou — přenos ukončen: {e}")
 
@@ -429,7 +432,7 @@ class TransferRunner:
                     progress.failed += 1
                     failures_in_row += 1
                     progress.errors.append(f"{rel}: {e}")
-                    progress.result(rel, "error", str(e))
+                    progress.result(rel, "error", str(e), size=item.src.size)
                     progress.bytes_done -= progress.current_done          # nezapočítávat nedokončený soubor
                     if failures_in_row >= MAX_FAILURES_IN_ROW:
                         raise RuntimeError(f"{failures_in_row} chyb za sebou — přenos ukončen: {e}")
@@ -488,7 +491,7 @@ class TransferRunner:
         if target.size(rel) == size:
             # už je na cíli celý (navázání po přerušení) — nekopírovat znovu
             progress.skipped += 1
-            progress.result(rel, "skipped")
+            progress.result(rel, "skipped", size=size)
             progress.bytes_done += size
             progress.reset_speed()                   # skok o přeskočená data nemá zkreslit rychlost
             return FileRec(rel.encode("utf-8", "surrogateescape"), item.key, size, mtime)
@@ -507,6 +510,7 @@ class TransferRunner:
                 progress.current_done = offset
                 if offset:
                     progress.reset_speed()       # skok o navázaná data nemá zkreslit rychlost
+                file_started, file_sent = time.monotonic(), progress.sent
                 with open(local, "rb") as src, target.open_write(part, offset) as dst:
                     src.seek(offset)
                     while True:
@@ -522,7 +526,9 @@ class TransferRunner:
                     raise OSError(f"velikost po nahrání nesedí ({target.size(part)} ≠ {size})")
                 target.replace(part, rel)
                 target.set_mtime(rel, mtime)
-                progress.result(rel, "ok")
+                took = time.monotonic() - file_started
+                progress.result(rel, "ok", size=size,
+                                speed=(progress.sent - file_sent) / took if took > 0 else None)
                 return FileRec(rel.encode("utf-8", "surrogateescape"), item.key, size, mtime)
             except TransferCancelled:
                 raise

@@ -68,7 +68,7 @@ def test_direct_upload_replace_delete_and_patch(temp_db):
 
     t = pairs_db.last_transfer(pid)
     assert t["status"] == "done" and t["files_done"] == 2 and t["deleted"] == 1 and t["failed"] == 0
-    states = {path: status for _, path, status, _ in t["items"]}              # jak dopadl každý soubor
+    states = {r[1]: r[2] for r in t["items"]}                                 # jak dopadl každý soubor
     assert states == {"Nové/Film.mkv": "ok", "konflikt.mkv": "ok", "stare/navic.avi": "deleted"}
     assert pairs_db.direct_for_pair(pid) == set()                            # hotové se odznačí
     cmp = load_overview().get(pid).plan.comparison                           # výsledek promítnut bez skenu
@@ -117,7 +117,7 @@ def test_missing_source_file_fails_only_that_item(temp_db):
     wait_for_transfer()
     t = pairs_db.last_transfer(pid)
     assert t["status"] == "done" and t["files_done"] == 1 and t["failed"] == 1
-    failed = [(path, detail) for _, path, status, detail in t["items"] if status == "error"]
+    failed = [(r[1], r[3]) for r in t["items"] if r[2] == "error"]
     assert len(failed) == 1 and failed[0][0] == "a.mkv" and failed[0][1]           # s důvodem chyby
     assert (root / "tgt/b.mkv").exists()
     assert pairs_db.direct_for_pair(pid) == {"a.mkv"}
@@ -262,3 +262,19 @@ def test_speed_limit_settings(temp_db):
 def test_rate_format():
     assert transfer_module.rate(214_000) == "214 kB/s"
     assert transfer_module.rate(1_234_000) == "1,2 MB/s"
+
+
+def test_results_table_shows_size_and_speed(temp_db):
+    root = temp_db
+    pid = _pair(root)
+    write_file(root, "src/a.mkv", b"x" * 2000)
+    write_file(root, "tgt/navic.avi", b"y" * 500)
+    st = _scan(pid)
+    pairs_db.set_direct(pid, ["a.mkv", "navic.avi"], marked=True)
+    st = load_overview().get(pid)
+    transfer_runner.start(st.pair, st.plan.comparison.direct, st.target.current["id"])
+    wait_for_transfer()
+    with TestClient(app) as client:
+        html = client.get(f"/pary/{pid}/prenos").text
+    assert "<th class=\"num\">Velikost</th><th class=\"num\">Rychlost</th>" in html
+    assert "2,0 kB" in html and "500 B" in html and "/s</td>" in html      # rychlost u nahraného souboru
