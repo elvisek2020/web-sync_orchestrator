@@ -27,9 +27,10 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 - **Na disku** — zkopírované soubory se přesunou do záložky *Na disku* a Kopírovat se přepočítá na další várku; disky jde
   střídat a plnit postupně bez duplicit. Záložku vyprázdní Aktualizovat (nový sken NAS2), případně ručně tlačítko.
 - **Vyčistit disk** — smaže celý obsah disku před dalším kolem, volitelně rovnou přeskenuje páry s daty k přenosu.
-- **Přímý přenos NAS → NAS** — vybrané soubory přes SFTP rovnou na NAS2 (nahrání i smazání přebývajících), ručně nebo naplánovaně.
+- **Přímý přenos NAS → NAS** — vybrané soubory přes SFTP rovnou na NAS2 (nahrání i smazání přebývajících), ručně nebo naplánovaně;
+  volitelně s hlídáním minimální rychlosti (pomalý přenos se po dokončení souboru zastaví).
 - **Plánování** — denní automatická aktualizace všech párů a časové okno pro naplánovaný přímý přenos.
-- **Výsledek přenosu po souborech** — karta posledního přenosu (přímého i na disk) s tabulkou čas / soubor / stav; kartu jde odebrat, po novém skenu cíle zmizí sama.
+- **Výsledek přenosu po souborech** — karta posledního přenosu (přímého i na disk) s tabulkou datum a čas / soubor / velikost / rychlost / stav; kartu jde odebrat, po novém skenu cíle zmizí sama.
 - **Seznamy souborů** — záložky Kopírovat, Odloženo, Na disku, Konflikty, Přebývá, Vyřazené, Přímý přenos, Problémy; hledání, stránkování po 50, řazení podle cesty nebo velikosti; export CSV po povolení v *Nastavení → Další volby*.
 - **Skript** — seznamy cest jsou uvnitř jako base64 (bezpečné pro jakékoli znaky v názvu), kopíruje `rsync` po souborech s celkovým průběhem a odhadem konce (přerušený běh naváže), kontroluje volné místo, správnost složek a shodu plánu mezi `to-disk` a `to-nas`.
 
@@ -39,8 +40,11 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 
 1. **Nastavení → SSH hosté → Přidat hosta**: adresa, port, uživatel a heslo NAS2 (heslo se už nikdy nezobrazí). Tlačítko *Otestovat spojení*.
 2. **Nastavení → Páry → Přidat pár**: název, zdroj (lokálně, cesta relativně k `/mnt/nas1`, např. `NAS-FILMY`) a cíl (SSH host + absolutní cesta, např. `/share/Filmy`). Složku lze vybrat tlačítkem *Procházet*, pak *Ověřit složky*.
-3. **Nastavení → Disk pro přenos**: *Načíst volné místo* (je-li disk připojený do kontejneru přes `DISK_PATH`), nebo kapacitu v GB zadat ručně (1 TB = 1000 GB).
+3. **Nastavení → Disk pro přenos**: *Načíst volné místo* (je-li disk připojený do kontejneru přes `DISK_PATH`; kapacita
+   = volné místo minus rezerva 2 GB, dolů na celé GB), nebo kapacitu v GB zadat ručně (1 TB = 1000 GB).
 4. Volitelně **Nastavení → Plánování**: čas automatické aktualizace a okno pro naplánovaný přímý přenos (viz níže).
+5. Volitelně **Nastavení → Další volby** (ukládá se hned): povolit export CSV, minimální rychlost přímého přenosu
+   a rozjezd, po kterém se hlídá.
 
 ### Každý přenos
 
@@ -70,8 +74,9 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 
    Před mazáním přebývajících souborů se skript zeptá (výchozí odpověď je *ne*).
 5. Po `to-nas` (klidně až po několika discích) **Aktualizovat** — záložka *Na disku* se vyprázdní a plán odpovídá NAS2.
-6. Před dalším kolem **Nastavení → Disk pro přenos → Vyčistit disk**: smaže celý obsah disku. Volba
-   Výchozí volba *Jen smazat*; *Smazat a aktualizovat* navíc přeskenuje páry, které měly něco k přenosu (Kopírovat, Odloženo nebo Na disku).
+6. Před dalším kolem **Nastavení → Disk pro přenos → Vyčistit disk**: smaže celý obsah disku. Výchozí volba je
+   *Jen smazat*; *Smazat a aktualizovat* navíc přeskenuje páry, které měly něco k přenosu (Kopírovat, Odloženo
+   nebo Na disku).
 
 Během kopírování skript před každým souborem vypíše celkový stav, pod ním rsync ukazuje průběh souboru:
 
@@ -102,15 +107,17 @@ Pro menší objemy — drobné soubory, konflikty, mazání přebývajících �
    Odloženo se nahrají na NAS2, soubory z Přebývá se na NAS2 smažou.
 3. Panel ukazuje celkový průběh, rychlost, uplynulý a odhadovaný čas a průběh aktuálního souboru; přenos jde zrušit.
    V potvrzovacím okně je při nastaveném okně i volba **Naplánovat** (viz Plánování).
-4. Po skončení karta **Poslední přímý přenos** ukáže výsledek každého souboru (nahráno, smazáno, už na cíli, chyba s důvodem).
-   Stav (*Hotovo ×*) kartu odebere; po dalším skenu NAS2 zmizí sama.
+4. Po skončení karta **Poslední přímý přenos** ukáže výsledek každého souboru: datum a čas, velikost, rychlost přenosu
+   souboru a stav (nahráno, smazáno, už na cíli, chyba s důvodem). Stav (*Hotovo ×*) kartu odebere; po dalším skenu
+   NAS2 zmizí sama.
 
 Soubor se nahrává pod dočasným názvem `.jméno.syncpart` a přejmenuje se až celý — na NAS2 nikdy nezůstane napůl
 nahraný soubor a přerušený přenos příště **naváže**. Zachová se čas změny. Chyba jednoho souboru přenos nezastaví
 (soubor zůstane označený pro další pokus). Výsledek se hned promítne do čísel páru bez nového skenu.
-**Minimální rychlost** (*Nastavení → Další volby*, v MB/s, s rozjezdem 1/3/5/10 min): když je průměr za poslední
-minutu nižší, rozpracovaný soubor se dokončí a přenos skončí se stavem *Zastaveno — pomalé připojení*; zbytek
-zůstane v záložce *Přímý přenos*, naplánovaný přenos to v okně zkusí znovu za 15 minut.
+**Minimální rychlost** (*Nastavení → Další volby*, v MB/s, s rozjezdem 1/3/5/10 min): po rozjezdu se hlídá průměr
+odeslaných dat za poslední minutu. Když je nižší, panel to ukáže, rozpracovaný soubor se dokončí a přenos skončí
+se stavem *Zastaveno — pomalé připojení* (s naměřenou rychlostí); zbytek zůstane v záložce *Přímý přenos*,
+naplánovaný přenos to v okně zkusí znovu za 15 minut.
 
 Nový sken NAS2 (Aktualizovat) záložku *Přímý přenos* vyprázdní, aby se přenášela jen aktuální data;
 tím se zruší i naplánovaný přímý přenos páru.
@@ -124,8 +131,9 @@ Plánovač běží v aplikaci, kontroluje každých 30 s a plán přežije resta
 #### Automatická aktualizace
 
 Jeden čas (např. `21:30`), kdy se každý den samo spustí *Aktualizovat vše*. Stejně jako ruční Aktualizovat
-vyprázdní záložky *Na disku* a *Přímý přenos* a zruší naplánované přímé přenosy. Zmeškaný termín (restart kontejneru) se dožene nejpozději do hodiny; pár, u kterého zrovna
-běží přenos, se přeskočí. Na Přehledu je čas vidět pod tlačítkem *Aktualizovat vše*.
+vyprázdní záložky *Na disku* a *Přímý přenos* a zruší naplánované přímé přenosy — nastav ji proto mimo dobu mezi
+naplánováním a oknem přenosu (např. ráno po konci okna). Zmeškaný termín (restart kontejneru) se dožene nejpozději
+do hodiny; pár, u kterého zrovna běží přenos, se přeskočí. Na Přehledu je čas vidět pod tlačítkem *Aktualizovat vše*.
 
 #### Naplánovaný přímý přenos
 
@@ -228,7 +236,9 @@ Push do `main` spustí `.github/workflows/docker.yml`: build pro `linux/amd64` a
 
 - **Skeny** běží ve vláknech, soubory sbírají do paměti a do databáze je zapíšou **jednou krátkou transakcí** (`BEGIN IMMEDIATE`). Neúspěšný nebo zrušený sken nechá platný předchozí; po restartu aplikace se nedokončené skeny označí jako selhané. Nejvýš jeden sken na jednoho hosta najednou.
 - **Přenosy** (přímý NAS → NAS a na disk, `app/transfer/`) běží na pozadí se společným průběhem; soubor se zapisuje jako `.jméno.syncpart` a přejmenuje se až celý, přerušený přenos naváže. U jednoho páru nikdy neběží sken a přenos zároveň, na disk kopíruje vždy jen jeden pár.
+- **Přímý přenos** může hlídat minimální rychlost (průměr odeslaných bajtů za poslední minutu po rozjezdu); výsledek každého souboru (velikost, rychlost, stav) se ukládá k přenosu.
 - **Plánovač** (vlákno, kontrola každých 30 s) spouští automatickou aktualizaci a naplánované přímé přenosy v časovém okně.
+- **Úspěšný sken NAS2 je zdroj pravdy:** vyprázdní záložky *Na disku* a *Přímý přenos* a zruší naplánovaný přímý přenos páru.
 - **Sken nikdy nepřeskakuje potichu.** Nečitelná složka, neexistující nebo prázdný zdroj = chyba skenu (jinak by vznikly falešné „přebývající“ soubory a skript by je smazal).
 - **Porovnání a plán se nepersistují** — počítají se za běhu čistými funkcemi z posledních skenů (`app/core/plan.py`).
 - UI je serverem renderované HTML (Jinja2) s HTMX; průběh skenů a přenosů se obnovuje pollingem, jen když něco běží.
@@ -267,6 +277,8 @@ Testy běží v kontejneru (skript se ověřuje skutečným během `rsync`):
 
 ```bash
 docker build --target test -t sync-orchestrator-test . && docker run --rm sync-orchestrator-test
+# jen jeden soubor / test
+docker run --rm sync-orchestrator-test python -m pytest -q -p no:cacheprovider tests/test_transfer.py
 ```
 
 #### E2E prostředí
@@ -295,7 +307,9 @@ Aplikace na `http://localhost:8090`, falešný NAS2: host `nas2`, port `2222`, u
 - ✅ **Záložka Na disku** — disky jde střídat a plnit po várkách bez duplicit, srovná Aktualizovat
 - ✅ **Přenos na disk z aplikace** místo kroku `to-disk` — průběh, zrušení, navázání, skript a `.sync-plan` na disku
 - ✅ **Přímý přenos NAS → NAS** přes SFTP pro menší objemy a mazání přebývajících (průběh, rychlost, odhad času, navázání)
-- ✅ **Výsledky přenosů po souborech**, řazení seznamů podle cesty a velikosti, stránkování po 50
+- ✅ **Výsledky přenosů po souborech** (velikost, rychlost, stav), řazení seznamů podle cesty a velikosti, stránkování po 50
+- ✅ **Minimální rychlost přímého přenosu** s nastavitelným rozjezdem; pomalý přenos se po dokončení souboru zastaví
+- ✅ **Další volby** v Nastavení: export CSV (výchozí vypnutý), minimální rychlost; rezerva disku pevně 2 GB
 - ❌ Odstraněno: kopírování z backendu, SAFE MODE, DB na USB, WebSocket, fáze, stránka Debug
 
 Starší historie viz git (`git log`).
