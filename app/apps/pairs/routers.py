@@ -12,10 +12,9 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from app import db
 from app.common import page_ctx, redirect
-from app.config import settings
 from app.core.excludes import parse_patterns
 from app.core.plan import Item, PairPlan
-from app.core.script import generate_script, script_filename
+from app.core.script import script_filename
 from app.scan.runner import runner
 from datetime import datetime
 
@@ -26,6 +25,8 @@ from app.transfer.runner import split_items, transfer_runner
 from app.templates_engine import templates
 
 from . import db as pairs_db
+from . import disk_jobs
+from .disk_jobs import script_for, side_desc
 from .state import PairState, load_overview
 
 router = APIRouter(tags=["pairs"])
@@ -81,15 +82,8 @@ def disk_summary(plan: PairPlan | None) -> dict:
     return {"count": len(items), "bytes": sum(i.src.size for i in items)}
 
 
-def _script_for(pair: dict, plan: PairPlan) -> str:
-    return generate_script(
-        pair_name=pair["name"], slug=pair["slug"], plan=plan,
-        source_desc=side_desc(pair, "source"), target_desc=side_desc(pair, "target"),
-    )
-
-
 def _script(st: PairState) -> str:
-    return _script_for(st.pair, st.plan)
+    return script_for(st.pair, st.plan)
 
 
 # Řazení seznamu souborů: podle cesty nebo velikosti, „-“ = sestupně; prázdné = pořadí plánu.
@@ -121,14 +115,6 @@ def _filter(items: list[Item], q: str) -> list[Item]:
     return [i for i in items if needle in i.key.casefold()]
 
 
-def side_desc(pair: dict, side: str) -> str:
-    host = pair[f"{side}_host_name"]
-    path = pair[f"{side}_path"]
-    if host:
-        return f"{host}:{path}"
-    return f"{settings.local_root}/{path}".rstrip("/")
-
-
 def _detail_ctx(request: Request, st: PairState, tab: str, q: str, page: int, sort: str = "") -> dict:
     sort = _clean_sort(sort)
     items = _sort(_filter(tab_items(st.plan, tab), q), sort) if st.plan else []
@@ -147,7 +133,22 @@ def _detail_ctx(request: Request, st: PairState, tab: str, q: str, page: int, so
         script_name=script_filename(st.pair["slug"]),
         last_transfers=[] if st.transfer else pairs_db.last_transfers(st.pair["id"]),
         window=get_window(), now=datetime.now(), csv_export=db.get_setting("csv_export", "0") == "1",
+        **_disk_queue_ctx(st.pair["id"]),
     )
+
+
+def _disk_queue_ctx(pair_id: int) -> dict:
+    """Kdo právě kopíruje na disk (jiný pár) a kolikátý je tento pár ve frontě (0 = není)."""
+    running = transfer_runner.disk_running()
+    queue = pairs_db.disk_queue()
+    other = ""
+    if running and running.pair_id != pair_id:
+        other = (pairs_db.get_pair(running.pair_id) or {}).get("name") or "?"
+    return {
+        "disk_other": other,
+        "disk_queue_pos": next((n for n, p in enumerate(queue, 1) if p["id"] == pair_id), 0),
+        "disk_queue_others": sum(1 for p in queue if p["id"] != pair_id),
+    }
 
 
 def _load_state(pair_id: int) -> PairState | None:
@@ -251,27 +252,36 @@ def unschedule_direct(pair_id: int):
 
 @router.post("/pary/{pair_id:int}/prenos-na-disk")
 def start_disk(pair_id: int):
+    """Spustí přenos na disk; když se na disk kopíruje jiný pár (nebo jiné páry čekají), zařadí pár do fronty."""
     st = _load_state(pair_id)
     if not st or not st.plan:
         return redirect(f"/pary/{pair_id}", "no_plan")
     if not st.plan.on_disk:
         return redirect(f"/pary/{pair_id}", "not_on_disk")
-    if st.busy or st.transferring:
+    if st.transferring:
         return redirect(f"/pary/{pair_id}", "transfer_busy")
-    items = st.plan.selected
-    if not items:
+    if not st.plan.selected:
         return redirect(f"/pary/{pair_id}", "disk_nothing")
-    if transfer_runner.disk_running():
-        return redirect(f"/pary/{pair_id}", "disk_busy")
-    problem = disk.disk_problem(items, disk.pair_dir(st.pair))
-    if problem:
-        return redirect(f"/pary/{pair_id}", problem)
-    pair = st.pair
-    started = transfer_runner.start_disk(
-        pair, st.plan, script_name=script_filename(pair["slug"]),
-        make_script=lambda plan: _script_for(pair, plan),
-    )
-    return redirect(f"/pary/{pair_id}", "disk_started" if started else "disk_busy")
+    if transfer_runner.disk_running() or any(p["id"] != pair_id for p in pairs_db.disk_queue()):
+        pairs_db.set_disk_queued(pair_id, True)
+        scheduler.wake()
+        return redirect(f"/pary/{pair_id}", "disk_queued")
+    return redirect(f"/pary/{pair_id}", disk_jobs.start(st))
+
+
+@router.get("/pary/{pair_id:int}/prenos-na-disk/fronta")
+def disk_queue_poll(pair_id: int):
+    """Detail čekajícího páru se ptá, jestli už není ve frontě (spustil se / vypadl) → obnovit stránku."""
+    pair = pairs_db.get_pair(pair_id)
+    if pair and pair["disk_queued"]:
+        return Response(status_code=204)
+    return Response(status_code=204, headers={"HX-Refresh": "true"})
+
+
+@router.post("/pary/{pair_id:int}/prenos-na-disk/z-fronty")
+def unqueue_disk(pair_id: int):
+    pairs_db.set_disk_queued(pair_id, False)
+    return redirect(f"/pary/{pair_id}", "disk_unqueued")
 
 
 @router.post("/pary/{pair_id:int}/na-disku/vyprazdnit")
@@ -283,7 +293,11 @@ def clear_ondisk(pair_id: int):
 
 @router.post("/pary/{pair_id:int}/prenos/zrusit")
 def cancel_transfer(pair_id: int):
+    job = transfer_runner.active(pair_id)
     transfer_runner.cancel(pair_id)
+    if job and job.kind == "disk" and pairs_db.disk_queue():
+        pairs_db.clear_disk_queue()           # zrušení přenosu na disk zastaví i frontu (třeba kvůli výměně disku)
+        return redirect(f"/pary/{pair_id}", "transfer_cancelled_queue")
     return redirect(f"/pary/{pair_id}", "transfer_cancelled")
 
 

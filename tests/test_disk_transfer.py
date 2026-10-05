@@ -175,18 +175,80 @@ def test_file_already_on_disk_is_skipped(temp_db, disk_root):
     assert copied[4] == 4 and copied[5] and copied[5] > 0
 
 
-def test_only_one_disk_transfer_at_a_time(temp_db, disk_root):
+def test_only_one_disk_transfer_at_a_time_others_wait_in_queue(temp_db, disk_root):
+    from app.transfer.scheduler import scheduler
+
     root = temp_db
     write_file(root, "src/a.mkv", b"a")
     st = _pair(root)
+    pid = st.pair["id"]
     transfer_runner._active[999] = ActiveTransfer(1, 999, TransferProgress(), kind="disk")   # jiný pár kopíruje
     try:
         assert _start(st) is None
         with TestClient(app) as client:
-            r = client.post(f"/pary/{st.pair['id']}/prenos-na-disk", follow_redirects=False)
-            assert "disk_busy" in r.headers["location"]
+            assert "Zařadit do fronty?" in client.get(f"/pary/{pid}").text
+            r = client.post(f"/pary/{pid}/prenos-na-disk", follow_redirects=False)
+            assert "disk_queued" in r.headers["location"]
+            detail = client.get(f"/pary/{pid}").text
+            assert "Ve frontě přenosu na disk · 1. v pořadí" in detail and "Ve frontě (1.)" in detail
+            assert "Ve frontě přenosu na disk · 1. v pořadí" in client.get("/").text
+            assert client.get(f"/pary/{pid}/prenos-na-disk/fronta").headers.get("HX-Refresh") is None
+            assert scheduler.disk_tick() is None                                # disk je obsazený → čeká
     finally:
         transfer_runner._active.pop(999, None)
+    assert scheduler.disk_tick() == pid                                         # disk volný → další z fronty
+    wait_for_transfer()
+    assert (disk_root / st.pair["slug"] / "a.mkv").read_bytes() == b"a"
+    assert not pairs_db.get_pair(pid)["disk_queued"]
+    with TestClient(app) as client:
+        assert client.get(f"/pary/{pid}/prenos-na-disk/fronta").headers["HX-Refresh"] == "true"
+
+
+def test_queue_order_unqueue_and_cancel_clears_queue(temp_db, disk_root):
+    root = temp_db
+    write_file(root, "src/a.mkv", b"a")
+    a, b = _pair(root, "A"), _pair(root, "B")
+    pairs_db.set_disk_queued(b.pair["id"], True)
+    pairs_db.set_disk_queued(a.pair["id"], True)
+    pairs_db.set_disk_queued(b.pair["id"], True)                               # opakované zařazení pořadí nemění
+    assert [p["id"] for p in pairs_db.disk_queue()] == [b.pair["id"], a.pair["id"]]
+    with TestClient(app) as client:
+        client.post(f"/pary/{b.pair['id']}/prenos-na-disk/z-fronty")
+        assert [p["id"] for p in pairs_db.disk_queue()] == [a.pair["id"]]
+        pid = b.pair["id"]
+        transfer_runner._active[pid] = ActiveTransfer(1, pid, TransferProgress(), kind="disk")
+        try:
+            r = client.post(f"/pary/{pid}/prenos/zrusit", follow_redirects=False)
+            assert "transfer_cancelled_queue" in r.headers["location"]
+            assert pairs_db.disk_queue() == []                                # zrušení zastaví i frontu
+        finally:
+            transfer_runner._active.pop(pid, None)
+
+
+def test_queued_pair_gets_only_what_fits_on_disk(temp_db, disk_root, monkeypatch):
+    from app.apps.pairs import disk_jobs
+
+    root = temp_db
+    write_file(root, "src/a.mkv", b"x" * 50)
+    write_file(root, "src/b.mkv", b"x" * 50)
+    st = _pair(root)
+    pid = st.pair["id"]
+    real_info = disk.disk_info
+    monkeypatch.setattr(disk, "DISK_RESERVE", 0)
+    monkeypatch.setattr(disk, "disk_info", lambda: dict(real_info(), free=70))   # na disku zbylo místo na 1 soubor
+    pairs_db.set_disk_queued(pid, True)
+    assert disk_jobs.start_next() == pid
+    wait_for_transfer()
+    assert sorted(p.name for p in (disk_root / st.pair["slug"]).iterdir() if p.suffix == ".mkv") == ["a.mkv"]
+    st = load_overview().get(pid)
+    assert [i.key for i in st.plan.selected] == ["b.mkv"]                      # zbytek čeká v Kopírovat
+
+    monkeypatch.setattr(disk, "disk_info", lambda: dict(real_info(), free=10))    # už se nevejde nic
+    pairs_db.set_disk_queued(pid, True)
+    assert disk_jobs.start_next() is None
+    assert pairs_db.disk_queue() == []                                          # vypadl z fronty a ví se proč
+    t = pairs_db.last_transfer(pid, kind="disk")
+    assert t["status"] == "failed" and t["error"].startswith("Z fronty se nespustil: Na disku není dost")
 
 
 def test_web_flow_and_disk_checks(temp_db, disk_root, monkeypatch):

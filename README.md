@@ -55,6 +55,12 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
    `sync_<pár>.sh` s manifestem `.sync-plan` — obsahují všechny soubory páru, které na tomto disku leží.
    Panel ukazuje průběh jako u přímého přenosu; přenos jde zrušit a příště naváže.
 
+   Na disk kopíruje vždy jen jeden pár. Když už se kopíruje, **Přenos na disk** u dalšího páru ho **zařadí do
+   fronty** — páry se pak spustí samy jeden po druhém (v pořadí zařazení), jakmile předchozí doběhne. Co se z fronty
+   zkopíruje, se spočítá až při spuštění a ořízne se podle skutečného volného místa na disku (zbytek zůstane
+   v *Kopírovat*). Z fronty jde pár vyřadit v jeho detailu; zrušení běžícího přenosu na disk zruší celou frontu.
+   Pár, který se z fronty spustit nedá (disk plný nebo odpojený), z ní vypadne a důvod je v kartě posledního přenosu.
+
    Zkopírované soubory se přesunou do záložky **Na disku** a *Kopírovat* se přepočítá na další várku (podle
    kapacity v Nastavení). Můžeš tak připojit další disk (upravit kapacitu) a kopírovat dál, nebo přikopírovat na
    tentýž disk — nic se nezkopíruje dvakrát. Záložku *Na disku* vyprázdní až **Aktualizovat** (nový sken NAS2),
@@ -235,7 +241,7 @@ Push do `main` spustí `.github/workflows/docker.yml`: build pro `linux/amd64` a
 ### 🏗️ Architektura
 
 - **Skeny** běží ve vláknech, soubory sbírají do paměti a do databáze je zapíšou **jednou krátkou transakcí** (`BEGIN IMMEDIATE`). Neúspěšný nebo zrušený sken nechá platný předchozí; po restartu aplikace se nedokončené skeny označí jako selhané. Nejvýš jeden sken na jednoho hosta najednou.
-- **Přenosy** (přímý NAS → NAS a na disk, `app/transfer/`) běží na pozadí se společným průběhem; soubor se zapisuje jako `.jméno.syncpart` a přejmenuje se až celý, přerušený přenos naváže. U jednoho páru nikdy neběží sken a přenos zároveň, na disk kopíruje vždy jen jeden pár.
+- **Přenosy** (přímý NAS → NAS a na disk, `app/transfer/`) běží na pozadí se společným průběhem; soubor se zapisuje jako `.jméno.syncpart` a přejmenuje se až celý, přerušený přenos naváže. U jednoho páru nikdy neběží sken a přenos zároveň, na disk kopíruje vždy jen jeden pár — další čekají ve frontě (`pairs.disk_queued`, spouští je plánovač, runner ho po doběhnutí probudí).
 - **Přímý přenos** může hlídat minimální rychlost (průměr odeslaných bajtů za poslední minutu po rozjezdu); výsledek každého souboru (velikost, rychlost, stav) se ukládá k přenosu.
 - **Plánovač** (vlákno, kontrola každých 30 s) spouští automatickou aktualizaci a naplánované přímé přenosy v časovém okně.
 - **Úspěšný sken NAS2 je zdroj pravdy:** vyprázdní záložky *Na disku* a *Přímý přenos* a zruší naplánovaný přímý přenos páru.
@@ -306,6 +312,7 @@ Aplikace na `http://localhost:8090`, falešný NAS2: host `nas2`, port `2222`, u
 - ✅ **Vyčištění disku** před dalším kolem (celý obsah, volitelně s aktualizací párů)
 - ✅ **Záložka Na disku** — disky jde střídat a plnit po várkách bez duplicit, srovná Aktualizovat
 - ✅ **Přenos na disk z aplikace** místo kroku `to-disk` — průběh, zrušení, navázání, skript a `.sync-plan` na disku
+- ✅ **Fronta přenosu na disk** — další páry čekají a spustí se samy po sobě, výběr podle skutečného volného místa
 - ✅ **Přímý přenos NAS → NAS** přes SFTP pro menší objemy a mazání přebývajících (průběh, rychlost, odhad času, navázání)
 - ✅ **Výsledky přenosů po souborech** (velikost, rychlost, stav), řazení seznamů podle cesty a velikosti, stránkování po 50
 - ✅ **Minimální rychlost přímého přenosu** s nastavitelným rozjezdem; pomalý přenos se po dokončení souboru zastaví

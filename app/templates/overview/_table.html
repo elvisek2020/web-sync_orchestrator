@@ -1,6 +1,6 @@
 {% from "_icons.html" import icon %}
 {% from "_macros.html" import alert, side_status %}
-<div id="overview" class="stack-lg" {% if ov.busy %}hx-get="/" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+<div id="overview" class="stack-lg" {% if ov.busy or disk_queue %}hx-get="/" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
 
   {% for st in ov.pairs %}
   {% set pair = st.pair %}
@@ -129,6 +129,10 @@
       <p class="scan-caption" aria-live="polite">
         <span class="pulse-dot" aria-hidden="true"></span>
         {{ st.transfer.label }}{% if st.transfer.kind == 'direct' %} na NAS2{% endif %}{% if st.transfer.scheduled %} (naplánovaný){% endif %} · {{ tp.percent|round|int }} % · {{ tp.files_done|number }} z {{ tp.files_total|cz_plural('souboru', 'souborů', 'souborů') }}{% if tp.speed %} · {{ tp.speed|filesize }}/s{% endif %}{% if tp.eta is not none %} · zbývá ~{{ tp.eta|duration }}{% endif %}
+      </p>
+      {% elif disk_queue.get(pair.id) %}
+      <p class="scan-caption">
+        {{ icon('hard-drive', 14) }}Ve frontě přenosu na disk · {{ disk_queue[pair.id] }}. v pořadí
       </p>
       {% elif pair.scheduled %}
       <p class="scan-caption">

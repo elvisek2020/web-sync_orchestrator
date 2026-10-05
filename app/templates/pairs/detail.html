@@ -67,6 +67,25 @@
   </section>
   {% endif %}
 
+  {% if disk_queue_pos and not job %}
+  <section class="card" id="disk-queue-notice"
+           hx-get="/pary/{{ pair.id }}/prenos-na-disk/fronta" hx-trigger="every 3s" hx-swap="none">
+    <div class="card-body schedule-row">
+      <span class="schedule-icon">{{ icon('hard-drive', 20) }}</span>
+      <div class="schedule-text">
+        <strong>Ve frontě přenosu na disk · {{ disk_queue_pos }}. v pořadí</strong>
+        <span class="text-sm text-muted">
+          {%- if disk_other %}teď se na disk kopíruje pár {{ disk_other }}{% else %}spustí se během chvíle{% endif %}
+          · kolik souborů se zkopíruje, se spočítá až při spuštění podle volného místa na disku
+        </span>
+      </div>
+      <form method="post" action="/pary/{{ pair.id }}/prenos-na-disk/z-fronty">
+        <button type="submit" class="btn btn-outline btn-sm">{{ icon('x', 16) }}Vyřadit z fronty</button>
+      </form>
+    </div>
+  </section>
+  {% endif %}
+
   {% if job or last_transfers %}
     {% include "pairs/_transfer.html" %}
   {% endif %}

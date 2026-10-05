@@ -476,6 +476,9 @@ class TransferRunner:
                 logger.exception("%s #%d: nepodařilo se zapsat stav", job.label, job.transfer_id)
             with self._lock:
                 self._active.pop(job.pair_id, None)
+            if job.kind == "disk":
+                from .scheduler import scheduler
+                scheduler.wake()                  # disk je volný → hned další pár z fronty
             logger.info("%s #%d skončil: %s, přeneseno %d, smazáno %d, chyb %d, %.0f s",
                         job.label, job.transfer_id, status, progress.files_done, progress.deleted, progress.failed,
                         progress.elapsed)

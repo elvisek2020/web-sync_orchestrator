@@ -24,6 +24,8 @@ FLASH_MESSAGES = {
     "direct_local_only": ("error", "Přímý přenos jde jen z lokálně připojeného zdroje."),
     "direct_cancelled": ("info", "Přenos se ruší — rozpracovaný soubor příště naváže."),
     "transfer_cancelled": ("info", "Přenos se ruší — rozpracovaný soubor příště naváže."),
+    "transfer_cancelled_queue": ("info", "Přenos se ruší a fronta přenosu na disk je zrušená — rozpracovaný soubor "
+                                         "příště naváže."),
     "transfer_busy": ("error", "Pár se právě skenuje nebo přenáší — počkej na dokončení."),
     "transfer_running": ("info", "Probíhá přenos — pár se teď neskenuje."),
     "direct_scheduled": ("success", "Přímý přenos naplánován — poběží v časovém okně."),
@@ -36,6 +38,8 @@ FLASH_MESSAGES = {
     "disk_started": ("success", "Přenos na disk spuštěn."),
     "disk_nothing": ("error", "Na disk není co kopírovat."),
     "disk_busy": ("error", "Na disk se právě kopíruje jiný pár — počkej na dokončení."),
+    "disk_queued": ("success", "Pár zařazen do fronty — přenos na disk se spustí sám, jakmile se disk uvolní."),
+    "disk_unqueued": ("info", "Pár vyřazen z fronty přenosu na disk."),
     "disk_not_mounted": ("error", "Disk není do kontejneru připojený (DISK_PATH) — přenos na disk nejde spustit."),
     "disk_readonly": ("error", "Disk je do kontejneru připojený jen pro čtení — v docker-compose u /mnt/disk "
                                "odeber „:ro“ a kontejner znovu vytvoř."),

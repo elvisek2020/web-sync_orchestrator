@@ -5,6 +5,9 @@ po restartu dožene nejpozději do hodiny).
 
 Přímý přenos: v časovém okně spouští naplánované páry, jeden po druhém.
 
+Fronta přenosu na disk: kdykoli je disk volný, spustí další pár z fronty (runner po doběhnutí
+přenosu na disk plánovač probudí, další pár tak začne hned).
+
 Každých pár desítek sekund (a hned po naplánování) se podívá, jestli je okno otevřené. Když ano
 a žádný přímý přenos neběží, spustí první naplánovaný pár (v pořadí párů). Přenos sám po konci
 okna další soubor nezačne a skončí jako „pozastavený“; pár zůstane naplánovaný na další okno.
@@ -74,6 +77,13 @@ class Scheduler:
         logger.info("Plánovač: automatická aktualizace %d párů", len(pairs))
         return True
 
+    @staticmethod
+    def disk_tick() -> int | None:
+        """Fronta přenosu na disk: je-li disk volný, spustí další pár. Vrátí id spuštěného páru."""
+        from app.apps.pairs import disk_jobs
+
+        return disk_jobs.start_next()
+
     def tick(self, now: datetime | None = None) -> int | None:
         """Jedna kontrola; vrátí id spuštěného přenosu, nebo None."""
         from app.apps.pairs import db as pairs_db
@@ -81,6 +91,7 @@ class Scheduler:
 
         now = now or datetime.now()
         self.refresh_tick(now)
+        self.disk_tick()
         window = get_window()
         if window is None or not window.contains(now) or transfer_runner.direct_running():
             return None

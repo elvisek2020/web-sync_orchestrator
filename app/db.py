@@ -140,6 +140,7 @@ SCHEMA_STATEMENTS = [
         exclude_patterns  TEXT NOT NULL DEFAULT '',
         on_disk           INTEGER NOT NULL DEFAULT 1,
         scheduled         INTEGER NOT NULL DEFAULT 0,      -- přímý přenos naplánovaný do okna
+        disk_queued       TEXT NULL,                       -- čas zařazení do fronty přenosu na disk
         created_at        TEXT NOT NULL
     )
     """,
@@ -265,6 +266,7 @@ ADDED_COLUMNS = [
     ("transfers", "kind", "TEXT NOT NULL DEFAULT 'direct'"),
     ("transfers", "results", "TEXT NULL"),
     ("pairs", "scheduled", "INTEGER NOT NULL DEFAULT 0"),
+    ("pairs", "disk_queued", "TEXT NULL"),
 ]
 
 

@@ -18,12 +18,18 @@
     </form>
     {% endif %}
     {% if pair.on_disk and disk_available %}
+    {% set to_queue = disk_other or disk_queue_others %}
     <form method="post" action="/pary/{{ pair.id }}/prenos-na-disk"
+          {% if to_queue -%}
+          data-confirm="{% if disk_other %}Na disk se právě kopíruje pár {{ disk_other }}.{% else %}Na přenos na disk už čekají jiné páry.{% endif %} Tento pár se zařadí do fronty a přenos na disk se spustí sám, jakmile se disk uvolní.&#10;&#10;Kolik souborů se zkopíruje, se spočítá až při spuštění podle volného místa na disku (teď {{ disk_plan.count|cz_plural('soubor', 'soubory', 'souborů') }}, {{ disk_plan.bytes|filesize }}). Zrušení běžícího přenosu na disk zruší i frontu."
+          data-confirm-title="Zařadit do fronty?" data-confirm-ok="Zařadit do fronty"
+          {%- else -%}
           data-confirm="Zkopírovat {{ disk_plan.count|cz_plural('soubor', 'soubory', 'souborů') }} ({{ disk_plan.bytes|filesize }}) na disk do {{ disk_dest }}. Na disk se uloží i skript {{ script_name }} pro krok to-nas na NAS2. Přenos běží na pozadí a jde kdykoli zrušit; při dalším spuštění naváže."
-          data-confirm-title="Spustit přenos na disk?" data-confirm-ok="Kopírovat na disk">
-      <button type="submit" class="btn {{ 'btn-primary' if disk_plan.count else 'btn-outline' }}" {% if not disk_plan.count or st.busy %}disabled{% endif %}
-              title="{% if disk_plan.count %}Zkopírovat soubory ze záložky Kopírovat na připojený disk{% else %}Na disk není co kopírovat{% endif %}">
-        {{ icon('hard-drive', 18) }}Přenos na disk
+          data-confirm-title="Spustit přenos na disk?" data-confirm-ok="Kopírovat na disk"
+          {%- endif %}>
+      <button type="submit" class="btn {{ 'btn-primary' if disk_plan.count and not disk_queue_pos else 'btn-outline' }}" {% if not disk_plan.count or st.busy or disk_queue_pos %}disabled{% endif %}
+              title="{% if disk_queue_pos %}Pár čeká ve frontě přenosu na disk{% elif not disk_plan.count %}Na disk není co kopírovat{% elif to_queue %}Zařadit do fronty — spustí se, jakmile se disk uvolní{% else %}Zkopírovat soubory ze záložky Kopírovat na připojený disk{% endif %}">
+        {{ icon('hard-drive', 18) }}{% if disk_queue_pos %}Ve frontě ({{ disk_queue_pos }}.){% else %}Přenos na disk{% endif %}
       </button>
     </form>
     {% endif %}

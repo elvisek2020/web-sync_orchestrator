@@ -6,6 +6,7 @@ import re
 import threading
 import unicodedata
 from collections import OrderedDict
+from datetime import datetime
 
 from sqlalchemy import text
 
@@ -77,6 +78,21 @@ def update_pair_options(pair_id: int, *, on_disk: bool, include_conflicts: bool,
 
 def set_scheduled(pair_id: int, value: bool) -> None:
     db.execute("UPDATE pairs SET scheduled = :v WHERE id = :id", {"v": int(value), "id": pair_id})
+
+
+def set_disk_queued(pair_id: int, value: bool) -> None:
+    """Zařadit pár do fronty přenosu na disk (pořadí = čas zařazení), nebo ho z ní vyřadit."""
+    db.execute("UPDATE pairs SET disk_queued = CASE WHEN :v THEN COALESCE(disk_queued, :now) END WHERE id = :id",
+               {"v": int(value), "now": datetime.now().isoformat(), "id": pair_id})   # i µs: pořadí
+
+
+def disk_queue() -> list[dict]:
+    """Páry ve frontě přenosu na disk, v pořadí zařazení."""
+    return [p for p in sorted(list_pairs(), key=lambda p: p["disk_queued"] or "") if p["disk_queued"]]
+
+
+def clear_disk_queue() -> None:
+    db.execute("UPDATE pairs SET disk_queued = NULL WHERE disk_queued IS NOT NULL")
 
 
 def set_on_disk(pair_id: int, value: bool) -> None:

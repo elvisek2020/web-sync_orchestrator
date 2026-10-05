@@ -21,6 +21,7 @@ def _render(request: Request):
     return templates.TemplateResponse(request, template, page_ctx(
         request, current_tab="overview", ov=ov, window=get_window(),
         refresh_time=refresh_label(get_refresh_time()),
+        disk_queue={p["id"]: n for n, p in enumerate(pairs_db.disk_queue(), 1)},
     ))
 
 
