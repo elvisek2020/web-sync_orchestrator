@@ -24,12 +24,13 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 - **Vzory k vynechání** — výchozí (`@eaDir`, `.DS_Store`, `@Recycle`, `*.tmp`…) i vlastní pro pár; platí na obou stranách.
 - **Problémy** — názvy, které exFAT neuloží (`: * ? " < > |`, koncová tečka), kolize názvů a neplatné kódování se nepřenáší ani nemažou, jen se ukážou.
 - **Přenos na disk** — aplikace zkopíruje plán páru na připojený disk sama (průběh, zrušení, navázání) a uloží tam i skript pro `to-nas`.
+  Další páry jde zařadit do **fronty** — spustí se samy jeden po druhém; co se zkopíruje, se ořízne podle skutečného volného místa.
 - **Na disku** — zkopírované soubory se přesunou do záložky *Na disku* a Kopírovat se přepočítá na další várku; disky jde
   střídat a plnit postupně bez duplicit. Záložku vyprázdní Aktualizovat (nový sken NAS2), případně ručně tlačítko.
 - **Vyčistit disk** — smaže celý obsah disku před dalším kolem, volitelně rovnou přeskenuje páry s daty k přenosu.
 - **Přímý přenos NAS → NAS** — vybrané soubory přes SFTP rovnou na NAS2 (nahrání i smazání přebývajících), ručně nebo naplánovaně;
   volitelně s hlídáním minimální rychlosti (pomalý přenos se po dokončení souboru zastaví).
-- **Plánování** — denní automatická aktualizace všech párů a časové okno pro naplánovaný přímý přenos.
+- **Plánování** — denní automatická aktualizace všech párů, časové okno pro naplánovaný přímý přenos a fronta přenosu na disk.
 - **Výsledek přenosu po souborech** — karta posledního přenosu (přímého i na disk) s tabulkou datum a čas / soubor / velikost / rychlost / stav; kartu jde odebrat, po novém skenu cíle zmizí sama.
 - **Seznamy souborů** — záložky Kopírovat, Odloženo, Na disku, Konflikty, Přebývá, Vyřazené, Přímý přenos, Problémy; hledání, stránkování po 50, řazení podle cesty nebo velikosti; export CSV po povolení v *Nastavení → Další volby*.
 - **Skript** — seznamy cest jsou uvnitř jako base64 (bezpečné pro jakékoli znaky v názvu), kopíruje `rsync` po souborech s celkovým průběhem a odhadem konce (přerušený běh naváže), kontroluje volné místo, správnost složek a shodu plánu mezi `to-disk` a `to-nas`.
@@ -200,7 +201,8 @@ Aplikace bude na `http://<nas1>:8080`.
 - Uvicorn běží s jedním workerem (stav běžících skenů je v paměti procesu).
 - **Přenos na disk** a **Vyčistit disk** potřebují disk připojený **pro zápis** (bez `:ro`). Aplikace předem ověří,
   že disk je připojený a zapisovatelný, že to není prázdná složka na systémovém oddílu (méně než 20 GB), že neleží
-  na stejném svazku jako NAS1 (ochrana před špatně nastavenou cestou) a u přenosu i že je na disku dost místa.
+  na stejném svazku jako NAS1 (ochrana před špatně nastavenou cestou). Přenos zkopíruje jen tolik souborů, kolik se
+  vejde do skutečného volného místa (minus rezerva 2 GB); zbytek zůstane v *Kopírovat*.
 - `TZ` v compose určuje čas plánování (automatická aktualizace, okno přenosu).
 
 ### Přechod ze staré verze (v1)
@@ -243,7 +245,7 @@ Push do `main` spustí `.github/workflows/docker.yml`: build pro `linux/amd64` a
 - **Skeny** běží ve vláknech, soubory sbírají do paměti a do databáze je zapíšou **jednou krátkou transakcí** (`BEGIN IMMEDIATE`). Neúspěšný nebo zrušený sken nechá platný předchozí; po restartu aplikace se nedokončené skeny označí jako selhané. Nejvýš jeden sken na jednoho hosta najednou.
 - **Přenosy** (přímý NAS → NAS a na disk, `app/transfer/`) běží na pozadí se společným průběhem; soubor se zapisuje jako `.jméno.syncpart` a přejmenuje se až celý, přerušený přenos naváže. U jednoho páru nikdy neběží sken a přenos zároveň, na disk kopíruje vždy jen jeden pár — další čekají ve frontě (`pairs.disk_queued`, spouští je plánovač, runner ho po doběhnutí probudí).
 - **Přímý přenos** může hlídat minimální rychlost (průměr odeslaných bajtů za poslední minutu po rozjezdu); výsledek každého souboru (velikost, rychlost, stav) se ukládá k přenosu.
-- **Plánovač** (vlákno, kontrola každých 30 s) spouští automatickou aktualizaci a naplánované přímé přenosy v časovém okně.
+- **Plánovač** (vlákno, kontrola každých 30 s) spouští automatickou aktualizaci, naplánované přímé přenosy v časovém okně a další pár z fronty přenosu na disk.
 - **Úspěšný sken NAS2 je zdroj pravdy:** vyprázdní záložky *Na disku* a *Přímý přenos* a zruší naplánovaný přímý přenos páru.
 - **Sken nikdy nepřeskakuje potichu.** Nečitelná složka, neexistující nebo prázdný zdroj = chyba skenu (jinak by vznikly falešné „přebývající“ soubory a skript by je smazal).
 - **Porovnání a plán se nepersistují** — počítají se za běhu čistými funkcemi z posledních skenů (`app/core/plan.py`).
