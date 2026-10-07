@@ -415,3 +415,34 @@ def test_second_disk_gets_only_its_batch_and_queue_can_be_cleared(temp_db, disk_
         r = client.post(f"/pary/{pid}/na-disku/vyprazdnit", follow_redirects=False)
         assert "ondisk_cleared" in r.headers["location"]
     assert pairs_db.ondisk_for_pair(pid) == set()
+
+
+def test_swapped_disk_with_io_error_does_not_break_pages(temp_db, disk_root, monkeypatch):
+    """Vyměněný disk: kontejner drží starý mount, stat položek hlásí EIO → stránky fungují, akce se odmítnou."""
+    import errno
+    import pathlib
+
+    root = temp_db
+    write_file(root, "src/a.mkv", b"a")
+    st = _pair(root)
+    (disk_root / "filmy").mkdir()
+    bad = str(disk_root / "filmy")
+    real_stat = os.stat
+
+    def stat(path, *args, **kwargs):
+        if os.fspath(path).startswith(bad):
+            raise OSError(errno.EIO, "Input/output error", os.fspath(path))
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "stat", stat)
+    monkeypatch.setattr(pathlib.Path, "stat", lambda self, **kw: stat(self, **kw))
+    info = disk.disk_info()
+    assert info["mounted"] and info["io_error"] == "Input/output error"
+    assert disk.entries_summary(disk.all_entries())["names"] == ["filmy"]
+    assert not disk.is_file(disk_root / "filmy/a.mkv")
+    with TestClient(app) as client:
+        page = client.get("/nastaveni")
+        assert page.status_code == 200 and "Disk nejde přečíst" in page.text
+        r = client.post(f"/pary/{st.pair['id']}/prenos-na-disk", follow_redirects=False)
+        assert "disk_io_error" in r.headers["location"]
+        assert "disk_io_error" in client.post("/nastaveni/disk/vycistit", follow_redirects=False).headers["location"]

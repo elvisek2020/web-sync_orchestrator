@@ -203,6 +203,9 @@ Aplikace bude na `http://<nas1>:8080`.
   že disk je připojený a zapisovatelný, že to není prázdná složka na systémovém oddílu (méně než 20 GB), že neleží
   na stejném svazku jako NAS1 (ochrana před špatně nastavenou cestou). Přenos zkopíruje jen tolik souborů, kolik se
   vejde do skutečného volného místa (minus rezerva 2 GB); zbytek zůstane v *Kopírovat*.
+- **Výměna disku:** Docker drží připojení disku z doby startu kontejneru. Po odpojení a připojení jiného disku vidí
+  kontejner pořád ten starý a čtení hlásí chybu vstupu/výstupu — aplikace pak ukáže *„Disk nejde přečíst“* a přenos
+  na disk ani čištění nespustí. Po výměně disku proto **restartuj kontejner**.
 - `TZ` v compose určuje čas plánování (automatická aktualizace, okno přenosu).
 
 ### Přechod ze staré verze (v1)

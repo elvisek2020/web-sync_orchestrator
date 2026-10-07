@@ -41,6 +41,8 @@ FLASH_MESSAGES = {
     "disk_queued": ("success", "Pár zařazen do fronty — přenos na disk se spustí sám, jakmile se disk uvolní."),
     "disk_unqueued": ("info", "Pár vyřazen z fronty přenosu na disk."),
     "disk_not_mounted": ("error", "Disk není do kontejneru připojený (DISK_PATH) — přenos na disk nejde spustit."),
+    "disk_io_error": ("error", "Disk nejde přečíst (chyba vstupu/výstupu) — nejspíš byl vyměněn a kontejner pořád "
+                               "vidí ten předchozí. Restartuj kontejner."),
     "disk_readonly": ("error", "Disk je do kontejneru připojený jen pro čtení — v docker-compose u /mnt/disk "
                                "odeber „:ro“ a kontejner znovu vytvoř."),
     "disk_suspicious": ("error", "Připojený „disk“ má méně než 20 GB — nejspíš to není přenosový disk. "

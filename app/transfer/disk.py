@@ -29,14 +29,22 @@ def disk_info() -> dict:
     """Volné místo na přenosovém disku a jestli na něj jde zapisovat."""
     path = settings.disk_path
     info = {"path": str(path), "mounted": False, "writable": False, "free": 0, "total": 0, "usable": 0,
-            "suspicious": False}
-    if not path.is_dir():
-        return info
+            "suspicious": False, "io_error": ""}
     try:
+        if not path.is_dir():
+            return info
         st = os.statvfs(path)
-    except OSError:
+    except OSError as e:
+        info["io_error"] = e.strerror or str(e)
         return info
     info.update(mounted=True, free=st.f_bavail * st.f_frsize, total=st.f_blocks * st.f_frsize)
+    try:
+        # vyměněný disk: kontejner pořád drží připojení starého → čtení obsahu hlásí I/O chybu
+        with os.scandir(path) as it:
+            for entry in it:
+                os.stat(entry.path)       # skutečný stat — typ z readdir by chybu neukázal
+    except OSError as e:
+        info["io_error"] = e.strerror or str(e)
     info["usable"] = usable_capacity(info["free"])
     info["suspicious"] = info["total"] < DISK_MIN_PLAUSIBLE
     info["writable"] = os.access(path, os.W_OK)   # připojení :ro → False
@@ -54,6 +62,8 @@ def _same_device_as_nas(path: Path) -> bool:
 
 
 def _basic_problem(info: dict) -> str | None:
+    if info["io_error"]:
+        return "disk_io_error"
     if not info["mounted"]:
         return "disk_not_mounted"
     if not info["writable"]:
@@ -63,6 +73,14 @@ def _basic_problem(info: dict) -> str | None:
     if _same_device_as_nas(settings.disk_path):
         return "disk_same_as_nas"
     return None
+
+
+def is_file(path: Path) -> bool:
+    """Path.is_file(), ale chyba čtení (vadný / vyměněný disk) = soubor není."""
+    try:
+        return path.is_file()
+    except OSError:
+        return False
 
 
 def pair_dir(pair: dict) -> Path:
@@ -112,7 +130,11 @@ def entries_summary(entries: list[Path]) -> dict:
     """Počet souborů a velikost toho, co by se smazalo (pro zobrazení v Nastavení)."""
     files = size = 0
     for entry in entries:
-        if entry.is_dir():
+        try:
+            is_dir = entry.is_dir()
+        except OSError:
+            continue                       # nečitelná položka (vadný / vyměněný disk) se nezapočítá
+        if is_dir:
             for dirpath, _dirs, filenames in os.walk(entry):
                 for name in filenames:
                     try:

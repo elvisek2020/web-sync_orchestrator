@@ -274,7 +274,7 @@ class TransferRunner:
         script = settings.disk_path / script_name
 
         def on_this_disk(items):
-            return [i for i in items if (root / as_str(i.src.path)).is_file()]
+            return [i for i in items if disk.is_file(root / as_str(i.src.path))]
 
         def write_script(disk_plan, job: ActiveTransfer, with_manifest: bool) -> None:
             script.write_text(make_script(disk_plan), encoding="utf-8")

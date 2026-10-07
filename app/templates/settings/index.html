@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
-{% from "_macros.html" import empty_state %}
+{% from "_macros.html" import alert, empty_state %}
 {% block title %}Nastavení — {{ app_name }}{% endblock %}
 
 {% block content %}
@@ -81,7 +81,12 @@
       </div>
     </div>
     <div class="card-body stack">
-      {% if disk.mounted %}
+      {% if disk.io_error %}
+      {% call alert('error') %}
+        <strong>Disk nejde přečíst</strong> ({{ disk.io_error }}). Nejspíš byl vyměněn a kontejner pořád vidí ten předchozí —
+        restartuj kontejner.
+      {% endcall %}
+      {% elif disk.mounted %}
       <div class="disk-facts">
         <div>
           <strong>Připojený disk</strong> <span class="text-sm text-muted mono">{{ disk.path }}</span><br>
