@@ -6,9 +6,11 @@ from fastapi.responses import HTMLResponse
 
 from app.transfer.window import get_refresh_time, get_window, refresh_label
 from app.apps.pairs import db as pairs_db
+from app.apps.pairs import disk_jobs
 from app.apps.pairs.state import load_overview
 from app.common import page_ctx, redirect, safe_next
 from app.scan.runner import runner
+from app.transfer import disk
 from app.transfer.runner import transfer_runner
 from app.templates_engine import templates
 
@@ -18,10 +20,16 @@ router = APIRouter(tags=["overview"])
 def _render(request: Request):
     ov = load_overview()
     template = "overview/_table.html" if request.headers.get("HX-Request") else "overview/index.html"
+    running = transfer_runner.disk_running()
+    ready = disk_jobs.ready_pairs(ov)
     return templates.TemplateResponse(request, template, page_ctx(
         request, current_tab="overview", ov=ov, window=get_window(),
         refresh_time=refresh_label(get_refresh_time()),
         disk_queue={p["id"]: n for n, p in enumerate(pairs_db.disk_queue(), 1)},
+        disk_available=disk.disk_info()["mounted"],
+        disk_running_id=running.pair_id if running else None,
+        disk_all={"pairs": len(ready), "files": sum(len(st.plan.selected) for st in ready),
+                  "bytes": sum(i.src.size for st in ready for i in st.plan.selected)},
     ))
 
 
@@ -35,6 +43,17 @@ def refresh_all():
     for pair in pairs_db.list_pairs():
         runner.start_pair(pair["id"])
     return redirect("/", "scan_all_started")
+
+
+@router.post("/prenest-vse-na-disk")
+def disk_all():
+    """Vše přenést na disk: všechny zahrnuté páry s něčím v Kopírovat do fronty, jeden po druhém."""
+    problem = disk.clean_problem()                  # disk připojený, zapisovatelný, čitelný…
+    if problem:
+        return redirect("/", problem)
+    if not disk_jobs.enqueue_all():
+        return redirect("/", "disk_all_nothing")
+    return redirect("/", "disk_all_queued")
 
 
 @router.post("/pary/{pair_id:int}/aktualizovat")

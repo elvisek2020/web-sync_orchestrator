@@ -10,6 +10,13 @@
   </div>
   {% if ov.pairs %}
   <div class="page-header-actions">
+    {% if disk_available %}
+    <form method="post" action="/prenest-vse-na-disk"
+          data-confirm="Zkopírovat na disk soubory ze záložky Kopírovat u {{ disk_all.pairs|cz_plural('páru', 'párů', 'párů') }} ({{ disk_all.files|cz_plural('soubor', 'soubory', 'souborů') }}, {{ disk_all.bytes|filesize }}). Páry poběží jeden po druhém v pořadí párů; co se nevejde do volného místa na disku, zůstane v Kopírovat. Zrušení běžícího přenosu zastaví i ostatní."
+          data-confirm-title="Vše přenést na disk?" data-confirm-ok="Přenést na disk">
+      <button type="submit" class="btn btn-secondary" {% if not disk_all.pairs %}disabled title="Žádný zahrnutý pár nemá co kopírovat na disk"{% endif %}>{{ icon('hard-drive', 18) }}Vše přenést na disk</button>
+    </form>
+    {% endif %}
     <div class="refresh-all">
       <form method="post" action="/aktualizovat-vse">
         <button type="submit" class="btn btn-primary">{{ icon('refresh', 18) }}Aktualizovat vše</button>

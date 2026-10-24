@@ -25,6 +25,7 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 - **Problémy** — názvy, které exFAT neuloží (`: * ? " < > |`, koncová tečka), kolize názvů a neplatné kódování se nepřenáší ani nemažou, jen se ukážou.
 - **Přenos na disk** — aplikace zkopíruje plán páru na připojený disk sama (průběh, zrušení, navázání) a uloží tam i skript pro `to-nas`.
   Další páry jde zařadit do **fronty** — spustí se samy jeden po druhém; co se zkopíruje, se ořízne podle skutečného volného místa.
+  **Vše přenést na disk** na Přehledu zařadí všechny zahrnuté páry s něčím v *Kopírovat* najednou.
 - **Na disku** — zkopírované soubory se přesunou do záložky *Na disku* a Kopírovat se přepočítá na další várku; disky jde
   střídat a plnit postupně bez duplicit. Záložku vyprázdní Aktualizovat (nový sken NAS2), případně ručně tlačítko.
 - **Vyčistit disk** — smaže celý obsah disku před dalším kolem, volitelně rovnou přeskenuje páry s daty k přenosu.
@@ -51,7 +52,8 @@ Aplikace běží jednou, u NAS1 (NAS1 je v kontejneru připojený pro čtení, N
 
 1. **Přehled → Aktualizovat vše** (nebo *Aktualizovat* u jednoho páru) a počkat na dokončení skenů.
 2. Zkontrolovat čísla u párů, případně v **detailu páru** odškrtnout, co se přenášet nemá. Ve **Volbách páru** (detail páru) volbou *Zahrnout do přenosu* určit, které páry se tentokrát vezou na disku.
-3. V detailu páru **Přenos na disk** (disk připojený k NAS1 a do kontejneru jako `DISK_PATH`, viz Deployment).
+3. **Přenos na disk** u páru (na Přehledu nebo v detailu), nebo **Přehled → Vše přenést na disk** pro všechny zahrnuté
+   páry s něčím v *Kopírovat* najednou (disk připojený k NAS1 a do kontejneru jako `DISK_PATH`, viz Deployment).
    Aplikace zkopíruje soubory ze záložky *Kopírovat* do `<kořen disku>/<pár>/` a do kořene disku uloží skript
    `sync_<pár>.sh` s manifestem `.sync-plan` — obsahují všechny soubory páru, které na tomto disku leží.
    Panel ukazuje průběh jako u přímého přenosu; přenos jde zrušit a příště naváže.
@@ -318,6 +320,7 @@ Aplikace na `http://localhost:8090`, falešný NAS2: host `nas2`, port `2222`, u
 - ✅ **Záložka Na disku** — disky jde střídat a plnit po várkách bez duplicit, srovná Aktualizovat
 - ✅ **Přenos na disk z aplikace** místo kroku `to-disk` — průběh, zrušení, navázání, skript a `.sync-plan` na disku
 - ✅ **Fronta přenosu na disk** — další páry čekají a spustí se samy po sobě, výběr podle skutečného volného místa
+- ✅ **Vše přenést na disk** na Přehledu (všechny zahrnuté páry jeden po druhém); Přenos na disk je hlavní tlačítko páru na Přehledu
 - ✅ **Přímý přenos NAS → NAS** přes SFTP pro menší objemy a mazání přebývajících (průběh, rychlost, odhad času, navázání)
 - ✅ **Výsledky přenosů po souborech** (velikost, rychlost, stav), řazení seznamů podle cesty a velikosti, stránkování po 50
 - ✅ **Minimální rychlost přímého přenosu** s nastavitelným rozjezdem; pomalý přenos se po dokončení souboru zastaví

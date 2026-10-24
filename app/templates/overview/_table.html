@@ -114,7 +114,25 @@
           </form>
           {% endif %}
           {% if plan and pair.on_disk %}
-          <a href="/pary/{{ pair.id }}/skript" class="btn btn-primary btn-sm" download>{{ icon('download', 16) }}Stáhnout skript</a>
+          {% if disk_available and not st.transferring %}
+          {% set queued = disk_queue.get(pair.id) %}
+          {% set to_queue = disk_running_id or disk_queue %}
+          <form method="post" action="/pary/{{ pair.id }}/prenos-na-disk"
+                {% if to_queue -%}
+                data-confirm="Na disk se právě kopíruje jiný pár nebo už čekají jiné páry. {{ pair.name }} se zařadí do fronty a přenos na disk se spustí sám, jakmile se disk uvolní. Kolik souborů se zkopíruje, se spočítá až při spuštění podle volného místa na disku."
+                data-confirm-title="Zařadit do fronty?" data-confirm-ok="Zařadit do fronty"
+                {%- else -%}
+                data-confirm="Zkopírovat {{ plan.selected|length|cz_plural('soubor', 'soubory', 'souborů') }} ({{ plan.selected|sum(attribute='src.size')|filesize }}) páru {{ pair.name }} na disk. Na disk se uloží i skript pro krok to-nas na NAS2. Přenos běží na pozadí a jde kdykoli zrušit; při dalším spuštění naváže."
+                data-confirm-title="Spustit přenos na disk?" data-confirm-ok="Kopírovat na disk"
+                {%- endif %}>
+            <input type="hidden" name="next" value="/">
+            <button type="submit" class="btn {{ 'btn-primary' if plan.selected and not queued else 'btn-outline' }} btn-sm" {% if not plan.selected or st.busy or queued %}disabled{% endif %}
+                    title="{% if queued %}Pár čeká ve frontě přenosu na disk{% elif not plan.selected %}Na disk není co kopírovat{% else %}Zkopírovat soubory ze záložky Kopírovat na připojený disk{% endif %}">
+              {{ icon('hard-drive', 16) }}{% if queued %}Ve frontě ({{ queued }}.){% else %}Přenos na disk{% endif %}
+            </button>
+          </form>
+          {% endif %}
+          <a href="/pary/{{ pair.id }}/skript" class="btn btn-outline btn-sm" download>{{ icon('download', 16) }}Stáhnout skript</a>
           {% endif %}
         </div>
       </div>

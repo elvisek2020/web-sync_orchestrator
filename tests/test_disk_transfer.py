@@ -446,3 +446,33 @@ def test_swapped_disk_with_io_error_does_not_break_pages(temp_db, disk_root, mon
         r = client.post(f"/pary/{st.pair['id']}/prenos-na-disk", follow_redirects=False)
         assert "disk_io_error" in r.headers["location"]
         assert "disk_io_error" in client.post("/nastaveni/disk/vycistit", follow_redirects=False).headers["location"]
+
+
+def test_overview_disk_buttons_and_transfer_all(temp_db, disk_root):
+    root = temp_db
+    write_file(root, "src/a.mkv", b"a")
+    write_file(root, "src/b.mkv", b"bb")
+    a, b = _pair(root, "A"), _pair(root, "B")
+    pairs_db.set_on_disk(b.pair["id"], False)                                 # B se na disk nevozí
+    with TestClient(app) as client:
+        page = client.get("/").text
+        assert "Vše přenést na disk?" in page and "u 1 páru (2 soubory" in page
+        assert f'action="/pary/{a.pair["id"]}/prenos-na-disk"' in page             # přenos na disk přímo z Přehledu
+        r = client.post(f"/pary/{a.pair['id']}/prenos-na-disk", data={"next": "/"}, follow_redirects=False)
+        assert r.headers["location"].startswith("/?msg=disk_started")
+        wait_for_transfer()
+        assert "disk_all_nothing" in client.post("/prenest-vse-na-disk", follow_redirects=False).headers["location"]
+
+        pairs_db.set_on_disk(b.pair["id"], True)
+        pairs_db.clear_ondisk(a.pair["id"])                                     # A znovu v Kopírovat (bez skenu)
+        assert "u 2 párů" in client.get("/").text
+        r = client.post("/prenest-vse-na-disk", follow_redirects=False)
+        assert "disk_all_queued" in r.headers["location"]
+        for _ in range(2):                                                    # A hned, B po něm z fronty
+            wait_for_transfer()
+            from app.transfer.scheduler import scheduler
+            scheduler.disk_tick()
+        wait_for_transfer()
+    assert (disk_root / b.pair["slug"] / "b.mkv").read_bytes() == b"bb"
+    assert pairs_db.disk_queue() == []
+    assert not load_overview().get(b.pair["id"]).plan.selected

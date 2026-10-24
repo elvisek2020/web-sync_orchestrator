@@ -39,6 +39,8 @@ FLASH_MESSAGES = {
     "disk_nothing": ("error", "Na disk není co kopírovat."),
     "disk_busy": ("error", "Na disk se právě kopíruje jiný pár — počkej na dokončení."),
     "disk_queued": ("success", "Pár zařazen do fronty — přenos na disk se spustí sám, jakmile se disk uvolní."),
+    "disk_all_queued": ("success", "Přenos na disk spuštěn — páry s daty k přenosu poběží jeden po druhém."),
+    "disk_all_nothing": ("info", "Žádný zahrnutý pár nemá co kopírovat na disk."),
     "disk_unqueued": ("info", "Pár vyřazen z fronty přenosu na disk."),
     "disk_not_mounted": ("error", "Disk není do kontejneru připojený (DISK_PATH) — přenos na disk nejde spustit."),
     "disk_io_error": ("error", "Disk nejde přečíst (chyba vstupu/výstupu) — nejspíš byl vyměněn a kontejner pořád "

@@ -78,6 +78,24 @@ def start(st: PairState) -> str:
     return "disk_started" if started else "disk_busy"
 
 
+def ready_pairs(overview) -> list[PairState]:
+    """Páry, které má „Vše přenést na disk“ zařadit: zahrnuté do přenosu, s něčím v Kopírovat,
+    nepřenášejí se a ještě nečekají ve frontě (v pořadí párů)."""
+    return [st for st in overview.pairs
+            if st.plan and st.plan.on_disk and st.plan.selected and not st.transferring
+            and not st.pair["disk_queued"]]
+
+
+def enqueue_all() -> int:
+    """Zařadí do fronty všechny připravené páry (v pořadí párů) a hned spustí první. Vrátí počet zařazených."""
+    pairs = ready_pairs(load_overview())
+    for st in pairs:
+        pairs_db.set_disk_queued(st.pair["id"], True)
+    if pairs:
+        start_next()
+    return len(pairs)
+
+
 def start_next() -> int | None:
     """Spustí další pár z fronty, je-li disk volný. Vrátí id páru, který se spustil.
 

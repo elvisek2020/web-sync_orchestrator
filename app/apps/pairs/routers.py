@@ -11,7 +11,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from app import db
-from app.common import page_ctx, redirect
+from app.common import page_ctx, redirect, safe_next
 from app.core.excludes import parse_patterns
 from app.core.plan import Item, PairPlan
 from app.core.script import script_filename
@@ -251,22 +251,23 @@ def unschedule_direct(pair_id: int):
 # --- přenos na disk (místo kroku to-disk skriptu) ---
 
 @router.post("/pary/{pair_id:int}/prenos-na-disk")
-def start_disk(pair_id: int):
+def start_disk(pair_id: int, next: str = Form("")):
     """Spustí přenos na disk; když se na disk kopíruje jiný pár (nebo jiné páry čekají), zařadí pár do fronty."""
+    back = safe_next(next, f"/pary/{pair_id}")
     st = _load_state(pair_id)
     if not st or not st.plan:
-        return redirect(f"/pary/{pair_id}", "no_plan")
+        return redirect(back, "no_plan")
     if not st.plan.on_disk:
-        return redirect(f"/pary/{pair_id}", "not_on_disk")
+        return redirect(back, "not_on_disk")
     if st.transferring:
-        return redirect(f"/pary/{pair_id}", "transfer_busy")
+        return redirect(back, "transfer_busy")
     if not st.plan.selected:
-        return redirect(f"/pary/{pair_id}", "disk_nothing")
+        return redirect(back, "disk_nothing")
     if transfer_runner.disk_running() or any(p["id"] != pair_id for p in pairs_db.disk_queue()):
         pairs_db.set_disk_queued(pair_id, True)
         scheduler.wake()
-        return redirect(f"/pary/{pair_id}", "disk_queued")
-    return redirect(f"/pary/{pair_id}", disk_jobs.start(st))
+        return redirect(back, "disk_queued")
+    return redirect(back, disk_jobs.start(st))
 
 
 @router.get("/pary/{pair_id:int}/prenos-na-disk/fronta")
