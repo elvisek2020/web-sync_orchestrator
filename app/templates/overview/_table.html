@@ -113,8 +113,7 @@
             <button type="submit" class="btn btn-outline btn-sm">{{ icon('refresh', 16) }}Aktualizovat</button>
           </form>
           {% endif %}
-          {% if plan and pair.on_disk %}
-          {% if disk_available and not st.transferring %}
+          {% if plan and pair.on_disk and disk_available and not st.transferring %}
           {% set queued = disk_queue.get(pair.id) %}
           {% set to_queue = disk_running_id or disk_queue %}
           <form method="post" action="/pary/{{ pair.id }}/prenos-na-disk"
@@ -131,8 +130,6 @@
               {{ icon('hard-drive', 16) }}{% if queued %}Ve frontě ({{ queued }}.){% else %}Přenos na disk{% endif %}
             </button>
           </form>
-          {% endif %}
-          <a href="/pary/{{ pair.id }}/skript" class="btn btn-outline btn-sm" download>{{ icon('download', 16) }}Stáhnout skript</a>
           {% endif %}
         </div>
       </div>

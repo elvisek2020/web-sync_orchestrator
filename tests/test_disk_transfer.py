@@ -458,6 +458,7 @@ def test_overview_disk_buttons_and_transfer_all(temp_db, disk_root):
         page = client.get("/").text
         assert "Vše přenést na disk?" in page and "u 1 páru (2 soubory" in page
         assert f'action="/pary/{a.pair["id"]}/prenos-na-disk"' in page             # přenos na disk přímo z Přehledu
+        assert "Stáhnout skript" not in page                                  # skript jen v detailu páru
         r = client.post(f"/pary/{a.pair['id']}/prenos-na-disk", data={"next": "/"}, follow_redirects=False)
         assert r.headers["location"].startswith("/?msg=disk_started")
         wait_for_transfer()
